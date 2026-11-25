@@ -77,4 +77,63 @@ struct WebSocketTests {
             #expect(throws: WebSocketDecoder.DecodeError.tooLarge) { try decoder.append(frame) }
         }
     }
+
+    // MARK: Control frames, reserved bits, scale
+
+    @Test func rejectsAControlFrameOver125Bytes() {
+        var decoder = WebSocketDecoder()
+        #expect(throws: WebSocketDecoder.DecodeError.badControlFrame) {
+            try decoder.append(clientFrame(0x9, Array(repeating: 7, count: 126)))
+        }
+    }
+
+    @Test func rejectsANonFinalControlFrame() {
+        var decoder = WebSocketDecoder()
+        var frame = clientFrame(0x9, [1])
+        frame[0] = 0x09
+        #expect(throws: WebSocketDecoder.DecodeError.badControlFrame) { try decoder.append(frame) }
+    }
+
+    @Test func rejectsReservedBits() {
+        for bit in [UInt8(0x40), 0x20, 0x10] {
+            var decoder = WebSocketDecoder()
+            var frame = clientFrame(0x1, [0x41])
+            frame[0] |= bit
+            #expect(throws: WebSocketDecoder.DecodeError.reservedBits) { try decoder.append(frame) }
+        }
+    }
+
+    @Test func rejectsReservedOpcodes() {
+        for opcode in [UInt8(0x3), 0x7, 0xB, 0xF] {
+            var decoder = WebSocketDecoder()
+            #expect(throws: WebSocketDecoder.DecodeError.reservedOpcode) { try decoder.append(clientFrame(opcode, [])) }
+        }
+    }
+
+    @Test func decodesTenThousandSmallFramesInOneRead() throws {
+        var decoder = WebSocketDecoder()
+        var data = Data()
+        for index in 0..<10_000 { data += clientFrame(0x1, Array("m\(index)".utf8)) }
+        let frames = try decoder.append(data)
+        #expect(frames.count == 10_000)
+        #expect(frames.last?.text == "m9999")
+    }
+
+    @Test func decodesAnEightByteLengthFrameOf65536Bytes() throws {
+        var decoder = WebSocketDecoder()
+        let mask: [UInt8] = [1, 2, 3, 4]
+        let payload = [UInt8](repeating: 0x5a, count: 65_536)
+        var frame: [UInt8] = [0x81, 0x80 | 127, 0, 0, 0, 0, 0, 1, 0, 0] + mask
+        frame += payload.enumerated().map { $0.element ^ mask[$0.offset % 4] }
+        let frames = try decoder.append(Data(frame))
+        #expect(frames.count == 1)
+        #expect(frames[0].payload == Data(payload))
+    }
+
+    @Test func decodesCloseAndPing() throws {
+        var decoder = WebSocketDecoder()
+        let frames = try decoder.append(clientFrame(0x9, [1]) + clientFrame(0x8, [0x03, 0xe8]))
+        #expect(frames.map(\.opcode) == [0x9, 0x8])
+        #expect(frames[1].payload == Data([0x03, 0xe8]))
+    }
 }

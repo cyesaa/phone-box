@@ -104,4 +104,9 @@ struct SessionTests {
         #expect(again.receive(authMessage(again, key: key), key: key, commandsAllowed: true, now: now)
             == .close(code: 1008, reason: "already authenticated"))
     }
+
+    @Test func authTimeoutHasItsOwnCloseCode() {
+        #expect(Session.authTimeoutCode == 4003)
+        #expect(Session.authTimeoutCode != Session.authFailedCode)
+    }
 }

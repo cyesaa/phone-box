@@ -59,12 +59,13 @@ public enum WebSocketCodec {
 }
 
 /// Turns the bytes a browser sends into frames. Browsers always mask their frames; an unmasked or
-/// fragmented frame, or one over 64 KB, is a protocol error and the connection is closed.
+/// fragmented frame, one over 64 KB, a malformed control frame, reserved bits or a reserved opcode is a
+/// protocol error and the connection is closed.
 public struct WebSocketDecoder: Sendable {
     public static let maxPayload = 65_536
 
     public enum DecodeError: Error, Equatable, Sendable {
-        case unmasked, fragmented, tooLarge
+        case unmasked, fragmented, tooLarge, badControlFrame, reservedBits, reservedOpcode
     }
 
     private var buffer: [UInt8] = []
@@ -74,31 +75,43 @@ public struct WebSocketDecoder: Sendable {
     public mutating func append(_ data: Data) throws -> [WebSocketFrame] {
         buffer.append(contentsOf: data)
         var frames: [WebSocketFrame] = []
-        while buffer.count >= 2 {
-            let final = buffer[0] & 0x80 != 0
-            let opcode = buffer[0] & 0x0f
-            guard buffer[1] & 0x80 != 0 else { throw DecodeError.unmasked }
-            var length = Int(buffer[1] & 0x7f)
+        var read = 0
+        // One compaction at the end keeps this linear in the bytes appended, also when the frames come in the
+        // thousands (and when an error is thrown, the connection is closed anyway).
+        defer { if read > 0 { buffer.removeFirst(read) } }
+        while buffer.count - read >= 2 {
+            let first = buffer[read]
+            let second = buffer[read + 1]
+            let final = first & 0x80 != 0
+            let opcode = first & 0x0f
+            guard first & 0x70 == 0 else { throw DecodeError.reservedBits }
+            guard (0x3...0x7).contains(opcode) == false, opcode < 0xB else { throw DecodeError.reservedOpcode }
+            guard second & 0x80 != 0 else { throw DecodeError.unmasked }
+            let isControl = opcode >= 0x8
+            if isControl {
+                guard final, second & 0x7f <= 125 else { throw DecodeError.badControlFrame }
+            }
+            var length = Int(second & 0x7f)
             var offset = 2
             if length == 126 {
-                guard buffer.count >= 4 else { break }
-                length = Int(buffer[2]) << 8 | Int(buffer[3])
+                guard buffer.count - read >= 4 else { break }
+                length = Int(buffer[read + 2]) << 8 | Int(buffer[read + 3])
                 offset = 4
             } else if length == 127 {
-                guard buffer.count >= 10 else { break }
-                guard buffer[2] & 0x80 == 0 else { throw DecodeError.tooLarge }
-                length = buffer[2..<10].reduce(0) { $0 << 8 | Int($1) }
+                guard buffer.count - read >= 10 else { break }
+                guard buffer[read + 2] & 0x80 == 0 else { throw DecodeError.tooLarge }
+                length = buffer[(read + 2)..<(read + 10)].reduce(0) { $0 << 8 | Int($1) }
                 offset = 10
             }
             guard length >= 0, length <= Self.maxPayload else { throw DecodeError.tooLarge }
             guard final, opcode != WebSocketOpcode.continuation.rawValue else { throw DecodeError.fragmented }
-            guard buffer.count >= offset + 4 + length else { break }
-            let mask = Array(buffer[offset..<(offset + 4)])
-            let start = offset + 4
+            guard buffer.count - read >= offset + 4 + length else { break }
+            let maskStart = read + offset
+            let start = maskStart + 4
             var payload = Array(buffer[start..<(start + length)])
-            for index in payload.indices { payload[index] ^= mask[index % 4] }
+            for index in payload.indices { payload[index] ^= buffer[maskStart + index % 4] }
             frames.append(WebSocketFrame(opcode: opcode, payload: Data(payload)))
-            buffer.removeFirst(start + length)
+            read = start + length
         }
         return frames
     }

@@ -4,6 +4,8 @@ import Foundation
 /// increasing sequence numbers and the rate limit. Pure, so every rule is unit-tested.
 public struct Session: Sendable {
     public static let authFailedCode: UInt16 = 4001
+    /// No auth message within the timeout: the page retries instead of reporting a wrong key.
+    public static let authTimeoutCode: UInt16 = 4003
     public static let policyViolationCode: UInt16 = 1008
     public static let maxCommandsPerSecond = 10
 
