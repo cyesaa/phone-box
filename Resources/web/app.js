@@ -34,6 +34,7 @@
   global.addEventListener("resize", () => {
     view.renderGraph(history);
     view.renderApps();
+    view.fitTiles();
   });
   global.addEventListener("hashchange", () => global.location.reload());
   view.renderApps();
@@ -47,7 +48,10 @@
   }
 
   const connection = new PB.Connection(key, {
-    onState: (kind) => view.setState(kind),
+    onState: (kind) => {
+      if (kind === "unpaired") PB.ui.hideStart();
+      view.setState(kind);
+    },
     onStale: (stale) => view.setStale(stale),
     onReady: (ready) => view.setHost(ready.host),
     onAccess: (access) => view.setAccess(access),

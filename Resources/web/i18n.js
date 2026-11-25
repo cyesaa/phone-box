@@ -50,6 +50,7 @@
       copied: "Kopyalandı",
       guide3Title: "Telefonu yan çevir",
       guide3Text: "Yatayda bütün değerler bir arada görünür; bir stand önerilir.",
+      guideAudioNote: "Bu tarayıcı telefondaki müziği koruyamıyor: ekranı açık tutan sessiz video çalan müziği durdurabilir.",
       close: "Kapat",
     },
     en: {
@@ -99,6 +100,7 @@
       copied: "Copied",
       guide3Title: "Turn the phone sideways",
       guide3Text: "In landscape every value fits on one screen; a stand helps.",
+      guideAudioNote: "This browser cannot protect the phone's music: the silent video that keeps the screen on may pause it.",
       close: "Close",
     },
   };

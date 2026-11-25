@@ -60,7 +60,10 @@
       case "temp": return temp ? format.celsius(temp.avg) : format.dash;
       case "power": return power ? format.watts(power.system ?? power.gpu) : format.dash;
       case "net": return net ? `↓${format.speedShort(net.rx)} ↑${format.speedShort(net.tx)}` : format.dash;
-      case "disk": return disk ? format.gigabytes(disk.free) + " GB" : format.dash;
+      case "disk": {
+        const free = disk ? format.gigabytes(disk.free) : format.dash;
+        return free === format.dash ? free : free + " GB";
+      }
       case "battery": return battery ? format.percent(battery.percent) + (battery.charging ? " ⚡" : "") : format.dash;
       default: return format.dash;
     }

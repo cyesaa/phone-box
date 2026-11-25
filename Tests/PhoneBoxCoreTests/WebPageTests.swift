@@ -107,11 +107,13 @@ struct WebPageTests {
               var h = new PhoneBox.History(3);
               h.push(1000, { cpu: 1 }); h.push(2000, { cpu: 2 }); h.push(5000, { cpu: 5 });
               var kept = h.series("cpu").join("|");
-              h.push(1000000, { cpu: 9 });
-              return kept + " / " + h.series("cpu").join("|");
+              h.push(1000, { cpu: 7 });              // the Mac's clock went back
+              var back = h.series("cpu").join("|");
+              h.push(1000 + 3601000, { cpu: 9 });    // and then far forward
+              return [kept, back, h.series("cpu").join("|")].join(" / ");
             })()
             """)
-        #expect(result == "||5 / ||9")
+        #expect(result == "||5 / ||7 / ||9")
     }
 
     @Test func keepsTheNumbersOfASnapshot() {
@@ -127,6 +129,7 @@ struct WebPageTests {
             """)
         #expect(tiles == "%17 | 46 °C | 21,9 W | ↓1,2M ↑84K | 21,6 GB | %80 ⚡")
         #expect(string(#"PhoneBox.metrics.tile("net", { t: 1 }, tr)"#) == "—")
+        #expect(string(#"PhoneBox.metrics.tile("disk", { disk: { total: 5 } }, tr)"#) == "—")
     }
 
     @Test func writesTheGraphHeader() {

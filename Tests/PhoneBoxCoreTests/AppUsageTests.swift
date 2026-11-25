@@ -28,6 +28,14 @@ struct AppUsageTests {
         #expect(AppUsage.displayName("\u{0007}\u{200E}\n ") == "")
     }
 
+    @Test func keepsJoinersThatEmojiAndScriptsNeed() {
+        let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}"
+        #expect(AppUsage.displayName("\(family) ailesi") == "\(family) ailesi")
+        #expect(AppUsage.displayName("\u{0645}\u{06CC}\u{200C}\u{062E}\u{0648}\u{0627}\u{0647}\u{0645}")
+            == "\u{0645}\u{06CC}\u{200C}\u{062E}\u{0648}\u{0627}\u{0647}\u{0645}")
+        #expect(AppUsage.displayName("\u{200E}\(family)") == family)
+    }
+
     @Test func fallsBackToTheBundleOrExecutableName() {
         #expect(AppUsage.name(app: "\u{200E} ", bundle: "/Applications/Notes.app", executable: "/x/Notes") == "Notes")
         #expect(AppUsage.name(app: nil, bundle: "/Applications/My.app.Tools.app", executable: "/x/y") == "My.app.Tools")

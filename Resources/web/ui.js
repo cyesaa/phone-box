@@ -27,7 +27,14 @@
   // Chrome does not fire visibilitychange when the phone is unlocked, and WebKit pauses media while the page is
   // hidden: restart the video every few seconds if it stopped.
   global.setInterval(() => {
-    if (started && global.document.visibilityState === "visible" && video.paused) keepAwake().catch(() => {});
+    if (!started || global.document.visibilityState !== "visible" || !video.paused) return;
+    keepAwake().catch((error) => {
+      // iOS will not restart it without a tap: ask for one, or the screen will go to sleep.
+      if (error && error.name === "NotAllowedError") {
+        started = false;
+        $("start").hidden = false;
+      }
+    });
   }, 3000);
 
   /// Resolves true once the video plays (the screen then stays on).
@@ -59,7 +66,15 @@
     const step1 = $("guide1-text");
     step1.textContent = standalone ? t.guide1Done : /CriOS/.test(global.navigator.userAgent) ? t.guide1Chrome : t.guide1Safari;
     step1.classList.toggle("done", standalone);
-    $("guide-link").value = global.location.href;
+    // The personal link from the stored key, not the address bar (the page may have been opened without #k=).
+    let link = "";
+    try {
+      const key = global.localStorage.getItem("phonebox-key");
+      if (key) link = `${global.location.origin}/#k=${key}`;
+    } catch (error) {}
+    $("guide-link").value = link;
+    $("guide-link-row").hidden = !link;
+    $("guide-audio").hidden = Boolean(global.navigator.audioSession);
     $("guide-copy").textContent = t.copy;
     $("guide-done").textContent = started ? t.close : t.start;
     $("guide").hidden = false;
@@ -125,8 +140,9 @@
   let step = 0;
   global.setInterval(() => {
     step = (step + 1) % offsets.length;
-    $("dashboard").style.setProperty("--dx", offsets[step][0] + "px");
-    $("dashboard").style.setProperty("--dy", offsets[step][1] + "px");
+    // On the root, so the state card moves with the dashboard.
+    global.document.documentElement.style.setProperty("--dx", offsets[step][0] + "px");
+    global.document.documentElement.style.setProperty("--dy", offsets[step][1] + "px");
   }, 180000);
 
   /// The first visit gets the guide (its button starts the screen keeping); later visits the Start screen. A page
@@ -139,5 +155,10 @@
   }
 
   global.PhoneBox = global.PhoneBox || {};
-  global.PhoneBox.ui = { setup, openGuide, closeMenu, isStarted: () => started };
+  /// A wrong key: the page is dead, so it must not ask for a tap that keeps the screen on.
+  function hideStart() {
+    $("start").hidden = true;
+  }
+
+  global.PhoneBox.ui = { setup, openGuide, closeMenu, hideStart, isStarted: () => started };
 })(typeof window !== "undefined" ? window : globalThis);

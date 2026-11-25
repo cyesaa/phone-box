@@ -35,8 +35,10 @@
   const deadAfter = 5000;
   /// Not streaming (e.g. on Wi-Fi in cable mode): reconnect this often so the phone moves to the cable by itself.
   const recheckAfter = 10000;
-  /// iOS can leave an attempt to an unreachable Mac (asleep, Wi-Fi changed) "connecting" for tens of seconds.
-  const connectTimeout = 5000;
+  /// A socket that has not finished authenticating by then is given up and counts as a failed attempt: iOS can leave
+  /// an attempt to an unreachable Mac (asleep, Wi-Fi changed) "connecting" for tens of seconds, and a socket can open
+  /// without the Mac ever answering. (The Mac itself closes an unauthenticated socket after 5 s with 4003.)
+  const readyTimeout = 6000;
 
   /// handlers: onState(kind) with kind "connecting" | "streaming" | "cable" | "offline" | "unpaired" | "nodata";
   /// onStale(stale); onReady({host, mode, access}); onAccess(access); onSnapshot(snapshot); onAck(ack).
@@ -56,6 +58,8 @@
       this.nextAttemptAt = 0;
       this.stale = true;
       this.state = null;
+      /// This socket finished authentication (`ready` arrived); only then may the page send its own messages.
+      this.ready = false;
     }
 
     /// Tells the page what to show and remembers it.
@@ -70,8 +74,14 @@
       this.connect();
     }
 
-    /// True when the message went out on an open socket.
+    /// For the page's own messages (Plan 4B's commands): only on an authenticated socket. A command sent before
+    /// `auth` would make the Mac close with 4001, which the page must treat as a wrong key.
     send(message) {
+      return this.ready && this.transmit(message);
+    }
+
+    /// True when the message went out on an open socket.
+    transmit(message) {
       if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return false;
       this.socket.send(JSON.stringify(message));
       return true;
@@ -104,10 +114,13 @@
     connect() {
       if (this.stopped || !this.visible()) return;
       if (this.socket && this.socket.readyState <= WebSocket.OPEN) return;
-      // A reconnect while the page shows "plug in the cable" or "no data" keeps that card instead of flashing it.
-      if (!this.lastSnapshotAt && this.state !== "cable" && this.state !== "nodata") this.emit("connecting");
+      // Only the very first attempt says "connecting" here; after that `closed()` decides, so the cable, no-data and
+      // offline cards stay up while the page retries instead of flashing.
+      if (this.state === null) this.emit("connecting");
       const socket = new WebSocket(`ws://${global.location.host}/ws`);
       this.socket = socket;
+      this.ready = false;
+      this.access = null;
       this.lastMessageAt = Date.now();
       this.openedAt = Date.now();
       socket.onmessage = (event) => {
@@ -131,7 +144,10 @@
     }
 
     closed(socket, code) {
-      if (this.socket === socket) this.socket = null;
+      if (this.socket === socket) {
+        this.socket = null;
+        this.ready = false;
+      }
       this.setStale(true);
       if (code === 4001) {
         // Wrong key or a pairing reset: retrying cannot help.
@@ -159,16 +175,19 @@
     replaceIfDead() {
       if (!this.visible()) return;
       const socket = this.socket;
-      if (socket && socket.readyState === WebSocket.CONNECTING && Date.now() - this.openedAt > connectTimeout) {
-        socket.onmessage = null;
-        socket.onclose = null;
-        try {
-          socket.close();
-        } catch (error) {}
-        this.closed(socket, 1006);
+      if (!socket) return;
+      if (!this.ready) {
+        if (socket.readyState <= WebSocket.OPEN && Date.now() - this.openedAt > readyTimeout) {
+          socket.onmessage = null;
+          socket.onclose = null;
+          try {
+            socket.close();
+          } catch (error) {}
+          this.closed(socket, 1006);
+        }
         return;
       }
-      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      if (socket.readyState !== WebSocket.OPEN) return;
       if (!(this.access && this.access.streaming)) {
         if (this.access && Date.now() - this.accessSetAt >= recheckAfter) this.replace();
         return;
@@ -187,6 +206,7 @@
         } catch (error) {}
       }
       this.socket = null;
+      this.ready = false;
       this.setStale(true);
       this.nextAttemptAt = 0;
       this.connect();
@@ -196,9 +216,10 @@
       switch (message.type) {
         case "hello":
           this.nonce = message.nonce;
-          this.send({ v: 1, type: "auth", mac: global.PBCrypto.hmacHex(this.key, "auth:" + message.nonce) });
+          this.transmit({ v: 1, type: "auth", mac: global.PBCrypto.hmacHex(this.key, "auth:" + message.nonce) });
           break;
         case "ready":
+          this.ready = true;
           this.retries = 0;
           if (this.handlers.onReady) this.handlers.onReady(message);
           this.applyAccess(message.access);

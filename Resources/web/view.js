@@ -95,7 +95,9 @@
       this.ring("ram", memoryOK ? (mem.used / mem.total) * 100 : null,
                 memoryOK ? t.memory(f.gibibytes(mem.used), f.gibibytes(mem.total)) : "");
       for (const metric of ["gpu", "temp", "power", "net", "disk", "battery"]) {
-        $(metric + "-tile").textContent = metrics().tile(metric, snapshot, f);
+        const tile = $(metric + "-tile");
+        tile.textContent = metrics().tile(metric, snapshot, f);
+        this.fit(tile);
       }
       this.renderHeader();
       const playingBefore = !$("now-playing").hidden;
@@ -103,6 +105,20 @@
       if (snapshot.apps) this.apps = snapshot.apps;
       // A new app list arrives every 3 s; the card appearing or going changes how many rows fit.
       if (snapshot.apps || playingBefore !== !$("now-playing").hidden) this.renderApps();
+    }
+
+    // A long value (busy network, a disk over 1 TB) gets a smaller font instead of being cut off.
+    fit(element) {
+      element.style.fontSize = "";
+      let size = parseFloat(global.getComputedStyle(element).fontSize);
+      while (element.scrollWidth > element.clientWidth + 1 && size > 9) {
+        size -= 1;
+        element.style.fontSize = size + "px";
+      }
+    }
+
+    fitTiles() {
+      for (const element of global.document.querySelectorAll(".tile-value")) this.fit(element);
     }
 
     ring(metric, percent, sub) {

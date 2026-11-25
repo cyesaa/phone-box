@@ -73,7 +73,8 @@ public enum AppUsage {
     public static let maxNameLength = 80
 
     /// Cleans a name that an app or a web page chose before it reaches the phone: invisible format characters
-    /// (direction marks such as WhatsApp's leading U+200E, zero-width spaces) are removed; control characters, line
+    /// (direction marks such as WhatsApp's leading U+200E, zero-width spaces) are removed, except the zero-width
+    /// joiner and non-joiner that emoji sequences and Persian or Indic text need; control characters, line
     /// and paragraph separators and runs of white space become one space; the result is trimmed and keeps at most
     /// `maxNameLength` characters (and at most four times as many Unicode scalars, so a letter piled with combining
     /// marks stays small).
@@ -83,7 +84,7 @@ public enum AppUsage {
         for scalar in raw.unicodeScalars {
             if scalars.count >= maxNameLength * 4 { break }
             switch scalar.properties.generalCategory {
-            case .format:
+            case .format where scalar.value != 0x200C && scalar.value != 0x200D:
                 continue
             case .control, .lineSeparator, .paragraphSeparator, .spaceSeparator:
                 pendingSpace = true
