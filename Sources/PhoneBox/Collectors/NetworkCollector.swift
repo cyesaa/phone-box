@@ -9,7 +9,7 @@ final class NetworkCollector {
     static let primaryInterfaceInterval: TimeInterval = 10
     private var interface: String?
     private var primaryName: String?
-    private var primaryTime: UInt64?
+    private var primaryTime: UInt64 = 0
     private var received = CounterRate()
     private var sent = CounterRate()
 
@@ -20,7 +20,8 @@ final class NetworkCollector {
 
     func sample() -> NetworkSample? {
         let tick = DispatchTime.now().uptimeNanoseconds
-        if primaryTime == nil || Double(tick &- primaryTime!) / 1e9 >= Self.primaryInterfaceInterval {
+        // Only a found interface is kept for the interval; a failed lookup is retried next second.
+        if primaryName == nil || Double(tick &- primaryTime) / 1e9 >= Self.primaryInterfaceInterval {
             primaryName = Self.primaryInterface()
             primaryTime = tick
         }
@@ -29,7 +30,7 @@ final class NetworkCollector {
             interface = name
             reset()
         }
-        let now = Double(DispatchTime.now().uptimeNanoseconds) / 1e9
+        let now = Double(tick) / 1e9
         guard let rx = received.rate(value: counters.rx, at: now), let tx = sent.rate(value: counters.tx, at: now)
         else { return nil }
         return NetworkSample(rx: rx, tx: tx, iface: name)
