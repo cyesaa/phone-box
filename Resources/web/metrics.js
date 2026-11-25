@@ -91,7 +91,11 @@
   }
 
   function batteryDetail(battery, t) {
-    const time = (minutes) => t.duration(Math.floor(minutes / 60), minutes % 60);
+    // Whole minutes: on screen the estimate glides from one value to the next.
+    const time = (minutes) => {
+      const whole = Math.round(minutes);
+      return t.duration(Math.floor(whole / 60), whole % 60);
+    };
     if (battery.minutesLeft != null) return battery.charging ? t.untilFull(time(battery.minutesLeft)) : t.untilEmpty(time(battery.minutesLeft));
     return battery.charging ? t.charging : t.onPower;
   }

@@ -47,9 +47,21 @@
   const tasks = [];
   let running = false;
 
+  let failed = false;
+
+  // The next frame is asked for first, and each task runs on its own: one that throws must not stop every
+  // animation for good (the page would freeze while its dot still says it is live).
   function frame(now) {
-    for (const task of tasks) task(now);
     global.requestAnimationFrame(frame);
+    for (const task of tasks) {
+      try {
+        task(now);
+      } catch (error) {
+        // Once, not sixty times a second.
+        if (!failed && global.console) global.console.error(error);
+        failed = true;
+      }
+    }
   }
 
   /// Calls `task(now)` on every frame.
@@ -61,8 +73,11 @@
   }
 
   /// "Reduce Motion" is on: no shine, pulse, rolling digits or sliding rows; colours and numbers still change.
+  // Asked once; the browser keeps `matches` up to date when the setting changes.
+  const reduceMotion = global.matchMedia ? global.matchMedia("(prefers-reduced-motion: reduce)") : null;
+
   function reduced() {
-    return Boolean(global.matchMedia && global.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    return Boolean(reduceMotion && reduceMotion.matches);
   }
 
   global.PhoneBox = global.PhoneBox || {};

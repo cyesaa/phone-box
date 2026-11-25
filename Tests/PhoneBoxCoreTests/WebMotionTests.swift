@@ -107,6 +107,15 @@ struct WebMotionTests {
         #expect(result == "0,88,100,13,50 true")
     }
 
+    @Test func roundsTheBatteryTimeWhileItGlides() {
+        let detail = string("""
+            PhoneBox.metrics.header("battery", M.between({ battery: { percent: 50, charging: false, minutesLeft: 312 } },
+              { battery: { percent: 49, charging: false, minutesLeft: 305 } }, 0.37), PhoneBox.format("tr"),
+              PhoneBox.i18n.texts.tr).detail
+            """)
+        #expect(detail == "5 sa 9 dk kaldı")
+    }
+
     @Test func writesTheClockInBothLanguages() {
         #expect(string("JSON.stringify(PhoneBox.clock.parts(new Date(2026, 10, 26, 9, 5), 'tr'))") == #"{"time":"09:05","day":"26 Kas Per"}"#)
         #expect(string("JSON.stringify(PhoneBox.clock.parts(new Date(2026, 10, 26, 21, 40), 'en'))") == #"{"time":"21:40","day":"Thu, Nov 26"}"#)

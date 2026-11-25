@@ -34,7 +34,10 @@ final class Sampler {
         if running {
             resetCounters()
             primeCounters()
-            let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            // Fire half way through each second. The page files a snapshot under its whole second; a timer that
+            // fires near a second's edge drifts across it, putting two snapshots in one slot and leaving a gap.
+            let start = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down) + 1.5)
+            let timer = Timer(fire: start, interval: 1, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated { self?.tick() }
             }
             timer.tolerance = 0.1

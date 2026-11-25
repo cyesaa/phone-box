@@ -53,6 +53,7 @@
       this.poppedAt = {};
       this.clock = new (PB().clock.Clock)($("clock"));
       this.minute = null;
+      this.staleFrameAt = -Infinity;
       this.day = "";
     }
 
@@ -124,10 +125,10 @@
       if (!show) return;
       const { heat, metrics } = PB();
       const level = phone.plugged ? 0 : heat.level(this.limits.battery, phone.percent) ?? 0;
-      element.style.setProperty("--level", `${Math.max(0, Math.min(100, phone.percent))}%`);
-      element.style.setProperty("--fill", heat.css(heat.color(metrics.colors.battery, level)));
-      element.classList.toggle("charging", Boolean(phone.charging));
-      $("phone-percent").textContent = this.format.percent(phone.percent);
+      put(element, "--level", `${Math.max(0, Math.min(100, phone.percent))}%`);
+      put(element, "--fill", heat.css(heat.color(metrics.colors.battery, level)));
+      put(element, "class", phone.charging ? "phone-battery charging" : "phone-battery");
+      put($("phone-percent"), "text", this.format.percent(phone.percent));
     }
 
     renderStateCard() {
@@ -195,8 +196,14 @@
 
     /// Draws everything that moves. Sizes are read first, before any write, so the page is laid out once a frame.
     frame(now) {
+      // Stale values (the Mac asleep, the cable out, a state card) do not move: no shine or pulse that would look
+      // live, and once a second is enough for the clock.
+      if (this.stale) {
+        if (now - this.staleFrameAt < 1000) return;
+        this.staleFrameAt = now;
+      }
       const shown = this.glide.at(now) || this.snapshot;
-      const still = PB().motion.reduced();
+      const still = PB().motion.reduced() || this.stale;
       const ringSizes = {};
       for (const metric of ["cpu", "ram"]) ringSizes[metric] = this.ringButtons[metric].querySelector("canvas").clientWidth;
       const graph = $("graph");
@@ -414,7 +421,7 @@
 
       const rows = new Map();
       const items = apps.map((app) => {
-        const id = app.bundleId || `${app.name}#${app.pid}`;
+        const id = `${app.bundleId || app.name}#${app.pid}`;
         let item = this.rows.get(id);
         if (!item) {
           item = global.document.createElement("li");
