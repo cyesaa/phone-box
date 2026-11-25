@@ -72,23 +72,34 @@ extension ServerMessage: Encodable {
     }
 }
 
+extension ServerMessage {
+    /// The `ack` for a command's result.
+    public static func ack(seq: Int, result: CommandResult) -> ServerMessage {
+        switch result {
+        case .ok: return .ack(seq: seq, ok: true, error: nil)
+        case let .failed(failure): return .ack(seq: seq, ok: false, error: failure.rawValue)
+        }
+    }
+}
+
 /// Messages from the phone to the Mac.
 public enum ClientMessage: Equatable, Sendable {
     case auth(mac: String)
     /// `args` is the JSON text exactly as the phone signed it.
     case command(seq: Int, name: String, args: String, mac: String)
 
-    /// Nil for anything that is not a well-formed version 1 message.
+    /// Nil for anything that is not a well-formed version 1 message. `v` must be the integer 1 and `seq` a
+    /// positive integer: `true`, `1.0` or a negative number is not accepted (design §5).
     public static func parse(_ text: String) -> ClientMessage? {
-        guard let object = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any],
-              object["v"] as? Int == 1
+        guard let object = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any],
+              JSONValue.integer(object["v"]) == 1
         else { return nil }
         switch object["type"] as? String {
         case "auth":
             guard let mac = object["mac"] as? String else { return nil }
             return .auth(mac: mac)
         case "cmd":
-            guard let seq = object["seq"] as? Int, let name = object["name"] as? String,
+            guard let seq = JSONValue.integer(object["seq"]), seq > 0, let name = object["name"] as? String,
                   let args = object["args"] as? String, let mac = object["mac"] as? String
             else { return nil }
             return .command(seq: seq, name: name, args: args, mac: mac)

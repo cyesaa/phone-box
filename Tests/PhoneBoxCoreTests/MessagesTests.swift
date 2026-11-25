@@ -48,6 +48,12 @@ struct ServerMessageTests {
         #expect(ServerMessage.ack(seq: 5, ok: false, error: "not-allowed").json()
             == #"{"error":"not-allowed","ok":false,"seq":5,"type":"ack","v":1}"#)
     }
+
+    @Test func buildsAcksFromCommandResults() {
+        #expect(ServerMessage.ack(seq: 1, result: .ok) == .ack(seq: 1, ok: true, error: nil))
+        #expect(ServerMessage.ack(seq: 2, result: .failed(.appChanged)) == .ack(seq: 2, ok: false, error: "app-changed"))
+        #expect(ServerMessage.ack(seq: 3, result: .failed(.notAllowed)) == .ack(seq: 3, ok: false, error: "not-allowed"))
+    }
 }
 
 struct ClientMessageTests {
@@ -66,5 +72,27 @@ struct ClientMessageTests {
         #expect(ClientMessage.parse(#"{"v":1,"type":"cmd","seq":"2","name":"x","args":"{}","mac":"a"}"#) == nil)
         #expect(ClientMessage.parse("not json") == nil)
         #expect(ClientMessage.parse("[1,2]") == nil)
+    }
+
+    @Test func versionMustBeTheInteger1() {
+        #expect(ClientMessage.parse(#"{"v":true,"type":"auth","mac":"ff"}"#) == nil)
+        #expect(ClientMessage.parse(#"{"v":1.0,"type":"auth","mac":"ff"}"#) == nil)
+        #expect(ClientMessage.parse(#"{"v":"1","type":"auth","mac":"ff"}"#) == nil)
+        #expect(ClientMessage.parse(#"{"type":"auth","mac":"ff"}"#) == nil)
+    }
+
+    @Test func sequenceNumbersMustBePositiveSafeIntegers() {
+        func cmd(_ seq: String) -> ClientMessage? {
+            ClientMessage.parse(#"{"v":1,"type":"cmd","seq":\#(seq),"name":"lock","args":"{}","mac":"a"}"#)
+        }
+        #expect(cmd("1") == .command(seq: 1, name: "lock", args: "{}", mac: "a"))
+        #expect(cmd("9007199254740991") == .command(seq: 9_007_199_254_740_991, name: "lock", args: "{}", mac: "a"))
+        #expect(cmd("true") == nil)
+        #expect(cmd("2.0") == nil)
+        #expect(cmd("2.5") == nil)
+        #expect(cmd("0") == nil)
+        #expect(cmd("-3") == nil)
+        #expect(cmd("9007199254740992") == nil)
+        #expect(cmd("1e3") == nil)
     }
 }

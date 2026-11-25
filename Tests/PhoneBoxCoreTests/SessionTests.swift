@@ -53,9 +53,9 @@ struct SessionTests {
     @Test func passesSignedFreshCommands() {
         var session = authenticated()
         #expect(session.receive(commandMessage(session, seq: 1), key: key, commandsAllowed: true, now: now)
-            == .command(seq: 1, name: "mute", args: #"{"on":true}"#))
+            == .command(seq: 1, command: .mute(on: true)))
         #expect(session.receive(commandMessage(session, seq: 5), key: key, commandsAllowed: true, now: now)
-            == .command(seq: 5, name: "mute", args: #"{"on":true}"#))
+            == .command(seq: 5, command: .mute(on: true)))
     }
 
     @Test func closesOnABadSignature() {
@@ -82,7 +82,7 @@ struct SessionTests {
         var session = authenticated()
         for seq in 1...10 {
             #expect(session.receive(commandMessage(session, seq: seq), key: key, commandsAllowed: true, now: now)
-                == .command(seq: seq, name: "mute", args: #"{"on":true}"#))
+                == .command(seq: seq, command: .mute(on: true)))
         }
         #expect(session.receive(commandMessage(session, seq: 11), key: key, commandsAllowed: true, now: now)
             == .close(code: 1008, reason: "too many commands"))
@@ -94,7 +94,7 @@ struct SessionTests {
             _ = session.receive(commandMessage(session, seq: seq), key: key, commandsAllowed: true, now: now)
         }
         #expect(session.receive(commandMessage(session, seq: 11), key: key, commandsAllowed: true, now: now.addingTimeInterval(1.1))
-            == .command(seq: 11, name: "mute", args: #"{"on":true}"#))
+            == .command(seq: 11, command: .mute(on: true)))
     }
 
     @Test func closesOnJunkAndOnASecondAuth() {
@@ -103,6 +103,21 @@ struct SessionTests {
         var again = authenticated()
         #expect(again.receive(authMessage(again, key: key), key: key, commandsAllowed: true, now: now)
             == .close(code: 1008, reason: "already authenticated"))
+    }
+
+    @Test func answersUnknownOrMalformedCommandsWithUnsupported() {
+        var session = authenticated()
+        #expect(session.receive(commandMessage(session, seq: 1, name: "shutdown", args: "{}"), key: key, commandsAllowed: true, now: now)
+            == .reply(.ack(seq: 1, ok: false, error: "unsupported")))
+        #expect(session.receive(commandMessage(session, seq: 2, name: "volume", args: #"{"level":2}"#), key: key,
+                                commandsAllowed: true, now: now)
+            == .reply(.ack(seq: 2, ok: false, error: "unsupported")))
+    }
+
+    @Test func notAllowedComesBeforeParsing() {
+        var session = authenticated()
+        #expect(session.receive(commandMessage(session, seq: 1, name: "shutdown", args: "{}"), key: key, commandsAllowed: false, now: now)
+            == .reply(.ack(seq: 1, ok: false, error: "not-allowed")))
     }
 
     @Test func authTimeoutHasItsOwnCloseCode() {

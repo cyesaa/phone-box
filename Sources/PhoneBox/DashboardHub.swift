@@ -112,7 +112,7 @@ final class DashboardHub {
             connection.send(.ready(mode: mode, host: hostName, access: client.access))
             onAuthenticated?()
             changed(wasStreaming: wasStreaming)
-        case let .command(seq, _, _):
+        case let .command(seq, _):
             // Commands arrive in Plan 3; until then every signed command is answered, never run.
             connection.send(.ack(seq: seq, ok: false, error: "unsupported"))
         case let .reply(message):

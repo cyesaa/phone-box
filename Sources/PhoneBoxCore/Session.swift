@@ -27,8 +27,8 @@ public struct Session: Sendable {
     public enum Outcome: Equatable, Sendable {
         /// The phone proved it holds the key.
         case authenticated
-        /// A signed, fresh command the caller should run.
-        case command(seq: Int, name: String, args: String)
+        /// A signed, fresh, allowed and well-formed command the caller should run, then answer with an `ack`.
+        case command(seq: Int, command: Command)
         /// Send this and keep the connection.
         case reply(ServerMessage)
         /// Close the connection with this WebSocket close code.
@@ -61,8 +61,11 @@ public struct Session: Sendable {
                 return .close(code: Self.policyViolationCode, reason: "too many commands")
             }
             recentCommands.append(now)
-            guard commandsAllowed else { return .reply(.ack(seq: seq, ok: false, error: "not-allowed")) }
-            return .command(seq: seq, name: name, args: args)
+            guard commandsAllowed else { return .reply(.ack(seq: seq, result: .failed(.notAllowed))) }
+            guard let command = Command.parse(name: name, args: args) else {
+                return .reply(.ack(seq: seq, result: .failed(.unsupported)))
+            }
+            return .command(seq: seq, command: command)
         }
     }
 }
