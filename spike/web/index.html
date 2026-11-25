@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>PhoneBox Spike</title>
+<style>
+  body { margin: 0; padding: 20px; background: #000; color: #f5f5f7; font: 15px -apple-system, system-ui, sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 12px; }
+  .row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #1c1c1e; }
+  .row b { font-weight: 600; text-align: right; }
+  label { display: block; padding: 8px 0; }
+  button { margin-top: 14px; width: 100%; padding: 14px; font-size: 17px; border: 0; border-radius: 12px; background: #30d158; color: #000; font-weight: 600; }
+  #keepawake { position: fixed; right: 0; bottom: 0; width: 2px; height: 2px; opacity: 0.01; }
+  .ok { color: #30d158; } .bad { color: #ff453a; }
+</style>
+</head>
+<body>
+<h1>PhoneBox deneme</h1>
+<div class="row"><span>Anahtar</span><b id="key">—</b></div>
+<div class="row"><span>Ana ekran uygulaması</span><b id="standalone">—</b></div>
+<div class="row"><span>Bağlantı</span><b id="conn">—</b></div>
+<div class="row"><span>Bağlantı sayısı</span><b id="connects">0</b></div>
+<div class="row"><span>Son tick</span><b id="tick">—</b></div>
+<div class="row"><span>Başlayalı</span><b id="elapsed">—</b></div>
+<div class="row"><span>Son gizlenme</span><b id="hidden">—</b></div>
+<div class="row"><span>Video</span><b id="video">—</b></div>
+
+<label><input type="radio" name="variant" value="v1" checked> V1: sessiz, döngülü, sadece görüntü</label>
+<label><input type="radio" name="variant" value="v2"> V2: sessiz, döngüsüz (başa sarar), ses izli</label>
+<label><input type="radio" name="variant" value="v3"> V3: sesi açık (ses izi sessiz) — telefondaki müziği durdurabilir</label>
+<button id="start">Başlat</button>
+
+<video id="keepawake" playsinline></video>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const startedAt = Date.now();
+let started = null;
+
+// Key: from the URL fragment first, then localStorage.
+const fragmentKey = new URLSearchParams(location.hash.slice(1)).get("k");
+let storedKey = null;
+try { storedKey = localStorage.getItem("pb-key"); } catch (e) {}
+const key = fragmentKey || storedKey;
+try { if (fragmentKey) localStorage.setItem("pb-key", fragmentKey); } catch (e) {}
+$("key").textContent = key ? `${key} (${fragmentKey ? "adresten" : "localStorage'dan"})` : "yok";
+$("standalone").textContent = navigator.standalone ? "evet" : "hayır (Safari)";
+
+// Logs go to the Mac; queued while the socket is closed.
+const queue = [];
+let socket = null, connects = 0, retry = 0;
+function send(msg) {
+  const line = JSON.stringify({ type: "log", msg });
+  if (socket && socket.readyState === 1) socket.send(line); else queue.push(line);
+}
+function elapsed() {
+  const s = Math.round((Date.now() - (started || startedAt)) / 1000);
+  return `${Math.floor(s / 60)} dk ${s % 60} sn`;
+}
+function connect() {
+  if (socket && socket.readyState <= 1) return;
+  $("conn").textContent = "bağlanıyor…";
+  socket = new WebSocket(`ws://${location.host}/ws`);
+  socket.onopen = () => {
+    connects += 1; retry = 0;
+    $("conn").innerHTML = '<span class="ok">bağlı</span>';
+    $("connects").textContent = connects;
+    while (queue.length) socket.send(queue.shift());
+    send(`ws open #${connects} after ${elapsed()} key=${key ? "yes" : "no"} standalone=${!!navigator.standalone}`);
+  };
+  socket.onmessage = (event) => {
+    const message = JSON.parse(event.data);
+    if (message.type === "tick") $("tick").textContent = message.n;
+  };
+  socket.onclose = () => {
+    $("conn").innerHTML = '<span class="bad">kapalı</span>';
+    const delay = [1000, 2000, 5000][Math.min(retry, 2)];
+    retry += 1;
+    setTimeout(connect, delay);
+  };
+}
+document.addEventListener("visibilitychange", () => {
+  send(`visibility ${document.visibilityState} at ${elapsed()}`);
+  if (document.visibilityState === "hidden") $("hidden").textContent = elapsed();
+  else {
+    connect();
+    // Safari pauses media while the page is hidden; resume the keep-awake video when it comes back.
+    if (started && video.paused) video.play().then(() => send("video resumed")).catch((e) => send(`video resume failed: ${e.name}`));
+  }
+});
+window.addEventListener("pageshow", (e) => { send(`pageshow persisted=${e.persisted}`); connect(); });
+connect();
+send(`loaded: ${navigator.userAgent}`);
+
+// Keep-awake variants.
+const video = $("keepawake");
+$("start").onclick = async () => {
+  const variant = document.querySelector("input[name=variant]:checked").value;
+  video.loop = variant === "v1";
+  video.muted = variant !== "v3";
+  video.src = variant === "v1" ? "keepawake-video.mp4" : "keepawake-av.mp4";
+  video.ontimeupdate = variant === "v1" ? null : () => { if (video.currentTime > 0.5) video.currentTime = Math.random() * 0.4; };
+  try {
+    await video.play();
+    started = Date.now();
+    $("video").innerHTML = `<span class="ok">${variant} oynuyor</span>`;
+    send(`variant ${variant} playing`);
+  } catch (error) {
+    $("video").innerHTML = `<span class="bad">${error.name}</span>`;
+    send(`variant ${variant} failed: ${error.name} ${error.message}`);
+  }
+};
+video.onpause = () => send(`video paused at ${elapsed()}`);
+
+setInterval(() => {
+  $("elapsed").textContent = elapsed();
+  const s = Math.round((Date.now() - (started || startedAt)) / 1000);
+  if (s > 0 && s % 60 === 0) send(`alive ${elapsed()} visibility=${document.visibilityState} videoPaused=${video.paused}`);
+}, 1000);
+</script>
+</body>
+</html>
