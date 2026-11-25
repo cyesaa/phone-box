@@ -1,0 +1,136 @@
+import Foundation
+import PhoneBoxCore
+
+/// Keeps track of the phones connected over WebSocket (design §5): the protocol session of each, whether it
+/// came in over the iPhone's USB link, what it may do, and who gets the snapshots.
+@MainActor
+final class DashboardHub {
+    static let maxClients = 4
+    static let authTimeout: TimeInterval = 5
+    /// Close code that tells the page to reconnect at once (to come back over the cable).
+    static let reconnectCode: UInt16 = 4002
+
+    private struct Client {
+        let connection: ClientConnection
+        var session: Session
+        let onUSB: Bool
+        var access: Access
+    }
+
+    var mode: AccessMode {
+        didSet { if mode != oldValue { refreshAccess() } }
+    }
+    private var key: PairingKey
+    private let appName: String
+    private let usbInterfaces: () -> Set<String>
+    private var clients: [ObjectIdentifier: Client] = [:]
+
+    /// True while at least one phone may receive snapshots: the sampler runs only then.
+    var onStreamingChange: ((Bool) -> Void)?
+    /// Counts for the menu bar: phones receiving data, phones waiting for the cable.
+    var onClientsChange: ((_ streaming: Int, _ waitingForCable: Int) -> Void)?
+    /// A phone authenticated for the first time with this key.
+    var onAuthenticated: (() -> Void)?
+    var onConnectionClosed: ((ClientConnection) -> Void)?
+
+    init(mode: AccessMode, key: PairingKey, appName: String, usbInterfaces: @escaping () -> Set<String> = USBLinks.iPhoneInterfaceNames) {
+        self.mode = mode
+        self.key = key
+        self.appName = appName
+        self.usbInterfaces = usbInterfaces
+    }
+
+    var canAccept: Bool { clients.count < Self.maxClients }
+    private var isStreaming: Bool { clients.values.contains { $0.access.streaming } }
+
+    func opened(_ connection: ClientConnection) {
+        let onUSB = connection.interfaceName.map(usbInterfaces().contains) ?? false
+        let session = Session(nonce: Session.makeNonce())
+        clients[ObjectIdentifier(connection)] = Client(connection: connection, session: session, onUSB: onUSB, access: .unauthenticated)
+        Log.server.info("Phone connected on \(connection.interfaceName ?? "?", privacy: .public) (USB: \(onUSB))")
+        connection.send(.hello(nonce: session.nonce, app: appName))
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.authTimeout) { [weak self, weak connection] in
+            MainActor.assumeIsolated {
+                guard let self, let connection, let client = self.clients[ObjectIdentifier(connection)],
+                      !client.session.isAuthenticated
+                else { return }
+                connection.close(code: Session.authFailedCode, reason: "no auth")
+            }
+        }
+    }
+
+    func received(_ text: String, from connection: ClientConnection) {
+        let id = ObjectIdentifier(connection)
+        guard var client = clients[id] else { return }
+        let outcome = client.session.receive(text, key: key, commandsAllowed: client.access.commands, now: Date())
+        clients[id] = client
+        switch outcome {
+        case .authenticated:
+            let wasStreaming = isStreaming
+            client.access = AccessPolicy.decide(mode: mode, clientOnUSB: client.onUSB, authenticated: true)
+            clients[id] = client
+            connection.send(.ready(mode: mode, access: client.access))
+            onAuthenticated?()
+            changed(wasStreaming: wasStreaming)
+        case let .command(seq, _, _):
+            // Commands arrive in Plan 3; until then every signed command is answered, never run.
+            connection.send(.ack(seq: seq, ok: false, error: "unsupported"))
+        case let .reply(message):
+            connection.send(message)
+        case let .close(code, reason):
+            Log.server.notice("Closing a phone: \(reason, privacy: .public)")
+            connection.close(code: code, reason: reason)
+        }
+    }
+
+    func closed(_ connection: ClientConnection) {
+        let wasStreaming = isStreaming
+        if clients.removeValue(forKey: ObjectIdentifier(connection)) != nil {
+            changed(wasStreaming: wasStreaming)
+        }
+        onConnectionClosed?(connection)
+    }
+
+    func broadcast(_ snapshot: Snapshot) {
+        let message = ServerMessage.snapshot(snapshot)
+        for client in clients.values where client.access.streaming {
+            client.connection.send(message)
+        }
+    }
+
+    /// A new pairing key: every phone has to scan the new QR code.
+    func replaceKey(_ newKey: PairingKey) {
+        key = newKey
+        for client in clients.values {
+            client.connection.close(code: Session.authFailedCode, reason: "pairing reset")
+        }
+    }
+
+    /// An iPhone was just plugged in. In cable mode, phones that are connected over Wi-Fi are asked to
+    /// reconnect so that they come back over the cable.
+    func iPhonePluggedIn() {
+        guard mode == .cable, !usbInterfaces().isEmpty else { return }
+        for client in clients.values where client.session.isAuthenticated && !client.onUSB {
+            client.connection.close(code: Self.reconnectCode, reason: "use the cable")
+        }
+    }
+
+    private func refreshAccess() {
+        let wasStreaming = isStreaming
+        for (id, var client) in clients where client.session.isAuthenticated {
+            let access = AccessPolicy.decide(mode: mode, clientOnUSB: client.onUSB, authenticated: true)
+            guard access != client.access else { continue }
+            client.access = access
+            clients[id] = client
+            client.connection.send(.access(access))
+        }
+        changed(wasStreaming: wasStreaming)
+    }
+
+    private func changed(wasStreaming: Bool) {
+        if isStreaming != wasStreaming { onStreamingChange?(isStreaming) }
+        let streaming = clients.values.filter { $0.access.streaming }.count
+        let waiting = clients.values.filter { $0.access.reason == Access.notOnCable.reason }.count
+        onClientsChange?(streaming, waiting)
+    }
+}
