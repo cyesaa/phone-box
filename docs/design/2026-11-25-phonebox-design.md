@@ -121,7 +121,7 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 | Mac → telefon | `{"type":"access","streaming":bool,"commands":bool,"cable":bool,"reason":"ok"\|"not-on-cable"}` | Erişim değiştiğinde; `cable` bu bağlantının USB'den gelip gelmediği ("kablo" / "Wi-Fi") |
 | Mac → telefon | `{"type":"snapshot","t":<ms>, ...}` | Saniyede bir (bölüm 6) |
 | telefon → Mac | `{"type":"cmd","seq":n,"name":"…","args":"<JSON metni>","mac":"<HMAC(k, "cmd:"+nonce+":"+seq+":"+name+":"+args) hex>"}` | `args` bir metin; imza tam bu metin üzerinden atılır, sonra çözülür |
-| Mac → telefon | `{"type":"ack","seq":n,"ok":true}` / `{"ok":false,"error":"not-allowed"\|"bad-signature"\|"app-changed"\|"unsupported"\|"failed"}` | Her komuta cevap |
+| Mac → telefon | `{"type":"ack","seq":n,"ok":true}` / `{"ok":false,"error":"not-allowed"\|"app-changed"\|"unsupported"\|"failed"}` | Her komuta cevap |
 
 Kurallar:
 - `seq` her bağlantıda kesin olarak artmalı; artmayan `seq` reddedilir (tekrar saldırısı).
@@ -150,9 +150,10 @@ Mac'e takılı ve ona güvenen iPhone'dan gelebilir. Wi-Fi'deki telefon verileri
 Kimlik doğrulamamış bir bağlantı hiçbir durumda veri almaz. USB bağlantısı yalnızca bu Mac'e kabloyla takılı ve
 Mac'e güvenen bir iPhone'dan gelebilir; bu yüzden kablo modu gerçekten "kabloyla bağlı telefon" demektir.
 Erişim kapanınca bağlantı açık kalır. Kablo çıkınca USB üzerindeki bağlantı kopar; sayfa Wi-Fi üzerinden yeniden
-bağlanırsa kablo modunda "Kabloyu tak" görür. Kablo modunda erişimsiz bir istemci varken yeni bir USB bağlantısı
-belirirse sunucu o istemcileri 4002 koduyla kapatır; sayfa hemen yeniden bağlanır ve bu sefer USB üzerinden gelir
-(iOS'un kablo varken USB adresini seçtiği spike'ta görüldü; Wi-Fi açıkken bu sıralama elle testte doğrulanır).
+bağlanırsa kablo modunda "Kabloyu tak" görür. Bir iPhone takılınca (her iki modda) sunucu Wi-Fi'deki kimliği
+doğrulanmış istemcileri 4002 koduyla kapatır; sayfa hemen yeniden bağlanır ve takılı telefon bu sefer USB üzerinden
+gelir (iOS'un kablo varken USB adresini seçtiği spike'ta görüldü; Wi-Fi açıkken bu sıralama elle testte doğrulanır).
+"Her zaman" modunda komutlar ancak böyle açılır; takılı olmayan başka bir cihaz bir kez yeniden bağlanır.
 
 ### Yeniden bağlanma
 

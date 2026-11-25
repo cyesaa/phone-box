@@ -178,10 +178,11 @@ final class DashboardHub {
         }
     }
 
-    /// An iPhone was just plugged in. In cable mode, phones that are connected over Wi-Fi are asked to
-    /// reconnect so that they come back over the cable.
+    /// An iPhone was just plugged in. In both modes, phones that are connected over Wi-Fi are asked to reconnect so
+    /// that the plugged-in one comes back over the cable: only there does it get commands (and, in cable mode, data).
+    /// A device that is not plugged in reconnects over Wi-Fi again.
     func iPhonePluggedIn() {
-        guard mode == .cable, !usbInterfaces().isEmpty else { return }
+        guard !usbInterfaces().isEmpty else { return }
         for client in clients.values where client.session.isAuthenticated && !client.onUSB {
             client.connection.close(code: Self.reconnectCode, reason: "use the cable")
         }

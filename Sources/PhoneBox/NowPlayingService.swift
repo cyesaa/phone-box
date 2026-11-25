@@ -101,6 +101,10 @@ final class NowPlayingService {
             try process.run()
             self.process = process
         } catch {
+            // The read handler holds the process and the pipe; without this every failed start leaks both.
+            output.fileHandleForReading.readabilityHandler = nil
+            try? output.fileHandleForReading.close()
+            try? output.fileHandleForWriting.close()
             Log.app.error("Could not start the media adapter: \(error.localizedDescription, privacy: .public)")
             scheduleRestart()
         }

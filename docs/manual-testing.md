@@ -49,6 +49,10 @@ ya da `lsof -nP -iTCP:4747 -sTCP:ESTABLISHED` (`fe80:<scope>::…` adresinin sco
 - [ ] Kilitle: Mac kilit ekranına geçiyor. Ekranı kapat: ekran kararıyor.
 - [ ] Uyut: telefona önce "oldu" geliyor, Mac 1 sn sonra uyuyor; uyanınca dashboard kendiliğinden bağlanıyor.
 - [ ] Wi-Fi'deki telefon ("Her zaman" modu) veri alıyor ama her komuta `not-allowed`.
+- [ ] "Her zaman" modunda Wi-Fi'den bağlı telefon kabloya takılınca birkaç saniyede "kablo"ya geçiyor, komutlar açılıyor.
+- [ ] Kişisel Erişim Noktası açık, telefon takılı ve ikinci bir cihaz erişim noktasına bağlıyken o cihazdan
+  `curl -g "http://[fe80::<Mac'in adresi>%<arayüz>]:4747/"` bağlanamıyor (bağlanırsa erişim noktasındaki cihazlar da
+  "kablo" sayılır; o zaman bu arayüz dışlanır ya da risk §13'e yazılır).
 
 ## Henüz denenmemiş (spike 8)
 - [ ] Kestirmeler → Otomasyon → Şarj Aleti → "URL'yi Aç" (kişisel bağlantı) → "Hemen Çalıştır": kablo takılınca

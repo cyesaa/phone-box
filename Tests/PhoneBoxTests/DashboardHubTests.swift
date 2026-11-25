@@ -96,7 +96,7 @@ struct DashboardHubTests {
         #expect(phone.sent.last == .ack(seq: 1, ok: false, error: "not-allowed"))
     }
 
-    @Test func aScopedAddressOnAnotherInterfaceIsNotTheCable() {
+    @Test func anUnscopedAddressOnTheUSBLinkIsNotTheCable() {
         let hub = makeHub(mode: .always)
         let phone = FakeConnection(interfaceName: "anri1", scopedLinkLocal: false)  // IPv4 on the USB link
         hub.opened(phone)
@@ -128,6 +128,7 @@ struct DashboardHubTests {
         let phone = connect(hub, onUSB: true)
         runner.hold = true
         hub.received(command(phone, seq: 1, name: "lock", args: "{}"), from: phone)
+        #expect(runner.pending.count == 1)
         let before = phone.sent.count
         hub.closed(phone)
         runner.pending.first?(.ok)
@@ -143,6 +144,17 @@ struct DashboardHubTests {
         hub.mode = .always
         #expect(phone.sent.last == .access(.overWiFi))
         #expect(streaming == [true])
+    }
+
+    @Test func pluggingInAnIPhoneMovesWiFiPhonesToTheCableInBothModes() {
+        for mode in AccessMode.allCases {
+            let hub = makeHub(mode: mode)
+            let wifi = connect(hub, onUSB: false)
+            let cable = connect(hub, onUSB: true)
+            hub.iPhonePluggedIn()
+            #expect(wifi.closeCode == DashboardHub.reconnectCode, "\(mode)")
+            #expect(cable.closeCode == nil, "\(mode)")
+        }
     }
 
     @Test func aBadSignatureClosesTheConnection() {
