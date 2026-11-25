@@ -34,6 +34,12 @@ ya da `lsof -nP -iTCP:4747 -sTCP:ESTABLISHED` (`fe80:<scope>::…` adresinin sco
 - [ ] Mac boştayken (ekran açık, kullanıcı yok) Etkinlik Monitörü'nde PhoneBox için "App Nap: Hayır" ve telefonda
   değerler saniyede bir değişiyor.
 
+## Metrikler
+- [ ] Yeni metrik satırları ve uygulama listesi telefonda okunaklı (dikey ve yatay; taşan ya da kesilen yok).
+- [ ] Ağ satırı sayfa açılır açılmaz dolu (ilk saniyede "—" yok), değerler `netstat -ib` ile aynı büyüklükte.
+- [ ] Pildeyken (adaptör çıkık) "Güç" satırı 0 W değil, Mac'in tamamının çekişini gösteriyor.
+- [ ] Bir telefon veri alırken PhoneBox `top`'ta %1'in altında.
+
 ## Henüz denenmemiş (spike 8)
 - [ ] Kestirmeler → Otomasyon → Şarj Aleti → "URL'yi Aç" (kişisel bağlantı) → "Hemen Çalıştır": kablo takılınca
   dashboard onaysız açılıyor mu?
@@ -60,3 +66,17 @@ iPhone ile:
   sayılmadı.
 - Yapıldı, sorun bildirilmedi, ayrıntı/süre kaydedilmedi: kabloyu çıkar-tak, 1 dk kilit, müzik + 2 dk ekran açık.
 - Denenmedi: 5 kez çıkar-tak, güvenilmemiş telefon, App Nap, Kestirmeler otomasyonu.
+
+### 2026-11-25 — Plan 3A (dal `plan3a`, 4e56dfe), MacBook Pro M4 / macOS 27.2, iPhone iOS 27.0.1
+
+Mac'te (tarayıcı paneli):
+- Geçti: GPU, Sıcaklık (ort./en yüksek), Güç ("Mac'in tamamı", `SystemLoad`), Ağ (`en0`), Disk (boş/toplam, okuma/yazma),
+  Pil satırları ve "En çok kullananlar" listesi Türkçe biçimlerle görünüyor; ağ satırı ilk gözlenen snapshot'ta dolu.
+- Geçti: PhoneBox bir istemciye veri gönderirken `top`'ta 30 sn ortalama %0,74 CPU (düzeltmelerden önce %1,34).
+- Bulundu ve düzeltildi: `getifaddrs` ve `NET_RT_IFLIST2` bu macOS'ta bayt sayaçlarının sadece alt 32 bitini veriyor
+  (`en0` 961 MB, `netstat -ib` 48,2 GB); `net.link.generic.ifdata` tam değeri veriyor (`4e56dfe`).
+
+iPhone ile:
+- Geçti (kullanıcı bildirdi): yeni satırlar ve uygulama listesi dikey ve yatayda okunaklı, sorun yok. Telefon takılıydı ama
+  mod "Her zaman" olduğu için bağlantı Wi-Fi'den (`en0`) geliyordu; görünüm bağlantı yolundan bağımsız.
+- Denenmedi: pildeyken güç değeri (Mac prizdeydi), kablo modunda bu sürüm.
