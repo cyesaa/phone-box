@@ -7,6 +7,8 @@ let package = Package(
     targets: [
         // Pure logic with no system calls: protocol, signatures, access rules, metric maths. Tested.
         .target(name: "PhoneBoxCore"),
+        // The menu bar app: everything that talks to macOS.
+        .executableTarget(name: "PhoneBox", dependencies: ["PhoneBoxCore"]),
         .testTarget(name: "PhoneBoxCoreTests", dependencies: ["PhoneBoxCore"]),
     ],
     swiftLanguageModes: [.v5]
