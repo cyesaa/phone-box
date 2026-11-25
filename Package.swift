@@ -10,6 +10,7 @@ let package = Package(
         // The menu bar app: everything that talks to macOS.
         .executableTarget(name: "PhoneBox", dependencies: ["PhoneBoxCore"]),
         .testTarget(name: "PhoneBoxCoreTests", dependencies: ["PhoneBoxCore"]),
+        .testTarget(name: "PhoneBoxTests", dependencies: ["PhoneBox"]),
     ],
     swiftLanguageModes: [.v5]
 )

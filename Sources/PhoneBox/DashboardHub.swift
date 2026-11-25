@@ -1,8 +1,31 @@
 import Foundation
 import PhoneBoxCore
 
+/// What the hub needs from one phone's WebSocket: `ClientConnection` in the app, a fake in the tests.
+@MainActor
+protocol PhoneConnection: AnyObject {
+    /// The network interface the connection arrived on, e.g. `en8` (the iPhone's USB link) or `en0` (Wi-Fi).
+    var interfaceName: String? { get }
+    /// True when the local end is a scoped IPv6 link-local address, which is how the iPhone's USB link looks.
+    var arrivedOnScopedLinkLocal: Bool { get }
+    /// When the last frame of any kind arrived.
+    var lastInboundAt: Date { get }
+    func send(_ message: ServerMessage)
+    func sendPing()
+    func markAuthenticated()
+    func close(code: UInt16, reason: String)
+    func cancel()
+}
+
+/// Runs a command on the Mac (design §7): `CommandRunner` in the app, a fake in the tests. `completion` is
+/// called once, on the main actor.
+@MainActor
+protocol CommandRunning: AnyObject {
+    func run(_ command: Command, completion: @escaping @MainActor (CommandResult) -> Void)
+}
+
 /// Keeps track of the phones connected over WebSocket (design §5): the protocol session of each, whether it
-/// came in over the iPhone's USB link, what it may do, and who gets the snapshots.
+/// came in over the iPhone's USB link, what it may do, who gets the snapshots, and the commands they send.
 @MainActor
 final class DashboardHub {
     static let maxClients = 4
@@ -14,7 +37,7 @@ final class DashboardHub {
     static let silenceLimit: TimeInterval = 45
 
     private struct Client {
-        let connection: ClientConnection
+        let connection: any PhoneConnection
         var session: Session
         let onUSB: Bool
         var access: Access
@@ -27,6 +50,7 @@ final class DashboardHub {
     private let appName: String
     /// The Mac's name, shown in the page's status line.
     private let hostName: String
+    private let commands: any CommandRunning
     private let usbInterfaces: () -> Set<String>
     private var clients: [ObjectIdentifier: Client] = [:]
     private var livenessTimer: Timer?
@@ -37,14 +61,15 @@ final class DashboardHub {
     var onClientsChange: ((_ streaming: Int, _ waitingForCable: Int) -> Void)?
     /// A phone authenticated for the first time with this key.
     var onAuthenticated: (() -> Void)?
-    var onConnectionClosed: ((ClientConnection) -> Void)?
+    var onConnectionClosed: ((any PhoneConnection) -> Void)?
 
-    init(mode: AccessMode, key: PairingKey, appName: String, hostName: String,
+    init(mode: AccessMode, key: PairingKey, appName: String, hostName: String, commands: any CommandRunning,
          usbInterfaces: @escaping () -> Set<String> = USBLinks.iPhoneInterfaceNames) {
         self.mode = mode
         self.key = key
         self.appName = appName
         self.hostName = hostName
+        self.commands = commands
         self.usbInterfaces = usbInterfaces
         let timer = Timer(timeInterval: Self.pingInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.checkLiveness() }
@@ -82,7 +107,7 @@ final class DashboardHub {
     var canAccept: Bool { clients.count < Self.maxClients }
     private var isStreaming: Bool { clients.values.contains { $0.access.streaming } }
 
-    func opened(_ connection: ClientConnection) {
+    func opened(_ connection: any PhoneConnection) {
         let onUSB = connection.arrivedOnScopedLinkLocal && (connection.interfaceName.map(usbInterfaces().contains) ?? false)
         let session = Session(nonce: Session.makeNonce())
         clients[ObjectIdentifier(connection)] = Client(connection: connection, session: session, onUSB: onUSB, access: .unauthenticated)
@@ -98,7 +123,7 @@ final class DashboardHub {
         }
     }
 
-    func received(_ text: String, from connection: ClientConnection) {
+    func received(_ text: String, from connection: any PhoneConnection) {
         let id = ObjectIdentifier(connection)
         guard var client = clients[id] else { return }
         let outcome = client.session.receive(text, key: key, commandsAllowed: client.access.commands, now: Date())
@@ -112,9 +137,16 @@ final class DashboardHub {
             connection.send(.ready(mode: mode, host: hostName, access: client.access))
             onAuthenticated?()
             changed(wasStreaming: wasStreaming)
-        case let .command(seq, _):
-            // Commands arrive in Plan 3; until then every signed command is answered, never run.
-            connection.send(.ack(seq: seq, ok: false, error: "unsupported"))
+        case let .command(seq, command):
+            Log.server.info("Running \(command.name, privacy: .public) from the phone")
+            commands.run(command) { [weak self, weak connection] result in
+                // The phone may have gone (or been dropped) while the command ran.
+                guard let self, let connection, self.clients[ObjectIdentifier(connection)] != nil else { return }
+                if case let .failed(failure) = result {
+                    Log.server.notice("\(command.name, privacy: .public) failed: \(failure.rawValue, privacy: .public)")
+                }
+                connection.send(.ack(seq: seq, result: result))
+            }
         case let .reply(message):
             connection.send(message)
         case let .close(code, reason):
@@ -123,7 +155,7 @@ final class DashboardHub {
         }
     }
 
-    func closed(_ connection: ClientConnection) {
+    func closed(_ connection: any PhoneConnection) {
         let wasStreaming = isStreaming
         if clients.removeValue(forKey: ObjectIdentifier(connection)) != nil {
             changed(wasStreaming: wasStreaming)

@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let sampler = Sampler()
     private let usbWatcher = USBWatcher()
     private let qrWindow = QRWindowController()
+    private let commandRunner = CommandRunner()
     private let loaded = PairingStore.loadOrCreate()
     private var key: PairingKey
     private var hub: DashboardHub!
@@ -25,7 +26,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         if loaded.created { settings.hasEverPaired = false }
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
-        hub = DashboardHub(mode: settings.mode, key: key, appName: "PhoneBox \(version)", hostName: Settings.computerName())
+        hub = DashboardHub(mode: settings.mode, key: key, appName: "PhoneBox \(version)", hostName: Settings.computerName(),
+                           commands: commandRunner)
         let webDirectory = Bundle.main.resourceURL!.appendingPathComponent("web", isDirectory: true)
         server = DashboardServer(webDirectory: webDirectory, hub: hub)
         menuBar = MenuBarController(mode: settings.mode)

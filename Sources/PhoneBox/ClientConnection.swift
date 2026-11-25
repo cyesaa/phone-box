@@ -283,3 +283,5 @@ final class ClientConnection {
         hub?.closed(self)
     }
 }
+
+extension ClientConnection: PhoneConnection {}
