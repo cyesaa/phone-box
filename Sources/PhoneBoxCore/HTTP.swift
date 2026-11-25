@@ -47,6 +47,16 @@ public enum HTTPRequestParser {
     }
 }
 
+/// Design §5: browsers always send `Origin` with a WebSocket upgrade. Only the dashboard's own page, loaded from
+/// the address the phone used, may connect; a page from another site cannot reach the Mac through the browser.
+public enum WebSocketOrigin {
+    public static func isAllowed(origin: String?, host: String?) -> Bool {
+        guard let origin else { return true }  // not a browser: every page sends Origin
+        guard let host, !host.isEmpty else { return false }
+        return origin.caseInsensitiveCompare("http://" + host) == .orderedSame
+    }
+}
+
 /// `Range: bytes=…` for the keep-awake video: iOS plays a <video> only from a server that answers byte
 /// ranges with 206 (spike).
 public enum ByteRange {
@@ -107,5 +117,6 @@ public enum HTTPResponse {
 
     public static let notFound = make(status: "404 Not Found", contentType: "text/plain", body: Data("not found".utf8))
     public static let badRequest = make(status: "400 Bad Request", contentType: "text/plain", body: Data("bad request".utf8))
+    public static let forbidden = make(status: "403 Forbidden", contentType: "text/plain", body: Data("forbidden".utf8))
     public static let busy = make(status: "503 Service Unavailable", contentType: "text/plain", body: Data("too many phones".utf8))
 }

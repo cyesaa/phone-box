@@ -158,6 +158,10 @@ final class ClientConnection {
         if request.path == "/ws" {
             guard request.headers["upgrade"]?.lowercased() == "websocket", let key = request.headers["sec-websocket-key"]
             else { return respond(HTTPResponse.badRequest) }
+            guard WebSocketOrigin.isAllowed(origin: request.headers["origin"], host: request.headers["host"]) else {
+                Log.server.notice("Refusing a WebSocket from another site")
+                return respond(HTTPResponse.forbidden)
+            }
             guard let hub, hub.canAccept else { return respond(HTTPResponse.busy) }
             isWebSocket = true
             transmit(WebSocketHandshake.response(for: key))

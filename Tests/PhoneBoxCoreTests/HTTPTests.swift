@@ -87,3 +87,28 @@ struct HTTPResponseTests {
         #expect(response.hasSuffix("\r\n\r\nbc"))
     }
 }
+
+struct WebSocketOriginTests {
+    @Test func acceptsTheDashboardsOwnPage() {
+        #expect(WebSocketOrigin.isAllowed(origin: "http://eren-macbook-pro.local:4747", host: "eren-macbook-pro.local:4747"))
+        #expect(WebSocketOrigin.isAllowed(origin: "http://Eren-MacBook-Pro.local:4747", host: "eren-macbook-pro.local:4747"))
+        #expect(WebSocketOrigin.isAllowed(origin: "http://localhost:4747", host: "localhost:4747"))
+    }
+
+    @Test func refusesOtherSites() {
+        #expect(!WebSocketOrigin.isAllowed(origin: "http://evil.example", host: "eren-macbook-pro.local:4747"))
+        #expect(!WebSocketOrigin.isAllowed(origin: "https://eren-macbook-pro.local:4747", host: "eren-macbook-pro.local:4747"))
+        #expect(!WebSocketOrigin.isAllowed(origin: "http://eren-macbook-pro.local:4748", host: "eren-macbook-pro.local:4747"))
+        #expect(!WebSocketOrigin.isAllowed(origin: "null", host: "eren-macbook-pro.local:4747"))
+        #expect(!WebSocketOrigin.isAllowed(origin: "http://eren-macbook-pro.local:4747", host: nil))
+    }
+
+    @Test func letsNonBrowserClientsWithoutAnOriginThrough() {
+        #expect(WebSocketOrigin.isAllowed(origin: nil, host: "eren-macbook-pro.local:4747"))
+        #expect(WebSocketOrigin.isAllowed(origin: nil, host: nil))
+    }
+
+    @Test func forbiddenIsA403() {
+        #expect(String(decoding: HTTPResponse.forbidden, as: UTF8.self).hasPrefix("HTTP/1.1 403 Forbidden\r\n"))
+    }
+}
