@@ -105,7 +105,10 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 3. QR penceresinde kişisel bağlantı QR olarak ve altında yazı olarak durur. Bağlantı her yerde `http://` ile
    yazılır: Safari şemasız yazılan adreste önce HTTPS dener.
 4. Dashboard anahtarı önce adresteki `#k=` kısmından, yoksa `localStorage`'dan okur ve `localStorage`'a da yazar.
-   Adresteki `#k=` silinmez; "Ana Ekrana Ekle" ve Kestirmeler otomasyonu bu adresi kullanır.
+   Adresteki `#k=` silinmez; "Ana Ekrana Ekle" ve Kestirmeler otomasyonu bu adresi kullanır. Ana ekran simgesinden
+   açılan sayfanın `localStorage`'ı tarayıcınınkinden ayrıdır; anahtarı simgenin sakladığı adresten alır (2026-11-25,
+   Chrome / iOS 27'de denendi: tam ekran, anahtar korunuyor). Eşleştirme sıfırlanınca simge eski anahtarla kalır: yeni
+   QR okutulur, açılan sayfa yeniden ana ekrana eklenir, eski simge silinir.
 5. "Eşleştirmeyi sıfırla": yeni anahtar üretilir, bağlı bütün istemciler kapatılır, `hasEverPaired = false` olur.
 
 ### WebSocket protokolü (`ws://<mac>.local:<port>/ws`, JSON, her mesajda `"v":1`)
@@ -114,14 +117,19 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 |---|---|---|
 | Mac → telefon | `{"type":"hello","nonce":"<32 hex>","app":"PhoneBox 0.1.0"}` | Bağlantıya özgü rastgele sayı |
 | telefon → Mac | `{"type":"auth","mac":"<HMAC-SHA256(k, "auth:"+nonce) hex>"}` | Yanlışsa bağlantı 4001 ile kapanır (sayfa durur, "Eşleşmedi"); 5 sn içinde gelmezse 4003 ile kapanır (sayfa yeniden dener; telefon kilitliyken açılan bir bağlantı böyle kapanabilir) |
-| Mac → telefon | `{"type":"ready","mode":"cable"\|"always","access":{"streaming":bool,"commands":bool,"reason":"…"}}` | Kimlik doğrulandı; `access` alanı bir alttaki `access` mesajıyla aynı |
-| Mac → telefon | `{"type":"access","streaming":bool,"commands":bool,"reason":"ok"\|"not-on-cable"}` | Erişim değiştiğinde |
+| Mac → telefon | `{"type":"ready","mode":"cable"\|"always","host":"<Mac'in adı>","access":{"streaming":bool,"commands":bool,"cable":bool,"reason":"…"}}` | Kimlik doğrulandı; `host` bilgisayarın adı (durum satırında görünür); `access` alanı bir alttaki `access` mesajıyla aynı |
+| Mac → telefon | `{"type":"access","streaming":bool,"commands":bool,"cable":bool,"reason":"ok"\|"not-on-cable"}` | Erişim değiştiğinde; `cable` bu bağlantının USB'den gelip gelmediği ("kablo" / "Wi-Fi") |
 | Mac → telefon | `{"type":"snapshot","t":<ms>, ...}` | Saniyede bir (bölüm 6) |
 | telefon → Mac | `{"type":"cmd","seq":n,"name":"…","args":"<JSON metni>","mac":"<HMAC(k, "cmd:"+nonce+":"+seq+":"+name+":"+args) hex>"}` | `args` bir metin; imza tam bu metin üzerinden atılır, sonra çözülür |
 | Mac → telefon | `{"type":"ack","seq":n,"ok":true}` / `{"ok":false,"error":"not-allowed"\|"bad-signature"\|"app-changed"\|"unsupported"\|"failed"}` | Her komuta cevap |
 
 Kurallar:
 - `seq` her bağlantıda kesin olarak artmalı; artmayan `seq` reddedilir (tekrar saldırısı).
+- `v` tam olarak tamsayı `1`, `seq` pozitif bir JSON tamsayısı olmalı (`true`, `1.0`, negatif sayı geçersiz); `name`
+  bölüm 7'deki adlardan biri olmalı ve `args` o komutun biçimine uymalı. İmzası doğru ama bilinmeyen ad ya da biçim
+  `ack` ile `unsupported` döner; bozuk JSON ve tip hataları bağlantıyı kapatır (1008).
+- WebSocket yükseltmesinde `Origin` başlığı varsa `http://` + `Host` başlığıyla aynı olmalı; değilse 403 (başka bir
+  sitenin sayfası tarayıcı üzerinden bağlanamaz).
 - Saniyede 10'dan fazla komut, bozuk JSON ya da yanlış imza → bağlantı kapanır.
 - Anahtar ağ üzerinden hiç gitmez. Metrikler şifresiz akar; aynı ağdakiler görebilir ama komut gönderemez.
   Bu açık bilerek kabul edilmiştir.
@@ -170,6 +178,8 @@ Okunamayan değer JSON'a hiç yazılmaz (alan yok); dashboard "—" gösterir.
 | `net` | `rx`, `tx` (bayt/sn), `iface` | `sysctl net.link.generic.ifdata.<index>.general` 64 bit sayaçları (`getifaddrs` ve `NET_RT_IFLIST2` güncel macOS'ta sadece alt 32 biti veriyor, 4 GiB'da başa dönüyor); birincil arayüz `SCDynamicStore`'dan (IPv4, yoksa IPv6), bulunan ad 10 sn saklanır |
 | `disk` | `free`, `total` (bayt; 60 sn'de bir, okuması ~9 ms sürüyor), `read`, `write` (bayt/sn) | `URLResourceValues` (`volumeAvailableCapacityForImportantUsage`), IOKit `IOBlockStorageDriver` istatistikleri |
 | `battery` | `percent`, `charging`, `minutesLeft`; masaüstü Mac'te alan yok, prizdeyken şarj olmuyorsa `minutesLeft` yok | `IOPSCopyPowerSourcesInfo` |
+| `media` | Mac'te çalan: `title`, `artist`, `app` (uygulama adı), `playing` (bool); hiçbir şey yoksa alan yok | mediaremote-adapter'ın olay akışındaki son durum (bölüm 7) |
+| `audio` | `volume` (0…1), `muted` (bool); varsayılan çıkışta ses kontrolü yoksa alan yok | CoreAudio varsayılan çıkış cihazı |
 | `apps` | 3 saniyede bir (diğer saniyelerde alan gönderilmez): CPU'ya göre ilk 5 ile RAM'e göre ilk 5'in birleşimi, en fazla 10 kayıt `{pid, bundleId, name, cpu, mem, quittable}` | `libproc` (`proc_listallpids`, `proc_pid_rusage`, `proc_pidpath`) |
 
 - **Gruplama:** Bir sürecin yolu bir `.app` paketinin içindeyse en dıştaki `.app`'e yazılır ("Chrome Helper" →
@@ -187,16 +197,20 @@ Okunamayan değer JSON'a hiç yazılmaz (alan yok); dashboard "—" gösterir.
 
 | `name` | `args` | Uygulama | Telefonda onay |
 |---|---|---|---|
-| `quitApp` | `{pid, bundleId, force}` | `NSRunningApplication.terminate()` / `forceTerminate()` | Evet; `force` kırmızı uyarıyla |
+| `quitApp` | `{pid, bundleId, force}` | `NSRunningApplication.terminate()` / `forceTerminate()` | Sadece `force` ("Zorla kapat") |
 | `media` | `{action: "playPause"\|"next"\|"previous"}` | mediaremote-adapter (NotchBox'taki gibi, `Vendor/` alt modülü) | Hayır |
 | `volume` | `{level: 0…1}` | CoreAudio varsayılan çıkış cihazı | Hayır |
 | `mute` | `{on: bool}` | CoreAudio | Hayır |
-| `lock` | `{}` | `login.framework` `SACLockScreenImmediate` (dlopen); olmazsa `pmset displaysleepnow` | Evet |
+| `lock` | `{}` | `login.framework` `SACLockScreenImmediate` (dlopen); olmazsa `pmset displaysleepnow` | Hayır |
 | `displaySleep` | `{}` | `pmset displaysleepnow` | Hayır |
 | `sleep` | `{}` | `pmset sleepnow` | Evet |
 
-- `quitApp` sadece `activationPolicy == .regular` olan uygulamalarda çalışır; Finder ve PhoneBox hariçtir.
-  Mac, `pid`'in hâlâ aynı `bundleId`'ye ait olduğunu denetler; değilse `app-changed` döner.
+- Onay sütunu kullanıcı kararıdır (2026-11-25): sadece geri alınamayan "Zorla kapat" ve "Uyut" onay ister.
+- `quitApp` sadece `activationPolicy == .regular` olan uygulamalarda çalışır; Finder ve PhoneBox hariçtir. Listedeki
+  `pid` 10 sn'ye kadar eski olabilir ve aynı paketin örnekleri tek satırdır: Mac uygulamayı `bundleId` ile yeniden
+  bulur (`pid` hâlâ o pakete aitse onu kullanır), bulduğu bütün örneklere uygular; o kimlikle kapatılabilir bir
+  uygulama yoksa `app-changed` döner.
+- Ses kaydırıcısı sürüklenirken sayfa en fazla saniyede 4 `volume` gönderir, bırakınca son değeri gönderir (sınır 10/sn).
 - Ses kontrolü olmayan çıkış cihazında `volume`/`mute` `unsupported` döner ve kaydırıcı devre dışı kalır.
 - Spike 7'de uygulama kapatma, sessiz, ses seviyesi, ekranı kapatma ve kilit hiçbir izin penceresi açmadan
   çalıştı. Medya komutu NotchBox'ta çalışan adaptörle gönderilir.
@@ -205,26 +219,69 @@ Okunamayan değer JSON'a hiç yazılmaz (alan yok); dashboard "—" gösterir.
 
 ### Dashboard (telefon)
 
-- **Yatay (ana görünüm, yerleşim C, sade koyu):** solda CPU ve RAM halkaları; ortada son 60 saniyenin grafiği ve
-  altında kontrol şeridi (önceki / oynat-duraklat / sonraki, ses kaydırıcısı, sessiz, "⋯" menüsü); sağda GPU,
-  sıcaklık, güç, ağ, disk, pil satırları ve en çok kaynak kullanan uygulamalar. "Güç" satırı MacBook'ta toplam
-  sistem gücünü, masaüstü Mac'te GPU gücünü gösterir.
-- **Dikey ya da yön kilidi açık:** aynı veriler "tek bakış" yerleşiminde (üstte iki halka, altta satırlar, en altta
-  kontrol şeridi).
-- **Stil:** siyah zemin, sistem fontu, yumuşak kartlar; renkler CPU yeşil, RAM mavi, GPU mor, sıcaklık turuncu,
-  güç sarı, ağ camgöbeği.
-- **Etkileşim:** bir halkaya ya da satıra dokununca ortadaki grafik o metriğe geçer (CPU, RAM, GPU, sıcaklık, güç,
-  ağ). Grafik geçmişi telefonda tutulur. Uygulama listesi varsayılan olarak CPU'ya göre sıralanır; başlığına
-  dokununca RAM'e göre sıralanır. Bir uygulamaya dokununca alttan "Kapat" ve "Zorla kapat" çıkar.
-  "⋯" menüsünde Kilitle, Ekranı kapat, Uyut ve "Kurulum rehberi" bulunur. Komut sonucu kısa bir bildirimle görünür.
-- **Durumlar:** bağlanıyor (gri nokta, soluk değerler) · bağlı (yeşil nokta) · kablo çıkarıldı (değerler donar ve
-  soluklaşır, "Kabloyu tak") · Mac'e ulaşılamıyor (arka planda yeniden dener) · anahtar geçersiz ("Kabloyu tak ve QR
-  kodu yeniden okut") · metrik okunamıyor ("—").
-- **İlk açılış rehberi** (bir kez, kapatılabilir): 1) Ana Ekrana Ekle, 2) Kestirmeler → Otomasyon → "Şarj Aleti
-  bağlandığında" → "URL'yi Aç" (kişisel bağlantı, "Kopyala" düğmesiyle) → "Hemen Çalıştır", 3) telefonu yan çevir.
-  Kestirmeler adımı spike'ta denenemedi; elle test listesinde doğrulanır.
-- **Ana ekran:** `apple-touch-icon.png` (180×180 ve 240×240) ve `<meta name="apple-mobile-web-app-title"
-  content="PhoneBox">`; spike'ta simge yokken önerilen ad "eren-macbook-pro.local" olmuştu.
+Yerleşimler gerçek ölçüde görsel taslaklarla seçildi (2026-11-25, standart iPhone, yatayda 852×393). Kenarlarda
+güvenli alan payları (`env(safe-area-inset-*)`) bırakılır; bu telefonda kullanılabilir alan yatayda 734×372. Ölçüler
+ekran yüksekliğine göre ayarlanır, iPhone SE'den Pro Max'e kadar her şey kaydırmadan sığar.
+
+- **Yatay (ana görünüm), üç sütun:**
+  - Sol: CPU (altında yük) ve RAM (altında kullanılan / toplam) halkaları.
+  - Orta: seçili metriğin son 60 saniyelik grafiği; altında 3×2 metrik kutucuğu (GPU, Sıcaklık, Güç, Ağ, Disk boş,
+    Pil); en altta kontrol şeridi.
+  - Sağ: durum satırı, "Şimdi çalıyor" kartı, uygulama listesi (7–8 satır).
+- **Dikey ("tek bakış"):** yukarıdan aşağı durum satırı, yan yana iki halka, grafik, 3×2 kutucuk, en çok kullanan
+  5 uygulama, "Şimdi çalıyor" (tek satır), kontrol şeridi. Kaydırma yok.
+- **Stil:** siyah zemin, sistem fontu, `#1c1c1e` kartlar, 16 px köşe, sayılarda sabit genişlikli rakamlar. Renkler:
+  CPU yeşil, RAM mavi, GPU mor, sıcaklık turuncu, güç sarı, ağ camgöbeği, disk gri, pil yeşil.
+- **Kutucuklar:** sadece ana değer (GPU %, ortalama °C, Mac'in tamamı W, ↓/↑ hız, boş alan, pil % ve şarj simgesi).
+  Ayrıntılar grafik seçilince grafik başlığında görünür.
+- **Grafik:** seçili metriğin son 60 saniyesi, `<canvas>` ile. Bir halkaya ya da kutucuğa dokununca grafik o metriğe
+  geçer; seçili olan kendi renginde çerçevelenir. İlk açılışta CPU, sonra son seçim (`localStorage`). Geçmiş sadece
+  telefonun belleğinde tutulur, sayfa yenilenince sıfırlanır; değer gelmeyen saniyeler çizgide boşluk olur. Başlıkta
+  metrik adı, anlık değer ve ayrıntı (yük, en yüksek sıcaklık, arayüz adı, okuma/yazma…).
+
+  | Metrik | Grafikte | Ölçek |
+  |---|---|---|
+  | CPU, RAM, GPU, Pil | % | 0–100 sabit |
+  | Sıcaklık | ortalama çizgisi + ince "en yüksek" çizgisi | değerlere göre otomatik |
+  | Güç | Mac'in tamamı (W) | 0'dan otomatik |
+  | Ağ | ↓ ve ↑ iki çizgi | 0'dan otomatik, birim kendisi değişir |
+  | Disk | okuma ve yazma iki çizgi | 0'dan otomatik |
+- **Uygulama listesi:** CPU yüzdesi ve bellek (RAM halkasıyla aynı ikili birim: GB = 2³⁰ bayt). Varsayılan CPU'ya
+  göre; başlığa dokununca RAM'e göre, tekrar dokununca CPU'ya. Kapatılamayan satırlar (`quittable: false`) gri.
+- **Şimdi çalıyor:** şarkı, sanatçı ve uygulama (kapak resmi yok). `media` alanı yoksa gizlenir; yatayda liste bir
+  satır uzar.
+- **Kontrol şeridi:** önceki, oynat/duraklat (çalma durumuna göre simge), sonraki, ses kaydırıcısı (Mac'in o anki
+  seviyesi), sessiz (🔈/🔇), "⋯". Dokunma alanları en az 44×44 pt. `audio` alanı yoksa kaydırıcı ve sessiz soluk.
+- **Komut etkileşimleri** (görsel taslaklarla seçildi):
+  - Uygulamaya dokununca alttan panel: ad, CPU ve bellek; "Kapat", "Zorla kapat", "Vazgeç". Gri satıra dokununca
+    sadece "Bu süreç buradan kapatılamaz".
+  - "⋯" menüsü şeridin üstünde açılır: Kilitle, Ekranı kapat, Uyut, ayraç, Kurulum rehberi.
+  - Onay sadece "Zorla kapat" ve "Uyut" için (bölüm 7). "Uyut" penceresi bağlantının kesileceğini ve Mac'in
+    klavyesine ya da trackpad'ine dokunarak uyandırılacağını, sonra dashboard'un kendiliğinden bağlanacağını söyler.
+  - Her komuttan sonra üstte 2 sn bildirim: başarıda yeşil tik; hatada kırmızı ve sebep (`not-allowed` → "Komutlar
+    sadece kabloyla çalışır", `app-changed` → "Uygulama değişmiş, liste yenilendi", `unsupported` → ses
+    komutlarında "Bu çıkışta ses kontrolü yok", diğerlerinde "Bu komut desteklenmiyor", `failed` → "Olmadı").
+  - `access.commands` false iken (Wi-Fi) şerit, panel düğmeleri ve menüdeki komutlar soluk; dokununca "Komutlar
+    sadece kabloyla çalışır".
+- **Durum satırı:** renkli nokta, Mac'in adı (`ready.host`) ve yol (`access.cable`): "● MacBook Pro · kablo". Yeşil
+  bağlı, gri bağlanıyor, turuncu Wi-Fi'de (komutlar kapalı).
+- **Durumlar:** veri gelmezse değerler donar ve soluklaşır, ortada küçük bir kart çıkar: "Kabloyu tak" (kablo
+  modunda telefon Wi-Fi'de) · "Mac'e ulaşılamıyor" (arka planda yeniden dener) · "Eşleşmedi" ("Mac'teki QR kodunu
+  okut, açılan sayfayı yeniden Ana Ekrana Ekle, eski simgeyi sil"). Okunamayan metrik "—".
+- **Başlat ekranı:** her açılışta siyah ekranda büyük "Başlat" düğmesi ve altında "Ekranı açık tutmak için bir kez
+  dokun" (aşağıdaki video bir dokunuşla başlayabiliyor).
+- **İlk açılış rehberi** (bir kez; sonra "⋯ → Kurulum rehberi"):
+  1. Ana Ekrana Ekle → tam ekran. Chrome ve Safari için ayrı kısa tarif; sayfa ana ekrandan açıldıysa
+     (`navigator.standalone`) adım ✓ görünür.
+  2. İsteğe bağlı, kablo takılınca otomatik açılsın: Kestirmeler → Otomasyon → Şarj Aleti → "URL'yi Aç" (kişisel
+     bağlantı, "Kopyala" düğmesiyle). Bu yol sayfayı tam ekran değil tarayıcıda açar; henüz denenmedi, rehberde
+     öyle yazar.
+  3. Telefonu yan çevir (stand önerilir).
+
+  Rehberin son düğmesi "Başlat"tır; ilk açılışta tek dokunuş yeter.
+- **Ana ekran:** `apple-touch-icon.png` (180×180): siyah zemin üstünde iç içe yeşil ve mavi halka;
+  `<meta name="apple-mobile-web-app-title" content="PhoneBox">`. Ana ekran simgesinden açılan sayfada adres çubuğu
+  yoktur (bölüm 5, eşleştirme).
 - **Ekranı açık tutma (spike V4):** Sesi açık oynatma bir dokunuş gerektirdiği için dashboard ilk açılışta "Başlat"
   düğmesi gösterir; video ilk dokunuşta başlar (oynatma reddedilirse düğme yeniden çıkar). 64×64 siyah görüntü ve sessiz ses izi
   olan 2 saniyelik bir video (`keepawake.mp4`) sesi açık (`muted` değil), döngüsüz ve satır içi oynatılır;
@@ -232,8 +289,34 @@ Okunamayan değer JSON'a hiç yazılmaz (alan yok); dashboard "—" gösterir.
   telefondaki müzik durmaz ve kilit ekranı kullanıcının şarkısında kalır. Sayfa görünürken 3 saniyede bir "video
   duruyorsa başlat" denetimi yapılır (Chrome'da kilit açılınca video duraklamış kalıyor). `audioSession` yoksa
   video yine oynatılır ama telefondaki müzik durabilir; rehberde bu not edilir.
-- **OLED koruması:** 3 dakikada bir içerik ±2 piksel kayar.
+- **OLED koruması:** 3 dakikada bir bütün içerik ±2 piksel kayar.
 - **Dil ve sayı biçimi:** `navigator.language`'a göre Türkçe/İngilizce; sayılar `Intl.NumberFormat` ile.
+
+### Sayfa kodu
+
+Sade HTML/CSS/JS, derleme adımı ve dış kütüphane yok. Her dosya tek bir iş yapar, `globalThis.PhoneBox` altına
+yazar ve sırayla klasik `<script>` etiketleriyle yüklenir (ES modül `import`'u yok); böylece Swift testleri saf
+parçaları JavaScriptCore'da doğrudan çalıştırabilir. İki yön için tek bir HTML vardır, yerleşimi CSS
+(`@media (orientation: …)`) değiştirir. Mac'in sunduğu dosya listesi yeni dosyalara göre güncellenir.
+
+| Dosya | Görevi | Test |
+|---|---|---|
+| `sha256.js` | SHA-256 ve HMAC (var) | JavaScriptCore |
+| `i18n.js` | TR/EN metinler | — |
+| `format.js` | sayı ve birim biçimleri | JavaScriptCore |
+| `history.js` | metrik başına 60 saniyelik geçmiş | JavaScriptCore |
+| `chart.js` | grafik ölçeği (saf) ve `<canvas>` çizimi | ölçek JavaScriptCore'da, çizim gözle |
+| `connection.js` | bağlantı, eşleşme, yeniden bağlanma (bugünkü `app.js`'ten) | gözle / telefonda |
+| `commands.js` | komut imzası, `seq`, ses kaydırıcısının hız sınırı | imza ve hız sınırı JavaScriptCore'da |
+| `view.js` | halkalar, kutucuklar, liste, şarkı kartı, durumlar | gözle |
+| `ui.js` | panel, menü, onay, bildirim, rehber, Başlat ekranı, OLED kayması | gözle |
+| `app.js` | parçaları birbirine bağlar | — |
+
+### Uygulama sırası
+
+Plan 3B (Mac tarafı: bölüm 7'deki komutlar, `media` ve `audio` alanları, `host` ve `cable`, bölüm 5'teki protokol
+kuralları ve bağlantı yöneticisinin testlerle denenebilir hâle getirilmesi) → Plan 4 (bu arayüz; son görevi
+kullanıcıyla telefonda uçtan uca kontrol) → Plan 5 (dağıtım).
 
 ### Menü çubuğu (Mac)
 
@@ -276,8 +359,11 @@ da `~/Library/Caches` altına gider: spike'ta yeni başlatılan uygulama `~/Docu
 - **Birim testleri (`Tests/PhoneBoxCoreTests`, Swift Testing):** CPU yüzdesi (tick farkları), RAM hesabı, ağ
   sayacının sıfırlanması/taşması, uygulama gruplama, mesaj kodlama/çözme, HMAC (RFC 4231 test vektörleri),
   artmayan `seq`'in reddi, `AccessPolicy` tablosunun bütün satırları.
-- **JS kripto testi:** Swift testi `Resources/web/sha256.js`'i JavaScriptCore'da çalıştırıp RFC 4231 vektörleri ve
-  Swift'in HMAC sonucuyla karşılaştırır (Node/npm gerekmez).
+- **JS testleri:** Swift testleri sayfanın saf parçalarını JavaScriptCore'da çalıştırır (Node/npm gerekmez):
+  `sha256.js` RFC 4231 vektörleri ve Swift'in HMAC sonucuyla; `format.js`, `history.js`, grafik ölçeği, komut imzası
+  ve ses kaydırıcısının hız sınırı (bölüm 8, Sayfa kodu).
+- **Görünüm kontrolü:** Mac'teki tarayıcı panelinde canlı veriyle dört iPhone ölçüsü (SE, standart, Pro Max; yatay ve
+  dikey), ekran görüntüsüyle.
 - **Elle test:** `docs/manual-testing.md`, gerçek iPhone ile adım adım kontrol listesi (eşleştirme, iki mod, her
   komut, durumlar, dikey/yatay, yeniden bağlanma).
 
@@ -298,6 +384,9 @@ olursa tasarıma dönülür. **Yapıldı (2026-11-25):** kritik maddelerin hepsi
 | 8 | Kestirmeler "Şarj Aleti" otomasyonu URL'yi onaysız açıyor mu? | Hayır |
 | 9 | macOS, PhoneBox için Yerel Ağ / güvenlik duvarı izni istiyor mu? | Hayır (README'de belirtilir) |
 
+Madde 3 sonradan denendi (2026-11-25, Chrome / iOS 27): ana ekran simgesi `#k=`'yi koruyor, sayfa tam ekran açılıyor
+ve veri geliyor.
+
 ## 12. Dağıtım ve klasör yapısı
 
 NotchBox ile aynı:
@@ -314,7 +403,8 @@ scripts/                  bundle.sh, dist.sh, release.sh, make-icon.swift
 Sources/PhoneBoxCore/     modeller, hesaplar, protokol, HMAC, AccessPolicy
 Sources/PhoneBox/         uygulama, Collectors, Sampler, USBWatcher, Server, Pairing, CommandRunner, MenuBar
 Resources/                Info.plist, AppIcon.icns, en.lproj, tr.lproj
-Resources/web/            index.html, app.js, sha256.js, styles.css, keepawake.mp4, apple-touch-icon*.png
+Resources/web/            index.html, styles.css, sha256.js, i18n.js, format.js, history.js, chart.js,
+                          connection.js, commands.js, view.js, ui.js, app.js, keepawake.mp4, apple-touch-icon.png
 Vendor/mediaremote-adapter/   (git alt modülü)
 Tests/PhoneBoxCoreTests/
 docs/design/2026-11-25-phonebox-design.md   docs/spike-results.md   docs/manual-testing.md

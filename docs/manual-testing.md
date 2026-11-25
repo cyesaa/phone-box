@@ -80,3 +80,9 @@ iPhone ile:
 - Geçti (kullanıcı bildirdi): yeni satırlar ve uygulama listesi dikey ve yatayda okunaklı, sorun yok. Telefon takılıydı ama
   mod "Her zaman" olduğu için bağlantı Wi-Fi'den (`en0`) geliyordu; görünüm bağlantı yolundan bağımsız.
 - Denenmedi: pildeyken güç değeri (Mac prizdeydi), kablo modunda bu sürüm.
+
+### 2026-11-25 — Ana Ekrana Ekle (main fd4771a), iPhone iOS 27.0.1, Chrome
+
+- Geçti (kullanıcı bildirdi): Chrome'da paylaş → Ana Ekrana Ekle; simgeden açılan sayfa tam ekran (adres çubuğu yok),
+  `#k=` anahtarı korunuyor, "Başlat" sonrası veri geliyor. Tarayıcıda adres çubuğu sayfadan gizlenemiyor; tam ekranın
+  yolu bu.
