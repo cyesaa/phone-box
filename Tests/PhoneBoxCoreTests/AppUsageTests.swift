@@ -40,6 +40,14 @@ struct AppUsageTests {
                                          mem: 5, quittable: false) }
         #expect(tied.sorted(by: AppUsage.busier).map(\.name) == ["a", "b", "c", "d"])
         #expect(tied.shuffled().sorted(by: AppUsage.larger).map(\.name) == ["a", "b", "c", "d"])
+        let twins = [9, 3].map { AppSample(pid: $0, bundleId: nil, name: "x", cpu: 1, mem: 1, quittable: false) }
+        #expect(twins.sorted(by: AppUsage.busier).map(\.pid) == [3, 9])
+    }
+
+    @Test func boundsTheSizeOfACharacterPiledWithMarks() {
+        let piled = "a" + String(repeating: "\u{0301}", count: 5_000)
+        #expect(AppUsage.displayName(piled).unicodeScalars.count <= AppUsage.maxNameLength * 4)
+        #expect(AppUsage.displayName(piled).unicodeScalars.first == "a")
     }
 
     @Test func groupsHelpersIntoTheirAppAndComputesPercentOfOneCore() {

@@ -144,10 +144,12 @@ final class NowPlayingService {
     /// (players are few); the bundle identifier stands in until macOS lists the player.
     private func appName(for bundleId: String) -> String {
         if let name = names[bundleId] { return name }
+        let cleanedId = AppUsage.displayName(bundleId)
+        let fallback = cleanedId.isEmpty ? "?" : cleanedId
         guard let raw = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first?.localizedName
-        else { return bundleId }
+        else { return fallback }
         let name = AppUsage.displayName(raw)
-        guard !name.isEmpty else { return bundleId }
+        guard !name.isEmpty else { return fallback }
         names[bundleId] = name
         return name
     }

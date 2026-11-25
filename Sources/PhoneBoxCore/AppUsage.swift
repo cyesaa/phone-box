@@ -75,11 +75,13 @@ public enum AppUsage {
     /// Cleans a name that an app or a web page chose before it reaches the phone: invisible format characters
     /// (direction marks such as WhatsApp's leading U+200E, zero-width spaces) are removed; control characters, line
     /// and paragraph separators and runs of white space become one space; the result is trimmed and keeps at most
-    /// `maxNameLength` characters.
+    /// `maxNameLength` characters (and at most four times as many Unicode scalars, so a letter piled with combining
+    /// marks stays small).
     public static func displayName(_ raw: String) -> String {
         var scalars = String.UnicodeScalarView()
         var pendingSpace = false
         for scalar in raw.unicodeScalars {
+            if scalars.count >= maxNameLength * 4 { break }
             switch scalar.properties.generalCategory {
             case .format:
                 continue
