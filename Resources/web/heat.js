@@ -11,7 +11,9 @@
   function limits(power) {
     const ok = Array.isArray(power) && power.length === 2 && power.every(finite) && power[0] < power[1];
     return {
-      cpu: [40, 95], ram: [75, 95], gpu: [40, 95], temp: [60, 95], power: ok ? power.slice() : [15, 35],
+      // RAM goes by macOS's memory pressure (0 normal, 1 warning, 2 critical), not by how full memory is: macOS keeps
+      // memory full on purpose, and an 8 GB Mac sits at 85–95 % with no trouble.
+      cpu: [40, 95], ram: [0, 2], gpu: [40, 95], temp: [60, 95], power: ok ? power.slice() : [15, 35],
       net: [10e6, 100e6], disk: [30e9, 5e9], battery: [30, 10], app: [60, 200],
     };
   }
@@ -108,16 +110,23 @@
 
   /// The alarm (design §8): a metric rings after `rounds` snapshots in a row at or past its limit and stops after
   /// `rounds` in a row below 0.9. A missing value, or one that does not turn red (the battery on power), counts as
-  /// calm. A one-second spike never rings; the colour shows it anyway.
+  /// calm. A one-second spike never rings; the colour shows it anyway. After `loudFor` ms a ringing alarm goes quiet
+  /// (no beat, no edge light; the metric stays red), and so does the faint light of a metric that stays near its
+  /// limit: a value that stays bad must not light the screen's edge for ever.
   class Alarm {
-    constructor(rounds = 3) {
+    constructor(rounds = 3, loudFor = 120000) {
       this.rounds = rounds;
+      this.loudFor = loudFor;
       this.counts = {};
       this.ringing = new Set();
+      /// When each ringing metric started ringing, and when each metric went past 0.7 (page time, ms).
+      this.since = {};
+      this.nearSince = {};
     }
 
-    /// `levels` maps each metric to its level or null; returns the metrics that just started ringing.
-    update(levels) {
+    /// `levels` maps each metric to its level or null, arrived at page time `now`; returns the metrics that just
+    /// started ringing.
+    update(levels, now = 0) {
       const started = [];
       for (const metric of Object.keys(levels)) {
         const value = levels[metric];
@@ -125,11 +134,18 @@
         count.over = value !== null && value >= 1 ? count.over + 1 : 0;
         count.under = value === null || value < 0.9 ? count.under + 1 : 0;
         this.counts[metric] = count;
+        if (value !== null && value > 0.7) {
+          if (this.nearSince[metric] === undefined) this.nearSince[metric] = now;
+        } else {
+          delete this.nearSince[metric];
+        }
         if (!this.ringing.has(metric) && count.over >= this.rounds) {
           this.ringing.add(metric);
+          this.since[metric] = now;
           started.push(metric);
         } else if (this.ringing.has(metric) && count.under >= this.rounds) {
           this.ringing.delete(metric);
+          delete this.since[metric];
         }
       }
       return started;
@@ -140,10 +156,22 @@
       return Array.from(this.ringing);
     }
 
+    /// The ringing metrics that started less than `loudFor` ago: they still beat and light the edge.
+    loud(now) {
+      return this.active().filter((metric) => now - this.since[metric] < this.loudFor);
+    }
+
+    /// The metrics near their limit (level past 0.7) for less than `loudFor`: they may light the edge faintly.
+    near(now) {
+      return Object.keys(this.nearSince).filter((metric) => now - this.nearSince[metric] < this.loudFor);
+    }
+
     /// The values went stale: nothing rings.
     clear() {
       this.counts = {};
       this.ringing.clear();
+      this.since = {};
+      this.nearSince = {};
     }
   }
 

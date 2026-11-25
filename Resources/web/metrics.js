@@ -47,23 +47,27 @@
     }
   }
 
-  /// The numbers that turn a metric red (design §8, see `PhoneBox.heat.limits`): the network's ↓ + ↑, free disk
-  /// space in bytes, and the battery only when it is not on power.
+  /// macOS's memory pressure (`mem.pressure`) as a number for `PhoneBox.heat.limits().ram`.
+  const pressures = { normal: 0, warn: 1, critical: 2 };
+
+  /// The numbers that turn a metric red (design §8, see `PhoneBox.heat.limits`): the memory pressure, the network's
+  /// ↓ + ↑, free disk space in bytes, and the battery only when it is not on power.
   function heatValues(snapshot) {
     const v = values(snapshot);
-    const { net, disk, battery } = snapshot;
+    const { mem, net, disk, battery } = snapshot;
+    const pressure = mem ? pressures[mem.pressure] : undefined;
     return {
-      cpu: v.cpu, ram: v.ram, gpu: v.gpu, temp: v.tempAvg, power: v.power,
+      cpu: v.cpu, ram: pressure ?? null, gpu: v.gpu, temp: v.tempAvg, power: v.power,
       net: net ? num(net.rx + net.tx) : null,
       disk: disk ? num(disk.free) : null,
       battery: battery && battery.plugged === false ? num(battery.percent) : null,
     };
   }
 
-  /// Which limits the graph's lines are measured against: the disk graph shows reading and writing, not free space,
-  /// so it never turns red.
+  /// Which limits the graph's lines are measured against. The disk graph shows reading and writing, not free space,
+  /// and the RAM graph shows how full memory is, while RAM turns red by memory pressure: neither graph turns red.
   function graphHeat(metric) {
-    return metric === "disk" ? null : metric;
+    return metric === "disk" || metric === "ram" ? null : metric;
   }
 
   /// How the graph's vertical axis is chosen (see `PhoneBox.chart.range`).

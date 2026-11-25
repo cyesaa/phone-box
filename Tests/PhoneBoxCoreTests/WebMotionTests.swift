@@ -66,20 +66,41 @@ struct WebMotionTests {
         #expect(result == ": : cpu:cpu :cpu :cpu :cpu :cpu :cpu : : : :")
     }
 
+    @Test func anAlarmGoesQuietAfterTwoMinutes() {
+        let result = string("""
+            (function () {
+              var a = new H.Alarm(3, 120000), out = [];
+              a.update({ disk: 1 }, 0); a.update({ disk: 1 }, 1000); a.update({ disk: 1 }, 2000);   // rings at 2 s
+              out.push(a.loud(60000), a.loud(122000), a.active(), a.near(100000), a.near(121000));
+              a.update({ disk: 0.5 }, 130000); a.update({ disk: 0.5 }, 131000); a.update({ disk: 0.5 }, 132000);
+              out.push(a.active());                                    // recovered
+              a.update({ disk: 1 }, 200000); a.update({ disk: 1 }, 201000); a.update({ disk: 1 }, 202000);
+              out.push(a.loud(203000), a.near(203000));               // bad again: loud again
+              return JSON.stringify(out);
+            })()
+            """)
+        #expect(result == #"[["disk"],[],["disk"],["disk"],[],[],["disk"],["disk"]]"#)
+    }
+
     @Test func clearsTheAlarmWhenTheValuesGoStale() {
         #expect(string("(function () { var a = new H.Alarm(); a.update({ temp: 1 }); a.update({ temp: 1 }); a.update({ temp: 1 }); a.clear(); a.update({ temp: 1 }); return a.active().length; })()") == "0")
     }
 
     @Test func findsTheValuesThatTurnRed() {
         let values = string("""
-            JSON.stringify(PhoneBox.metrics.heatValues({ t: 1, cpu: { total: 63.6 }, mem: { used: 12, total: 16 }, gpu: { util: 17 },
-              temp: { avg: 45.6, max: 54 }, power: { gpu: 0.4, system: 21.9 }, net: { rx: 1200, tx: 34 },
+            JSON.stringify(PhoneBox.metrics.heatValues({ t: 1, cpu: { total: 63.6 }, mem: { used: 12, total: 16, pressure: "warn" },
+              gpu: { util: 17 }, temp: { avg: 45.6, max: 54 }, power: { gpu: 0.4, system: 21.9 }, net: { rx: 1200, tx: 34 },
               disk: { free: 21.6e9, total: 494e9 }, battery: { percent: 80, charging: false, plugged: true } }))
             """)
-        #expect(values == #"{"cpu":63.6,"ram":75,"gpu":17,"temp":45.6,"power":21.9,"net":1234,"disk":21600000000,"battery":null}"#)
+        #expect(values == #"{"cpu":63.6,"ram":1,"gpu":17,"temp":45.6,"power":21.9,"net":1234,"disk":21600000000,"battery":null}"#)
+        // RAM goes by memory pressure: normal 0, warning 1, critical 2 (fully red); none without a pressure.
+        #expect(string("['normal', 'critical', 'odd'].map(function (p) { return PhoneBox.metrics.heatValues({ mem: { used: 15, total: 16, pressure: p } }).ram; }).join(',')")
+            == "0,2,")
+        #expect(string("[0, 1, 2].map(function (p) { return H.level(L.ram, p); }).join(',')") == "0,0.5,1")
         #expect(string("PhoneBox.metrics.heatValues({ battery: { percent: 12, charging: false, plugged: false } }).battery") == "12")
         #expect(string("PhoneBox.metrics.heatValues({ battery: { percent: 12, charging: false } }).battery") == "null")
-        #expect(string("[PhoneBox.metrics.graphHeat('disk'), PhoneBox.metrics.graphHeat('net')].join(',')") == ",net")
+        #expect(string("[PhoneBox.metrics.graphHeat('disk'), PhoneBox.metrics.graphHeat('ram'), PhoneBox.metrics.graphHeat('net')].join(',')")
+            == ",,net")
     }
 
     @Test func blendsSnapshotsNumberByNumber() {

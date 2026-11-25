@@ -154,7 +154,7 @@
       this.glide.push(snapshot, now);
       this.timeline.arrived(snapshot.t, now);
       // The alarm goes by the values that arrived, not the ones gliding on screen.
-      for (const metric of this.alarm.update(this.levelsOf(snapshot))) this.poppedAt[metric] = now;
+      for (const metric of this.alarm.update(this.levelsOf(snapshot), now)) this.poppedAt[metric] = now;
       this.renderPhone();
       this.fitTiles(previous);
       const playingBefore = !$("now-playing").hidden;
@@ -211,9 +211,11 @@
 
       const levels = this.levelsOf(shown);
       const ringing = new Set(this.alarm.active());
+      // After 2 minutes an alarm goes quiet: no beat and no edge light; its metric stays red until it recovers.
+      const loud = new Set(this.alarm.loud(now));
       // The alarm's beat: once a second; steady with "Reduce Motion".
       const pulse = still ? 1 : 0.5 + 0.5 * Math.sin((now / 1000) * Math.PI * 2);
-      const glow = (metric) => (ringing.has(metric) ? pulse : 0);
+      const glow = (metric) => (loud.has(metric) ? pulse : 0);
       const { cpu, mem } = shown;
       const f = this.format;
       const memoryOK = mem && mem.total > 0;
@@ -227,8 +229,8 @@
       this.renderHeader(shown, levels);
       const graphKey = PB().metrics.graphHeat(this.selected);
       this.drawGraph(graph, graphSize, now, still, graphKey ? glow(graphKey) : 0);
-      this.renderTop(shown, levels, ringing, pulse, still);
-      this.renderEdge(levels, ringing, pulse, now, still);
+      this.renderTop(shown, levels, ringing, loud, pulse, still);
+      this.renderEdge(levels, loud, pulse, now, still);
     }
 
     /// 0 → 1 → 0 over the first 0.7 s after a metric's alarm started (none with "Reduce Motion").
@@ -237,8 +239,9 @@
       return still || !this.alarm.ringing.has(metric) || since >= 700 ? 0 : Math.sin((Math.PI * since) / 700);
     }
 
-    /// The clock, and under it the date, or "▲ CPU %100 · Sıcaklık 97 °C" while alarms ring (the two highest).
-    renderTop(shown, levels, ringing, pulse, still) {
+    /// The clock, and under it the date, or "▲ CPU %100 · Sıcaklık 97 °C" while alarms ring (the two highest); it
+    /// beats with a loud alarm and stays steady once all are quiet.
+    renderTop(shown, levels, ringing, loud, pulse, still) {
       const { clock, metrics } = PB();
       const date = new Date();
       const minute = Math.floor(date.getTime() / 60000);
@@ -262,16 +265,17 @@
       const hottest = Array.from(ringing).sort((a, b) => (levels[b] ?? 0) - (levels[a] ?? 0)).slice(0, 2);
       put(line, "class", "top-line alert");
       put(line, "text", "▲ " + hottest.map((metric) => `${name(metric)} ${value(metric)}`).join(" · "));
-      put(line, "opacity", (0.6 + 0.4 * pulse).toFixed(2));
+      put(line, "opacity", loud.size ? (0.6 + 0.4 * pulse).toFixed(2) : "");
     }
 
     /// A red light around the screen's edge: faint while a metric nears its limit (level past 0.7), and while an
-    /// alarm rings a wide one that beats once a second, after a bright flash when it starts.
-    renderEdge(levels, ringing, pulse, now, still) {
+    /// alarm rings a wide one that beats once a second, after a bright flash when it starts. Both go out after
+    /// 2 minutes, so a value that stays bad does not light the edge for ever.
+    renderEdge(levels, loud, pulse, now, still) {
       let edge = 0;
-      for (const metric of Object.keys(levels)) edge = Math.max(edge, Math.max(0, ((levels[metric] ?? 0) - 0.7) / 0.3) * 0.4);
-      if (ringing.size) {
-        const flash = Math.max(...Array.from(ringing, (metric) => this.pop(metric, now, still)));
+      for (const metric of this.alarm.near(now)) edge = Math.max(edge, Math.max(0, ((levels[metric] ?? 0) - 0.7) / 0.3) * 0.4);
+      if (loud.size) {
+        const flash = Math.max(...Array.from(loud, (metric) => this.pop(metric, now, still)));
         edge = Math.max(0.45 + 0.55 * pulse, flash);
       }
       put($("edge"), "opacity", (this.stale ? 0 : edge).toFixed(2));

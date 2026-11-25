@@ -351,7 +351,7 @@ Telefon çalışırken yanda açık durur; bir metrik sınırına yaklaşınca d
   | Metrik | Kızarmaya başlar | Kıpkırmızı | Not |
   |---|---|---|---|
   | CPU | %40 | %95 | `cpu.total` |
-  | RAM | %75 | %95 | kullanılan / toplam |
+  | RAM | bellek baskısı "uyarı" (yarı yolda) | bellek baskısı "kritik" | `mem.pressure`; halka kullanılan yüzdeyi gösterir ama renk ve alarm baskıya göre: macOS belleği bilerek dolu tutar, 8 GB'lık Mac'te %85–95 olağandır (kullanıcı kararı, 2026-11-26). RAM grafiği kızarmaz |
   | GPU | %40 | %95 | |
   | Sıcaklık | 60 °C | 95 °C | ortalama (`temp.avg`) |
   | Güç | `ready.limits.power[0]` | `ready.limits.power[1]` | Mac çipine göre seçer (aşağıda); gelmezse 15 / 35 W |
@@ -390,6 +390,10 @@ Telefon çalışırken yanda açık durur; bir metrik sınırına yaklaşınca d
   - Saat başlığında tarihin yerine kırmızı "▲ CPU %100" yazar; birden fazla alarm varsa en yüksek seviyeli ikisi
     ("▲ CPU %100 · Sıcaklık 97 °C").
   - Alarm yokken bir metrik seviye 0,7'yi geçerse kenarda soluk bir ışık belirir (seviye arttıkça güçlenir).
+  - 2 dakika sonra alarm sakinleşir: kenar ışığı ve atma durur, "▲" yazısı sabit kalır, metrik değer düzelene kadar
+    kırmızı kalır. Değer düzelip (3 snapshot boyunca 0,9'un altında) yeniden sınıra gelirse yeniden çalar. Bir metrik
+    2 dakikadan uzun süre sınıra yakın kalırsa soluk kenar ışığı da söner; dolu kalan disk ekranı hep kızartmaz
+    (kullanıcı kararı, 2026-11-26).
 - **Veri bayatlayınca** (bölüm 5, değerler soluk): alarm ve kenar ışığı söner, renkler son değerde kalır.
 
 ### Saat ve telefonun pili
