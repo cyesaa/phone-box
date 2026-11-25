@@ -8,7 +8,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let sampler = Sampler()
     private let usbWatcher = USBWatcher()
     private let qrWindow = QRWindowController()
-    private var key = PairingStore.loadOrCreate()
+    private let loaded = PairingStore.loadOrCreate()
+    private var key: PairingKey
     private var hub: DashboardHub!
     private var server: DashboardServer!
     private var menuBar: MenuBarController!
@@ -16,7 +17,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var waitingForCableCount = 0
     private var wakeObserver: NSObjectProtocol?
 
+    override init() {
+        key = loaded.key
+        super.init()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if loaded.created { settings.hasEverPaired = false }
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
         hub = DashboardHub(mode: settings.mode, key: key, appName: "PhoneBox \(version)")
         let webDirectory = Bundle.main.resourceURL!.appendingPathComponent("web", isDirectory: true)
@@ -64,7 +71,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func iPhoneChanged(pluggedIn: Bool) {
         refreshStatus()
-        guard pluggedIn else { return }
+        guard pluggedIn else {
+            // The interface disappears a moment after usbmuxd reports the unplug; then drop its phones.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                MainActor.assumeIsolated { self?.hub.dropVanishedUSBClients() }
+            }
+            return
+        }
         if !settings.hasEverPaired { showQR() }
         // The USB link appears a moment after usbmuxd reports the phone; then move Wi-Fi phones to the cable.
         for delay in [3.0, 8.0] {

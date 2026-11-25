@@ -85,7 +85,7 @@ public struct WebSocketDecoder: Sendable {
             let final = first & 0x80 != 0
             let opcode = first & 0x0f
             guard first & 0x70 == 0 else { throw DecodeError.reservedBits }
-            guard (0x3...0x7).contains(opcode) == false, opcode < 0xB else { throw DecodeError.reservedOpcode }
+            guard !(0x3...0x7).contains(opcode), opcode <= 0xA else { throw DecodeError.reservedOpcode }
             guard second & 0x80 != 0 else { throw DecodeError.unmasked }
             let isControl = opcode >= 0x8
             if isControl {

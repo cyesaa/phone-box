@@ -9,6 +9,9 @@ final class DashboardHub {
     static let authTimeout: TimeInterval = 5
     /// Close code that tells the page to reconnect at once (to come back over the cable).
     static let reconnectCode: UInt16 = 4002
+    /// Seconds between liveness pings, and how long a phone may stay silent before it is dropped.
+    static let pingInterval: TimeInterval = 15
+    static let silenceLimit: TimeInterval = 45
 
     private struct Client {
         let connection: ClientConnection
@@ -24,6 +27,7 @@ final class DashboardHub {
     private let appName: String
     private let usbInterfaces: () -> Set<String>
     private var clients: [ObjectIdentifier: Client] = [:]
+    private var livenessTimer: Timer?
 
     /// True while at least one phone may receive snapshots: the sampler runs only then.
     var onStreamingChange: ((Bool) -> Void)?
@@ -38,23 +42,54 @@ final class DashboardHub {
         self.key = key
         self.appName = appName
         self.usbInterfaces = usbInterfaces
+        let timer = Timer(timeInterval: Self.pingInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkLiveness() }
+        }
+        timer.tolerance = 1
+        RunLoop.main.add(timer, forMode: .common)
+        livenessTimer = timer
+    }
+
+    /// Pings every authenticated phone and drops the ones that have been silent for too long.
+    private func checkLiveness() {
+        let now = Date()
+        for client in clients.values where client.session.isAuthenticated {
+            if now.timeIntervalSince(client.connection.lastInboundAt) > Self.silenceLimit {
+                Log.server.notice("Dropping a silent phone")
+                client.connection.cancel()
+            } else {
+                client.connection.sendPing()
+            }
+        }
+    }
+
+    /// Cancels USB phones whose interface is gone (the cable was unplugged).
+    func dropVanishedUSBClients() {
+        let present = usbInterfaces()
+        for client in clients.values where client.session.isAuthenticated && client.onUSB {
+            guard let name = client.connection.interfaceName, present.contains(name) else {
+                Log.server.notice("Dropping a phone whose USB link is gone")
+                client.connection.cancel()
+                continue
+            }
+        }
     }
 
     var canAccept: Bool { clients.count < Self.maxClients }
     private var isStreaming: Bool { clients.values.contains { $0.access.streaming } }
 
     func opened(_ connection: ClientConnection) {
-        let onUSB = connection.interfaceName.map(usbInterfaces().contains) ?? false
+        let onUSB = connection.arrivedOnScopedLinkLocal && (connection.interfaceName.map(usbInterfaces().contains) ?? false)
         let session = Session(nonce: Session.makeNonce())
         clients[ObjectIdentifier(connection)] = Client(connection: connection, session: session, onUSB: onUSB, access: .unauthenticated)
-        Log.server.info("Phone connected on \(connection.interfaceName ?? "?", privacy: .public) (USB: \(onUSB))")
+        Log.server.info("Phone connected on \(connection.interfaceName ?? "?", privacy: .public) (scoped link-local: \(connection.arrivedOnScopedLinkLocal), USB: \(onUSB))")
         connection.send(.hello(nonce: session.nonce, app: appName))
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.authTimeout) { [weak self, weak connection] in
             MainActor.assumeIsolated {
                 guard let self, let connection, let client = self.clients[ObjectIdentifier(connection)],
                       !client.session.isAuthenticated
                 else { return }
-                connection.close(code: Session.authFailedCode, reason: "no auth")
+                connection.close(code: Session.authTimeoutCode, reason: "no auth")
             }
         }
     }
@@ -67,6 +102,7 @@ final class DashboardHub {
         switch outcome {
         case .authenticated:
             let wasStreaming = isStreaming
+            connection.markAuthenticated()
             client.access = AccessPolicy.decide(mode: mode, clientOnUSB: client.onUSB, authenticated: true)
             clients[id] = client
             connection.send(.ready(mode: mode, access: client.access))

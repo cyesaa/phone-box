@@ -67,6 +67,8 @@ final class USBWatcher {
     private nonisolated static func connect() -> Int32 {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { return -1 }
+        var noSigPipe: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
         var address = sockaddr_un()
         address.sun_family = sa_family_t(AF_UNIX)
         let path = Array("/var/run/usbmuxd".utf8) + [0]

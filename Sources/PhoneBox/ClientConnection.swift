@@ -10,17 +10,29 @@ final class ClientConnection {
     /// The network interface the connection arrived on, e.g. `en8` for the iPhone's USB link or `en0` for Wi-Fi.
     private(set) var interfaceName: String?
     private(set) var isWebSocket = false
+    /// True when the local end is a scoped IPv6 link-local address (`fe80::…%en8`), which is how the iPhone's
+    /// USB link looks. Anything else (IPv4, unscoped IPv6, unknown) is not the cable: fail closed.
+    private(set) var arrivedOnScopedLinkLocal = false
+    /// When the last frame of any kind arrived; the hub drops connections that went silent.
+    private(set) var lastInboundAt = Date()
+    private(set) var isAuthenticated = false
 
     /// Seconds a connection may take to become a WebSocket before it is dropped.
     static let headTimeout: TimeInterval = 10
     /// Seconds a closing connection may take to finish before it is cancelled.
     static let closeTimeout: TimeInterval = 2
+    /// Seconds a connection may stay non-viable (no route, e.g. after unplugging the cable) before it is dropped.
+    static let nonViableTimeout: TimeInterval = 5
+    /// Sends that have not completed yet; a peer that never reads is dropped beyond this.
+    static let maxOutstandingSends = 256
 
     private let webDirectory: URL
     private weak var hub: DashboardHub?
     private var head = Data()
     private var decoder = WebSocketDecoder()
     private var closed = false
+    private var outstandingSends = 0
+    private var nonViableTimer: DispatchWorkItem?
 
     init(connection: NWConnection, webDirectory: URL, hub: DashboardHub) {
         self.connection = connection
@@ -35,6 +47,7 @@ final class ClientConnection {
                 switch state {
                 case .ready:
                     self.interfaceName = Self.interfaceName(of: self.connection)
+                    self.arrivedOnScopedLinkLocal = Self.isScopedLinkLocal(self.connection)
                     self.readHead()
                 case .failed, .waiting:
                     self.cancel()
@@ -43,6 +56,19 @@ final class ClientConnection {
                 default:
                     break
                 }
+            }
+        }
+        connection.viabilityUpdateHandler = { [weak self] viable in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.nonViableTimer?.cancel()
+                self.nonViableTimer = nil
+                guard !viable, !self.closed else { return }
+                let work = DispatchWorkItem { [weak self] in
+                    MainActor.assumeIsolated { self?.cancel() }
+                }
+                self.nonViableTimer = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + Self.nonViableTimeout, execute: work)
             }
         }
         connection.start(queue: .main)
@@ -70,6 +96,13 @@ final class ClientConnection {
             return nil
         }
         return InterfaceAddress.owner(of: bytes, among: localAddresses())
+    }
+
+    /// Whether the local end is a link-local IPv6 address that carries its interface scope.
+    static func isScopedLinkLocal(_ connection: NWConnection) -> Bool {
+        guard case let .hostPort(host, _)? = connection.currentPath?.localEndpoint,
+              case let .ipv6(address) = host else { return false }
+        return address.isLinkLocal && address.interface != nil
     }
 
     /// Every IPv4 and IPv6 address of this Mac with its interface name, from `getifaddrs`.
@@ -127,7 +160,7 @@ final class ClientConnection {
             else { return respond(HTTPResponse.badRequest) }
             guard let hub, hub.canAccept else { return respond(HTTPResponse.busy) }
             isWebSocket = true
-            connection.send(content: WebSocketHandshake.response(for: key), completion: .contentProcessed { _ in })
+            transmit(WebSocketHandshake.response(for: key))
             hub.opened(self)
             readFrames()
         } else {
@@ -155,28 +188,48 @@ final class ClientConnection {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { [weak self] data, _, isComplete, error in
             MainActor.assumeIsolated {
                 guard let self, !self.closed else { return }
+                let frames: [WebSocketFrame]
                 do {
-                    for frame in try self.decoder.append(data ?? Data()) {
-                        self.handle(frame)
-                        if self.closed { return }
-                    }
+                    frames = try self.decoder.append(data ?? Data())
                 } catch {
                     return self.close(code: Session.policyViolationCode, reason: "bad frame")
                 }
+                if !frames.isEmpty { self.lastInboundAt = Date() }
+                // RFC 6455 section 5.5.3: answering the last ping of a burst is enough.
+                var lastPing: WebSocketFrame?
+                for frame in frames {
+                    if frame.opcode == WebSocketOpcode.ping.rawValue && self.isAuthenticated {
+                        lastPing = frame
+                        continue
+                    }
+                    self.handle(frame)
+                    if self.closed { return }
+                }
+                if let lastPing { self.transmit(WebSocketCodec.encode(.pong, lastPing.payload)) }
                 if isComplete || error != nil { self.cancel() } else { self.readFrames() }
             }
         }
     }
 
+    /// Called by the hub once the phone has authenticated; until then only text frames are accepted.
+    func markAuthenticated() {
+        isAuthenticated = true
+    }
+
     private func handle(_ frame: WebSocketFrame) {
+        guard isAuthenticated || frame.opcode == WebSocketOpcode.text.rawValue else {
+            return close(code: Session.policyViolationCode, reason: "not authenticated")
+        }
         switch WebSocketOpcode(rawValue: frame.opcode) {
         case .text:
             guard let text = frame.text else { return close(code: Session.policyViolationCode, reason: "bad text") }
             hub?.received(text, from: self)
         case .ping:
-            connection.send(content: WebSocketCodec.encode(.pong, frame.payload), completion: .contentProcessed { _ in })
+            transmit(WebSocketCodec.encode(.pong, frame.payload))
         case .close:
             close(code: 1000, reason: "")
+        case .binary:
+            close(code: 1003, reason: "binary frames are not supported")
         default:
             break
         }
@@ -184,7 +237,22 @@ final class ClientConnection {
 
     func send(_ message: ServerMessage) {
         guard isWebSocket, !closed else { return }
-        connection.send(content: WebSocketCodec.text(message.json()), completion: .contentProcessed { _ in })
+        transmit(WebSocketCodec.text(message.json()))
+    }
+
+    /// A ping from the hub's liveness timer; browsers answer with a pong on their own.
+    func sendPing() {
+        guard isWebSocket, !closed else { return }
+        transmit(WebSocketCodec.encode(.ping, Data()))
+    }
+
+    /// Sends bytes and counts them until they are written; a peer that stops reading is dropped.
+    private func transmit(_ data: Data) {
+        outstandingSends += 1
+        connection.send(content: data, completion: .contentProcessed { [weak self] _ in
+            MainActor.assumeIsolated { self?.outstandingSends -= 1 }
+        })
+        if outstandingSends > Self.maxOutstandingSends { cancel() }
     }
 
     /// Sends a close frame, then drops the connection.
@@ -205,6 +273,8 @@ final class ClientConnection {
     }
 
     private func finish() {
+        nonViableTimer?.cancel()
+        nonViableTimer = nil
         closed = true
         hub?.closed(self)
     }

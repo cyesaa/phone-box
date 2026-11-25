@@ -10,6 +10,8 @@ enum PhoneBoxApp {
         app.setActivationPolicy(.accessory)
         // Route SIGTERM (e.g. `pkill`) through normal termination.
         signal(SIGTERM, SIG_IGN)
+        // A write to a vanished peer must fail with an error, not kill the app.
+        signal(SIGPIPE, SIG_IGN)
         let termSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
         termSource.setEventHandler {
             MainActor.assumeIsolated { app.terminate(nil) }

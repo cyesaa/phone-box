@@ -13,12 +13,13 @@ enum PairingStore {
             .appendingPathComponent("pairing-key")
     }
 
-    static func loadOrCreate() -> PairingKey {
+    /// The saved key, or a new one (`created`) when there is none: the pairing then has to be done again.
+    static func loadOrCreate() -> (key: PairingKey, created: Bool) {
         if let text = try? String(contentsOf: fileURL, encoding: .utf8),
            let key = PairingKey(base64URL: text.trimmingCharacters(in: .whitespacesAndNewlines)) {
-            return key
+            return (key, false)
         }
-        return reset()
+        return (reset(), true)
     }
 
     /// A new key; every paired phone has to scan the new QR code.

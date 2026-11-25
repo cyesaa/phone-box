@@ -7,6 +7,8 @@ final class Sampler {
     var onSnapshot: ((Snapshot) -> Void)?
 
     private var timer: Timer?
+    /// Keeps App Nap from slowing the one-second timer while a phone is streaming.
+    private var activity: NSObjectProtocol?
     private let cpu = CPUCollector()
     private let memory = MemoryCollector()
 
@@ -23,7 +25,11 @@ final class Sampler {
             timer.tolerance = 0.1
             RunLoop.main.add(timer, forMode: .common)
             self.timer = timer
+            activity = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep,
+                                                             reason: "Streaming to iPhone")
         } else {
+            if let activity { ProcessInfo.processInfo.endActivity(activity) }
+            activity = nil
             timer?.invalidate()
             timer = nil
         }
