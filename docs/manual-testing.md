@@ -40,6 +40,16 @@ ya da `lsof -nP -iTCP:4747 -sTCP:ESTABLISHED` (`fe80:<scope>::…` adresinin sco
 - [ ] Pildeyken (adaptör çıkık) "Güç" satırı 0 W değil, Mac'in tamamının çekişini gösteriyor.
 - [ ] Bir telefon veri alırken PhoneBox `top`'ta %1'in altında.
 
+## Arayüz (Plan 4A)
+- [ ] Yatay ve dikeyde her şey sığıyor; kesilen, taşan, üst üste binen yok (iPhone SE'den Pro Max'e).
+- [ ] Halkaya ya da kutucuğa dokununca grafik ve başlık o metriğe geçiyor; seçim sayfa yeniden açılınca hatırlanıyor.
+- [ ] Uygulama listesinin başlığına dokununca CPU/RAM sıralaması değişiyor; kapatılamayan uygulamalar gri.
+- [ ] Mac'te bir şey çalarken şarkı kartı görünüyor, hiçbir şey çalmayınca birkaç saniyede gidiyor.
+- [ ] Durum satırı kabloda yeşil "kablo", Wi-Fi'de turuncu "Wi-Fi"; veri kesilince gri "Bağlanıyor…" ve soluk değerler.
+- [ ] İlk açılışta rehber çıkıyor, "Başlat" ekranı açık tutuyor; "⋯ → Kurulum rehberi" yeniden açıyor; "Kopyala"
+  kişisel bağlantıyı kopyalıyor.
+- [ ] Ana ekran simgesi yeşil ve mavi halkalı.
+
 ## Komutlar (kablodan; telefondan Plan 4'ün arayüzüyle denenir)
 - [ ] Kapat: Dock'taki bir uygulama kapanıyor (kaydedilmemiş belge varsa Mac'te sorar); `ack` `ok`.
 - [ ] Zorla kapat: uygulama hemen kapanıyor.
@@ -116,3 +126,19 @@ Mac'te (tarayıcı paneli, `lo0`, "Her zaman" modu):
   yaşıyordu; artık kapanışta durduruluyor (kapatma sonrası adaptör sayısı 0).
 - Denenmedi (telefon kabloda gerekir, Plan 4): komutların USB'den gelmesi; kilit, ekranı kapatma, uyku ve medya gönderme
   bu Mac'te kullanıcıyı rahatsız etmemek için çalıştırılmadı (spike 7'de medya dışındakiler izin penceresi olmadan çalıştı).
+
+### 2026-11-25 — Plan 4A (dal `plan4a`, 9d67dd7), MacBook Pro M4 / macOS 27.2, iPhone iOS 27.0.1
+
+Mac'te (tarayıcı paneli, gerçek veri):
+- Geçti: 734×372, 393×759, 667×375, 375×647, 814×409 ölçülerinde ekran dışına taşan öğe ya da kesilen kutucuk/başlık
+  yok; grafik çiziliyor (SE dikeyde 63 px, 4 uygulama satırı); konsolda JavaScript hatası yok.
+- Geçti: "Başlat" videoyu başlatıp ekranı açtı; kutucuk grafiği ve başlığı değiştirdi; "⋯" menüsü düğmesinin üstünde
+  açıldı ve rehberi açtı; "Kabloyu tak" kartı soluk değerlerin üstünde göründü.
+- Geçti: anahtarsız sayfada "Eşleşmedi" kartı; rehber menüden açılıyor.
+- Geçti: PhoneBox 22 sn durdurulunca sayfa 1/2/5/5/5 sn arayla denedi ve kendiliğinden döndü.
+
+iPhone ile (Chrome, ana ekran simgesi):
+- Geçti (kullanıcı bildirdi): yeni simgeyle yeniden eklendi; rehber ve "Başlat"; yatay ve dikeyde düzgün; kutucuk
+  grafiği değiştiriyor; sıralama; çalan şarkı kartı; kablo çıkar-tak. Adımlar ayrı ayrı kaydedilmedi.
+- Denenmedi: telefonda "Kopyala" düğmesi, Safari'deki rehber metni, 3 dakikalık OLED kayması.
+
