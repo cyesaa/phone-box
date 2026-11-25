@@ -4,6 +4,19 @@
 >
 > **Bu plan için not:** Görev 1–7 Mac'te tek başına yürütülebilir. Görev 8 kısa bir iPhone kontrolüdür ve
 > kullanıcıyla birlikte (inline) yapılır.
+>
+> **Yürütme notu (2026-11-25):** Plan alt ajanlarla yürütüldü (dal `plan3a`). İncelemelerden sonra yapılan
+> düzeltmeler yüzünden aşağıdaki kod blokları düzeltme öncesi hâlidir; doğruluk kaynağı daldaki koddur.
+> - `4eb587f`: güç `SystemLoad`'dan (pildeyken `SystemPowerIn` 0), sıcaklık ve disk kapasitesi tek bir başarısız
+>   okumada boşalmıyor, ağ indeksi taşmıyor.
+> - `b143c39`: bulunamayan birincil arayüz her saniye yeniden aranıyor.
+> - `e751400`: ağ hızlarının ikisi de önceden okunuyor (ilk snapshot dolu); IOReport'ta sadece "GPU Energy" kanalına
+>   abone olunuyor (175 kanal yerine); disk kapasitesi 10 sn yerine **60 sn**'de bir (okuması ~9 ms); işlem listesi
+>   okunamazsa uygulama listesi boşalmıyor; uygulama adı en fazla 80 karakter; `μJ` (U+03BC) birimi.
+> - `4e56dfe`: ağ sayaçları `net.link.generic.ifdata`'dan; `getifaddrs` ve `NET_RT_IFLIST2` bu macOS'ta sadece alt
+>   32 biti veriyor (4 GiB'da başa dönüyordu).
+>
+> Sonuç: 105 test; PhoneBox bir telefona veri gönderirken `top`'ta %0,74 CPU (düzeltmelerden önce %1,34).
 
 **Goal:** Telefondaki dashboard'a CPU ve RAM'in yanında GPU, çip sıcaklığı, güç, ağ, disk, pil ve en çok kaynak
 kullanan uygulamaları eklemek; PhoneBox veri gönderirken ~%1 CPU'yu geçmesin.

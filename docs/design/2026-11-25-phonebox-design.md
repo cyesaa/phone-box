@@ -155,8 +155,10 @@ gösterilir.
 
 ## 6. Metrikler
 
-Sampler sadece en az bir izinli istemci varken çalışır. Hedef: PhoneBox'ın kendi CPU kullanımı %1'in altında. Ölçülen (Plan 3A, M4): veri gönderirken ~%1; sıcaklığı her saniye okumak tek başına ~%3 tutuyordu.
-Okunamayan değer `null` gönderilir, dashboard "—" gösterir.
+Sampler sadece en az bir izinli istemci varken çalışır. Hedef: PhoneBox'ın kendi CPU kullanımı %1'in altında. Ölçülen (Plan 3A, M4,
+bir telefon bağlıyken `top`'ta 30 sn ortalama): %0,74. İlk sürümde sıcaklığı her saniye okumak tek başına ~%3,
+"Energy Model" grubunun 175 kanalının tamamına abone olmak ~0,1–0,15 puan tutuyordu.
+Okunamayan değer JSON'a hiç yazılmaz (alan yok); dashboard "—" gösterir.
 
 | Alan | İçerik | Kaynak |
 |---|---|---|
@@ -164,17 +166,19 @@ Okunamayan değer `null` gönderilir, dashboard "—" gösterir.
 | `mem` | `used`, `total`, `app`, `wired`, `compressed`, `swapUsed` (bayt), `pressure` (`normal`/`warn`/`critical`) | `host_statistics64`, `sysctl hw.memsize`, `vm.swapusage`, `kern.memorystatus_vm_pressure_level` |
 | `gpu` | `util` (%) | IOKit `IOAccelerator` → `PerformanceStatistics` |
 | `temp` | `avg`, `max` (°C): çip die sensörleri (`PMU tdie*`, `PMU2 tdie*`); CPU/GPU ayrımı sensör adlarından güvenilir çıkarılamadığı için tek değer. 5 sn'de bir okunur | `IOHIDEventSystemClient` (resmi olmayan) |
-| `power` | `gpu` (W); MacBook'ta `system` (W). CPU ve ANE watt'ı root gerektirdiği için yok | `IOReport` "Energy Model" → `GPU Energy` (resmi olmayan); `AppleSmartBattery` → `PowerTelemetryData.SystemPowerIn` |
-| `net` | `rx`, `tx` (bayt/sn), `iface` | `getifaddrs` sayaçları, birincil arayüz |
-| `disk` | `free`, `total` (bayt), `read`, `write` (bayt/sn) | `URLResourceValues`, IOKit `IOBlockStorageDriver` istatistikleri |
-| `battery` | `percent`, `charging`, `minutesLeft`; masaüstü Mac'te `null` | `IOPSCopyPowerSourcesInfo` |
+| `power` | `gpu` (W); MacBook'ta `system` (W). CPU ve ANE watt'ı root gerektirdiği için yok | `IOReport` "Energy Model" grubunun yalnızca `GPU Energy` kanalına abone olunur (resmi olmayan); `AppleSmartBattery` → `PowerTelemetryData.SystemLoad` (pildeyken de Mac'in toplam çekişi), yoksa `SystemPowerIn` |
+| `net` | `rx`, `tx` (bayt/sn), `iface` | `sysctl net.link.generic.ifdata.<index>.general` 64 bit sayaçları (`getifaddrs` ve `NET_RT_IFLIST2` güncel macOS'ta sadece alt 32 biti veriyor, 4 GiB'da başa dönüyor); birincil arayüz `SCDynamicStore`'dan (IPv4, yoksa IPv6), bulunan ad 10 sn saklanır |
+| `disk` | `free`, `total` (bayt; 60 sn'de bir, okuması ~9 ms sürüyor), `read`, `write` (bayt/sn) | `URLResourceValues` (`volumeAvailableCapacityForImportantUsage`), IOKit `IOBlockStorageDriver` istatistikleri |
+| `battery` | `percent`, `charging`, `minutesLeft`; masaüstü Mac'te alan yok, prizdeyken şarj olmuyorsa `minutesLeft` yok | `IOPSCopyPowerSourcesInfo` |
 | `apps` | 3 saniyede bir (diğer saniyelerde alan gönderilmez): CPU'ya göre ilk 5 ile RAM'e göre ilk 5'in birleşimi, en fazla 10 kayıt `{pid, bundleId, name, cpu, mem, quittable}` | `libproc` (`proc_listallpids`, `proc_pid_rusage`, `proc_pidpath`) |
 
 - **Gruplama:** Bir sürecin yolu bir `.app` paketinin içindeyse en dıştaki `.app`'e yazılır ("Chrome Helper" →
   "Chrome"). Root'a ait sistem süreçleri izin olmadan okunamaz ve listede yer almaz. Uygulama adlarından
-  görünmez yön karakterleri (`U+200E`, `U+200F`, `U+202A…U+202E`) temizlenir (WhatsApp'ın adı `U+200E` ile başlıyor).
-- **Uyku/uyanma ve ağ değişimi:** CPU, ağ ve disk sayaçlarının referansı sıfırlanır; ilk örnek hız yerine `null`
-  döner, böylece anlamsız sıçrama olmaz.
+  görünmez yön karakterleri (`U+200E`, `U+200F`, `U+202A…U+202E`, `U+2066…U+2069`) temizlenir (WhatsApp'ın adı `U+200E`
+  ile başlıyor) ve ad en fazla 80 karaktere kısaltılır. Paket dışındaki süreçler (ör. WebKit'in XPC süreçleri) çalıştırılabilir
+  dosyanın yoluna göre ayrı satır olur; Safari'nin sekmeleri bu yüzden Safari'ye yazılmaz (Plan 4'te ele alınacak).
+- **Uyku/uyanma ve ağ değişimi:** CPU, ağ ve disk sayaçlarının referansı sıfırlanır; ilk örnekte hız alanı
+  gönderilmez, böylece anlamsız sıçrama olmaz. Başlarken sayaçlar bir kez önceden okunur, ilk snapshot dolu gelir.
 - **Sıcaklık/güç:** Stats ve macmon'un yöntemleri izlenir. Kod alınırsa lisansına uyulur ve
   `THIRD_PARTY_NOTICES.md`'ye yazılır. Sensör adları çipe göre değişir: M4'te test edilir, M1–M3 için Stats'in
   sensör listesi kullanılır, README'de "topluluk testine açık" diye belirtilir.
