@@ -1,7 +1,8 @@
 # PhoneBox — Tasarım Dokümanı
 
 - **Tarih:** 2026-11-25
-- **Durum:** Onaylandı (2026-11-25). Deneme planı: `docs/design/plans/2026-11-25-phonebox-spike.md`
+- **Durum:** Onaylandı (2026-11-25); deneme sonuçlarına göre güncellendi (2026-11-25). Deneme planı:
+  `docs/design/plans/2026-11-25-phonebox-spike.md`, sonuçlar: `docs/spike-results.md`
 - **Geliştirme Mac'i:** MacBook Pro (Mac16,1), Apple M4, 16 GB, macOS 27.2, Xcode yok (Command Line Tools)
 - **Test telefonu:** Kullanıcının günlük iPhone'u
 - **Örnek alınan proje:** NotchBox (`cyesaa/notch-box`): paketleme, kurulum, README ve doküman düzeni ondan alınır
@@ -10,8 +11,10 @@
 
 PhoneBox, Mac'in anlık sistem verilerini (CPU, RAM, GPU, sıcaklık, güç, ağ, disk, pil, en çok kaynak
 kullanan uygulamalar) iPhone'da yatay bir dashboard olarak gösteren bir menü çubuğu uygulamasıdır. Telefona hiçbir
-şey kurulmaz: dashboard, Mac'teki PhoneBox'ın yerel ağda sunduğu bir web sayfasıdır ve Safari'de açılır.
-Telefondan Mac'e komut da gönderilebilir: uygulama kapatma, medya ve ses kontrolü, kilitleme ve uyutma.
+şey kurulmaz: dashboard, Mac'teki PhoneBox'ın sunduğu bir web sayfasıdır ve iPhone'un tarayıcısında (Safari ya da
+Chrome) açılır. iPhone kabloyla takılıyken veri **USB kablosu üzerinden** (iPhone'un USB ağ bağlantısı), değilse
+yerel Wi-Fi üzerinden gider. Telefondan Mac'e komut da gönderilebilir: uygulama kapatma, medya ve ses kontrolü,
+kilitleme ve uyutma.
 
 Kullanıcı PhoneBox'ı NotchBox gibi tek bir `curl` satırıyla kurar. iPhone'u ilk kez kabloyla taktığında Mac'te
 bir QR kod çıkar; telefon kamerasıyla okutulunca dashboard açılır. Sonraki takışlarda, isteğe bağlı bir Kestirmeler
@@ -21,7 +24,7 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 
 ### Hedefler (v1)
 
-- Telefona uygulama, profil ya da sertifika kurmadan, sadece Safari ile çalışan dashboard.
+- Telefona uygulama, profil ya da sertifika kurmadan, sadece tarayıcıyla (Safari ya da Chrome) çalışan dashboard.
 - Yatay ana görünüm (yerleşim C, "sade koyu" stil); dikey tutulunca "tek bakış" yerleşimi.
 - Saniyede bir güncellenen metrikler (bölüm 6), uygulama listesi 2 saniyede bir.
 - Telefondan komutlar: uygulama kapat / zorla kapat, oynat-duraklat / önceki / sonraki, ses seviyesi ve sessiz,
@@ -34,7 +37,7 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 ### Kapsam dışı (v1)
 
 - Android ve native iOS uygulaması (kullanıcı kararı: sadece iPhone, telefona kurulum yok).
-- Verinin USB kablosu üzerinden taşınması (Safari, `usbmuxd` kanalını kullanamaz; bkz. bölüm 3).
+- CPU ve Neural Engine watt'ı (sayaçları root olmadan ilerlemiyor; bkz. `docs/spike-results.md`).
 - Fan hızı, geçmiş kaydı (telefondaki 60 saniyelik grafik dışında), uyarı/bildirim eşikleri.
 - Telefondan Mac'i uyandırma (Wake on LAN).
 - Kendi Kestirmeler komutlarını ya da scriptleri çalıştırma.
@@ -44,11 +47,11 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 
 | Konu | Karar | Neden |
 |---|---|---|
-| Telefon tarafı | Safari'de açılan web sayfası, "Ana Ekrana Ekle" ile uygulama gibi | Kullanıcı telefona hiçbir şey kurulmasını istemiyor |
-| Veri yolu | Yerel Wi-Fi üzerinden HTTP + WebSocket | iOS'ta USB üzerinden Mac'le konuşabilen tek şey native uygulama; Safari bunu yapamaz |
-| Kablonun rolü | "Takılı" sinyali (kablo modu) ve şarj | Mac, `usbmuxd` ile iPhone'un takıldığını Xcode olmadan görür |
+| Telefon tarafı | iPhone tarayıcısında (Safari, Chrome; hepsi WebKit) açılan web sayfası, "Ana Ekrana Ekle" ile uygulama gibi | Kullanıcı telefona hiçbir şey kurulmasını istemiyor |
+| Veri yolu | HTTP + WebSocket; kablo takılıyken iPhone'un USB NCM bağlantısı (IPv6 link-local), değilse Wi-Fi | Güvenilen iPhone takılınca USB üzerinden bir ağ bağlantısı açılıyor ve `.local` adı ona çözülüyor; Wi-Fi kapalıyken de çalıştı (spike) |
+| Kablonun rolü | Veri yolu, "kabloyla bağlı" kanıtı (kablo modu) ve şarj | Mac, bir istemcinin USB arayüzünden geldiğini görebilir; `usbmuxd` takma olayını Xcode olmadan bildirir |
 | HTTP, HTTPS değil | Düz HTTP | HTTPS için ya telefona sertifika kurmak ya da dışarıda sunucu işletmek gerekir; ikisi de hedefe aykırı |
-| HTTP'nin bedeli | Wake Lock ve `crypto.subtle` yok | Ekranı açık tutmak için sessiz video yöntemi (spike ile doğrulanacak); SHA-256/HMAC sade JS ile yazılır |
+| HTTP'nin bedeli | Wake Lock ve `crypto.subtle` yok | Ekran, sesi açık ama sessiz bir videoyla ve "ambient" ses oturumuyla açık tutulur (spike V4); SHA-256/HMAC sade JS ile yazılır |
 | Mac uygulaması | Swift 6 araç zinciri (Swift 5 dil modu), AppKit menü çubuğu, SwiftPM | NotchBox ile aynı; Xcode gerekmez |
 | Sunucu | Network.framework (`NWListener`, `NWProtocolWebSocket`) | Ek kütüphane yok |
 | Dashboard kodu | Sade HTML/CSS/JS, uygulamanın içine gömülü (`Resources/web`) | Derleme adımı ve npm yok (yaklaşım A) |
@@ -60,13 +63,13 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 ## 4. Mimari
 
 ```
- iPhone (Safari)                          Mac: PhoneBox.app (menü çubuğu)
-┌──────────────┐   Wi-Fi: HTTP + WebSocket   ┌──────────────────────────────────┐
-│  Dashboard   │ ◄─────── snapshot / sn ──── │ Server ◄── Sampler ◄── Collectors │
-│  (HTML/JS)   │ ─────── cmd (imzalı) ─────► │   │   └──► CommandRunner           │
-└──────┬───────┘                              │   ▼                                │
-       │ USB kablo: sadece "takılı" sinyali   │ AccessPolicy ◄── USBWatcher        │
-       └──────────────────────────────────────┤ Pairing (Keychain) · MenuBar (QR) │
+ iPhone (Safari/Chrome)                   Mac: PhoneBox.app (menü çubuğu)
+┌──────────────┐  USB kablo ya da Wi-Fi:      ┌──────────────────────────────────┐
+│  Dashboard   │  HTTP + WebSocket            │ Server ◄── Sampler ◄── Collectors │
+│  (HTML/JS)   │ ◄─────── snapshot / sn ──── │   │   └──► CommandRunner           │
+│              │ ─────── cmd (imzalı) ─────► │   ▼                                │
+└──────────────┘                              │ AccessPolicy ◄── USBLinks          │
+                                              │ USBWatcher · Pairing · MenuBar (QR)│
                                               └──────────────────────────────────┘
 ```
 
@@ -81,13 +84,14 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 |---|---|---|---|
 | Collectors | Her metrik kaynağı ayrı birim (CPU, RAM, GPU, Sensörler, Ağ, Disk, Pil, Uygulamalar) | `sample() -> Reading?` (zaman sınırlı) | Mach, IOKit, libproc, IOReport |
 | Sampler | Saniyede bir collector'ları çağırıp `Snapshot` üretir; sadece izinli bir istemci varken çalışır | `start()`, `stop()`, `onSnapshot` | Collectors, Core hesapları |
-| USBWatcher | `/var/run/usbmuxd` soketini dinler; iPhone takıldı/çıktı olayları | `isIPhoneAttached`, `onChange`, `isAvailable` | usbmuxd |
-| AccessPolicy | Veri akışı ve komut iznine karar verir | `decide(mode, attached, usbAvailable, authenticated) -> Access` | Saf (Core) |
+| USBWatcher | `/var/run/usbmuxd` soketini dinler; iPhone takıldı/çıktı olayları (QR penceresini açmak için) | `isIPhoneAttached`, `onChange`, `isAvailable` | usbmuxd |
+| USBLinks | Hangi ağ arayüzlerinin iPhone'un USB NCM bağlantısı olduğunu bilir (`AppleUSBNCM*` üzerindeki `anri*`/`en*`); arayüz adı ve numarası takıştan takışa değişir | `isUSB(interfaceName) -> Bool`, `onChange` | IOKit, `getifaddrs` |
+| AccessPolicy | Veri akışı ve komut iznine karar verir | `decide(mode, clientOnUSB, authenticated) -> Access` | Saf (Core) |
 | Pairing | 32 baytlık anahtarı üretir, Keychain'de saklar, sıfırlar; kişisel bağlantıyı kurar | `key`, `personalURL`, `reset()` | Keychain |
-| Server | Dashboard dosyalarını sunar, `/ws` WebSocket'i, kimlik doğrulama, en fazla 4 istemci | `start(port)`, `broadcast`, `onCommand` | Network.framework, Core protokolü |
+| Server | Tek portta dosyaları (Range destekli) ve `/ws` WebSocket'ini sunar; kimlik doğrulama; en fazla 4 istemci; her istemcinin hangi arayüzden geldiğini kaydeder | `start(port)`, `broadcast`, `onCommand` | Network.framework, CryptoKit, Core protokolü |
 | CommandRunner | Komutları çalıştırır, sonuç döner | `run(Command) -> CommandResult` | AppKit, CoreAudio, mediaremote-adapter, pmset |
 | MenuBar | Simge, menü, QR penceresi | — | AppKit, CoreImage (QR) |
-| Web dashboard | Yatay/dikey görünüm, grafik geçmişi, komut arayüzü, rehber | WebSocket protokolü (bölüm 5) | Safari |
+| Web dashboard | Yatay/dikey görünüm, grafik geçmişi, komut arayüzü, rehber, ekranı açık tutma | WebSocket protokolü (bölüm 5) | iOS WebKit (Safari, Chrome) |
 
 ## 5. Bağlantı, eşleştirme ve güvenlik
 
@@ -97,7 +101,8 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
    bağlantının içine konur: `http://<mac>.local:4747/#k=<anahtar>`. `#` sonrası sunucuya hiç gönderilmez.
 2. iPhone takıldığında, daha önce hiçbir telefon kimlik doğrulamasını tamamlamamışsa (`hasEverPaired == false`)
    QR penceresi kendiliğinden açılır. Aksi halde hiçbir pencere açılmaz, sadece menü simgesi durumu gösterir.
-3. QR penceresinde kişisel bağlantı QR olarak ve altında yazı olarak durur.
+3. QR penceresinde kişisel bağlantı QR olarak ve altında yazı olarak durur. Bağlantı her yerde `http://` ile
+   yazılır: Safari şemasız yazılan adreste önce HTTPS dener.
 4. Dashboard anahtarı önce adresteki `#k=` kısmından, yoksa `localStorage`'dan okur ve `localStorage`'a da yazar.
    Adresteki `#k=` silinmez; "Ana Ekrana Ekle" ve Kestirmeler otomasyonu bu adresi kullanır.
 5. "Eşleştirmeyi sıfırla": yeni anahtar üretilir, bağlı bütün istemciler kapatılır, `hasEverPaired = false` olur.
@@ -109,7 +114,7 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 | Mac → telefon | `{"type":"hello","nonce":"<32 hex>","app":"PhoneBox 0.1.0"}` | Bağlantıya özgü rastgele sayı |
 | telefon → Mac | `{"type":"auth","mac":"<HMAC-SHA256(k, "auth:"+nonce) hex>"}` | 5 sn içinde gelmezse ya da yanlışsa bağlantı 4001 koduyla kapanır |
 | Mac → telefon | `{"type":"ready","mode":"cable"\|"always","access":{"streaming":bool,"commands":bool,"reason":"…"}}` | Kimlik doğrulandı; `access` alanı bir alttaki `access` mesajıyla aynı |
-| Mac → telefon | `{"type":"access","streaming":bool,"commands":bool,"reason":"ok"\|"cable-unplugged"\|"usb-unavailable"}` | Erişim değiştiğinde |
+| Mac → telefon | `{"type":"access","streaming":bool,"commands":bool,"reason":"ok"\|"not-on-cable"}` | Erişim değiştiğinde |
 | Mac → telefon | `{"type":"snapshot","t":<ms>, ...}` | Saniyede bir (bölüm 6) |
 | telefon → Mac | `{"type":"cmd","seq":n,"name":"…","args":"<JSON metni>","mac":"<HMAC(k, "cmd:"+nonce+":"+seq+":"+name+":"+args) hex>"}` | `args` bir metin; imza tam bu metin üzerinden atılır, sonra çözülür |
 | Mac → telefon | `{"type":"ack","seq":n,"ok":true}` / `{"ok":false,"error":"not-allowed"\|"bad-signature"\|"app-changed"\|"unsupported"\|"failed"}` | Her komuta cevap |
@@ -122,21 +127,25 @@ Kurallar:
 
 ### AccessPolicy
 
-| Mod | iPhone USB'de | usbmuxd erişilebilir | Veri ve komut |
-|---|---|---|---|
-| Kablo takılıyken (varsayılan) | Evet | Evet | İzinli |
-| Kablo takılıyken | Hayır | Evet | Kapalı, `reason: cable-unplugged` |
-| Kablo takılıyken | — | Hayır | Kapalı, `reason: usb-unavailable`, menüde uyarı; mod kendiliğinden değişmez |
-| Her zaman | — | — | İzinli |
+| Mod | İstemcinin bağlantısı | Veri ve komut |
+|---|---|---|
+| Kablo takılıyken (varsayılan) | USB arayüzünden (`USBLinks.isUSB`) | İzinli |
+| Kablo takılıyken | Wi-Fi ya da başka bir arayüzden | Kapalı, `reason: not-on-cable` |
+| Her zaman | Herhangi biri | İzinli |
 
-Kimlik doğrulamamış bir bağlantı hiçbir durumda veri almaz. Bilinen sınır: Mac, takılı iPhone ile tarayıcıdaki
-sayfanın aynı telefon olduğunu doğrulayamaz; "eşleşmiş bir istemci var ve herhangi bir iPhone takılı" koşuluna bakar.
-Erişim kapanınca bağlantı açık kalır; erişim geri gelince veri anında akmaya başlar.
+Kimlik doğrulamamış bir bağlantı hiçbir durumda veri almaz. USB bağlantısı yalnızca bu Mac'e kabloyla takılı ve
+Mac'e güvenen bir iPhone'dan gelebilir; bu yüzden kablo modu gerçekten "kabloyla bağlı telefon" demektir.
+Erişim kapanınca bağlantı açık kalır. Kablo çıkınca USB üzerindeki bağlantı kopar; sayfa Wi-Fi üzerinden yeniden
+bağlanırsa kablo modunda "Kabloyu tak" görür. Kablo modunda erişimsiz bir istemci varken yeni bir USB bağlantısı
+belirirse sunucu o istemcileri 4002 koduyla kapatır; sayfa hemen yeniden bağlanır ve bu sefer USB üzerinden gelir
+(iOS'un kablo varken USB adresini seçtiği spike'ta görüldü; Wi-Fi açıkken bu sıralama elle testte doğrulanır).
 
 ### Yeniden bağlanma
 
-Safari ekran kilitlenince bağlantıyı keser. Sayfa `visibilitychange`/`pageshow` ile görünür olunca 1, 2, 5 saniye
-(sonra 5 saniyede bir) arayla yeniden bağlanır; bu sırada "bağlanıyor" durumu gösterilir.
+Ekran kilitlenince iOS bağlantıyı yaklaşık 10–15 sn içinde keser. Sayfa kapanan bağlantıyı 1, 2, 5 saniye (sonra
+5 saniyede bir) arayla yeniden dener; ayrıca `visibilitychange`, `pageshow` ve `focus` olaylarında hemen dener.
+Chrome'da kilit açılınca `visibilitychange` gelmediği için zamanlayıcı şarttır. Bu sırada "bağlanıyor" durumu
+gösterilir.
 
 ## 6. Metrikler
 
@@ -149,14 +158,15 @@ Okunamayan değer `null` gönderilir, dashboard "—" gösterir.
 | `mem` | `used`, `total`, `app`, `wired`, `compressed`, `swapUsed` (bayt), `pressure` (`normal`/`warn`/`critical`) | `host_statistics64`, `sysctl hw.memsize`, `vm.swapusage`, `kern.memorystatus_vm_pressure_level` |
 | `gpu` | `util` (%) | IOKit `IOAccelerator` → `PerformanceStatistics` |
 | `temp` | `cpuAvg`, `cpuMax`, `gpuAvg`, `gpuMax` (°C) | `IOHIDEventSystemClient` (resmi olmayan) |
-| `power` | `cpu`, `gpu`, `ane` (W); MacBook'ta `system` (W) | `IOReport` "Energy Model" (resmi olmayan); pil telemetrisi |
+| `power` | `gpu` (W); MacBook'ta `system` (W). CPU ve ANE watt'ı root gerektirdiği için yok | `IOReport` "Energy Model" → `GPU Energy` (resmi olmayan); `AppleSmartBattery` → `PowerTelemetryData.SystemPowerIn` |
 | `net` | `rx`, `tx` (bayt/sn), `iface` | `getifaddrs` sayaçları, birincil arayüz |
 | `disk` | `free`, `total` (bayt), `read`, `write` (bayt/sn) | `URLResourceValues`, IOKit `IOBlockStorageDriver` istatistikleri |
 | `battery` | `percent`, `charging`, `minutesLeft`; masaüstü Mac'te `null` | `IOPSCopyPowerSourcesInfo` |
 | `apps` | 2 saniyede bir (diğer saniyelerde alan gönderilmez): CPU'ya göre ilk 5 ile RAM'e göre ilk 5'in birleşimi, en fazla 10 kayıt `{pid, bundleId, name, cpu, mem, quittable}` | `libproc` (`proc_listallpids`, `proc_pid_rusage`, `proc_pidpath`) |
 
 - **Gruplama:** Bir sürecin yolu bir `.app` paketinin içindeyse en dıştaki `.app`'e yazılır ("Chrome Helper" →
-  "Chrome"). Root'a ait sistem süreçleri izin olmadan okunamaz ve listede yer almaz.
+  "Chrome"). Root'a ait sistem süreçleri izin olmadan okunamaz ve listede yer almaz. Uygulama adlarından
+  görünmez yön karakterleri (`U+200E`, `U+200F`, `U+202A…U+202E`) temizlenir (WhatsApp'ın adı `U+200E` ile başlıyor).
 - **Uyku/uyanma ve ağ değişimi:** CPU, ağ ve disk sayaçlarının referansı sıfırlanır; ilk örnek hız yerine `null`
   döner, böylece anlamsız sıçrama olmaz.
 - **Sıcaklık/güç:** Stats ve macmon'un yöntemleri izlenir. Kod alınırsa lisansına uyulur ve
@@ -178,7 +188,8 @@ Okunamayan değer `null` gönderilir, dashboard "—" gösterir.
 - `quitApp` sadece `activationPolicy == .regular` olan uygulamalarda çalışır; Finder ve PhoneBox hariçtir.
   Mac, `pid`'in hâlâ aynı `bundleId`'ye ait olduğunu denetler; değilse `app-changed` döner.
 - Ses kontrolü olmayan çıkış cihazında `volume`/`mute` `unsupported` döner ve kaydırıcı devre dışı kalır.
-- Bu komutların hiçbirinin Erişilebilirlik izni gerektirmemesi beklenir (spike 7 ile doğrulanır).
+- Spike 7'de uygulama kapatma, sessiz, ses seviyesi, ekranı kapatma ve kilit hiçbir izin penceresi açmadan
+  çalıştı. Medya komutu NotchBox'ta çalışan adaptörle gönderilir.
 
 ## 8. Arayüz
 
@@ -186,7 +197,8 @@ Okunamayan değer `null` gönderilir, dashboard "—" gösterir.
 
 - **Yatay (ana görünüm, yerleşim C, sade koyu):** solda CPU ve RAM halkaları; ortada son 60 saniyenin grafiği ve
   altında kontrol şeridi (önceki / oynat-duraklat / sonraki, ses kaydırıcısı, sessiz, "⋯" menüsü); sağda GPU,
-  sıcaklık, güç, ağ, disk, pil satırları ve en çok kaynak kullanan uygulamalar.
+  sıcaklık, güç, ağ, disk, pil satırları ve en çok kaynak kullanan uygulamalar. "Güç" satırı MacBook'ta toplam
+  sistem gücünü, masaüstü Mac'te GPU gücünü gösterir.
 - **Dikey ya da yön kilidi açık:** aynı veriler "tek bakış" yerleşiminde (üstte iki halka, altta satırlar, en altta
   kontrol şeridi).
 - **Stil:** siyah zemin, sistem fontu, yumuşak kartlar; renkler CPU yeşil, RAM mavi, GPU mor, sıcaklık turuncu,
@@ -200,8 +212,15 @@ Okunamayan değer `null` gönderilir, dashboard "—" gösterir.
   kodu yeniden okut") · metrik okunamıyor ("—").
 - **İlk açılış rehberi** (bir kez, kapatılabilir): 1) Ana Ekrana Ekle, 2) Kestirmeler → Otomasyon → "Şarj Aleti
   bağlandığında" → "URL'yi Aç" (kişisel bağlantı, "Kopyala" düğmesiyle) → "Hemen Çalıştır", 3) telefonu yan çevir.
-  Spike 2 başarısız olursa rehbere "Otomatik Kilit" adımı eklenir.
-- **Ekranı açık tutma:** küçük, sessiz, döngüde ve satır içi oynayan bir video (`Resources/web` içinde).
+  Kestirmeler adımı spike'ta denenemedi; elle test listesinde doğrulanır.
+- **Ana ekran:** `apple-touch-icon.png` (180×180 ve 240×240) ve `<meta name="apple-mobile-web-app-title"
+  content="PhoneBox">`; spike'ta simge yokken önerilen ad "eren-macbook-pro.local" olmuştu.
+- **Ekranı açık tutma (spike V4):** dashboard açılınca ve her dokunuşta, 64×64 siyah görüntü ve sessiz ses izi
+  olan 2 saniyelik bir video (`keepawake.mp4`) sesi açık (`muted` değil), döngüsüz ve satır içi oynatılır;
+  0,5 sn'yi geçince başa sarılır. Oynatmadan önce `navigator.audioSession.type = "ambient"` yapılır; böylece
+  telefondaki müzik durmaz ve kilit ekranı kullanıcının şarkısında kalır. Sayfa görünürken 3 saniyede bir "video
+  duruyorsa başlat" denetimi yapılır (Chrome'da kilit açılınca video duraklamış kalıyor). `audioSession` yoksa
+  video yine oynatılır ama telefondaki müzik durabilir; rehberde bu not edilir.
 - **OLED koruması:** 3 dakikada bir içerik ±2 piksel kayar.
 - **Dil ve sayı biçimi:** `navigator.language`'a göre Türkçe/İngilizce; sayılar `Intl.NumberFormat` ile.
 
@@ -223,14 +242,17 @@ Simge telefon çizimi: gri = izinli istemci yok, yeşil = en az bir istemci veri
 | Durum | Davranış |
 |---|---|
 | Port dolu | Başka porta geçilmez (kayıtlı bağlantı bozulmasın). Menüde uyarı ve "Port…" ile yeni port; QR güncellenir |
-| usbmuxd yok | Kablo modunda erişim kapalı, menüde uyarı; mod kendiliğinden değişmez |
+| usbmuxd yok | Takma olayıyla QR penceresi açılamaz; menüde uyarı. Kablo modu etkilenmez (USB arayüzüne bakar) |
+| Tarayıcı HTTPS deniyor | İlk baytı `0x16` (TLS el sıkışması) olan bağlantı hemen kapatılır; tarayıcı HTTP'ye düşer |
+| Video byte aralığı istiyor | `Range` isteğine `206 Partial Content`, geçersize `416`; iOS aralıksız sunulan videoyu oynatmaz |
 | Collector hatası / takılma | Her `sample()` zaman sınırlı; değer `null`, aynı hata log'a bir kez yazılır |
 | Protokol ihlali | Bozuk mesaj, yanlış imza, artmayan `seq`, hız sınırı aşımı → bağlantı kapanır |
 | 5. istemci | Reddedilir (en fazla 4) |
 | Mac uyandı / ağ değişti | Sayaç referansları sıfırlanır; dinleyici tüm arayüzlerde kalır, `.local` yeni ağda çalışır |
 | Komut başarısız | `ack` içinde `error`; dashboard bildirim gösterir |
 
-Log: `os_log`, alt sistem `com.phonebox.PhoneBox`.
+Log: `os_log`, alt sistem `com.phonebox.PhoneBox`. Dosyaya yazılması gereken her şey `~/Library/Logs/PhoneBox` ya
+da `~/Library/Caches` altına gider: spike'ta yeni başlatılan uygulama `~/Documents`'a yazamadığı için açılamadı.
 
 ## 10. Test
 
@@ -245,7 +267,7 @@ Log: `os_log`, alt sistem `com.phonebox.PhoneBox`.
 ## 11. Spike (ilk iş)
 
 Uygulamadan önce küçük bir deneme yapılır; sonuçlar `docs/spike-results.md`'ye yazılır. Kritik madde başarısız
-olursa tasarıma dönülür.
+olursa tasarıma dönülür. **Yapıldı (2026-11-25):** kritik maddelerin hepsi geçti; 6 ve 9 kısmen, 8 denenmedi.
 
 | # | Soru | Kritik mi |
 |---|---|---|
@@ -275,7 +297,7 @@ scripts/                  bundle.sh, dist.sh, release.sh, make-icon.swift
 Sources/PhoneBoxCore/     modeller, hesaplar, protokol, HMAC, AccessPolicy
 Sources/PhoneBox/         uygulama, Collectors, Sampler, USBWatcher, Server, Pairing, CommandRunner, MenuBar
 Resources/                Info.plist, AppIcon.icns, en.lproj, tr.lproj
-Resources/web/            index.html, app.js, sha256.js, styles.css, keepawake.mp4
+Resources/web/            index.html, app.js, sha256.js, styles.css, keepawake.mp4, apple-touch-icon*.png
 Vendor/mediaremote-adapter/   (git alt modülü)
 Tests/PhoneBoxCoreTests/
 docs/design/2026-11-25-phonebox-design.md   docs/spike-results.md   docs/manual-testing.md
@@ -283,9 +305,11 @@ docs/design/2026-11-25-phonebox-design.md   docs/spike-results.md   docs/manual-
 
 ## 13. Açık riskler
 
-- **Ekranın açık kalması** (spike 2): çalışmazsa kullanıcı "Otomatik Kilit"i elle ayarlar; deneyim zayıflar.
+- **Ekranın açık kalması:** WebKit'in "sesi açık görüntü+ses videosu oynarken uyuma" davranışına ve Audio Session
+  API'ye dayanıyor; bir iOS güncellemesi değiştirirse kullanıcı "Otomatik Kilit"i elle ayarlar.
+- **USB ağ bağlantısı:** iOS'un güvenilen bir Mac'e USB ağ bağlantısı açmasına dayanıyor; açmazsa dashboard Wi-Fi
+  üzerinden çalışır, kablo modu ise "Kabloyu tak" gösterir (menüde "Her zaman" moduna geçilebilir).
 - **Resmi olmayan API'ler** (sıcaklık, güç, kilitleme, medya): macOS güncellemesiyle bozulabilir; her biri tek
   başına devre dışı kalacak şekilde yalıtılır.
 - **Şifresiz metrik trafiği:** aynı ağdakiler CPU/uygulama adlarını görebilir; komutlar imzalı olduğu için güvende.
-- **Kablo modu sınırı:** hangi iPhone'un takılı olduğu sayfayla eşleştirilemez.
 - **Safari depolama temizliği:** anahtar kişisel bağlantıda durduğu için etkilenmez; bozulursa QR yeniden okutulur.
