@@ -21,6 +21,16 @@ sade HTML/CSS/JS, bash + make. Xcode gerekmez; Command Line Tools yeterli.
 
 **Spec:** `docs/design/2026-11-25-phonebox-design.md` · **Deneme sonuçları:** `docs/spike-results.md`
 
+> **Yürütme notu (2026-11-25):** Plan alt ajanlarla yürütüldü (dal `plan2`). İncelemeler plandaki kodda da hatalar
+> buldu; kullanıcının onayıyla düzeltildi, dolayısıyla aşağıdaki kod blokları düzeltme öncesi hâlidir ve doğruluk
+> kaynağı daldaki koddur. Düzeltmeler: `8ff8ccf` (negatif 64-bit WebSocket uzunluğu ile çökme, 16 KB başlık sınırı,
+> Data dilimlerinde aralık), `12ff85b` (arayüz bulunamazsa kapalı kal, bağlantı süreleri ve sınırları), `13bc455`
+> (USB erişilebilirlik durumu, gri simge, QR kenar boşluğu), `22bdb5a` (ölü soketin yenilenmesi, her erişim durumu,
+> 4002 aralığı), `664c0c3` + `bf2b391` (ön kimlik doğrulama ping seli, 4003 kodu, ölü bağlantı tespiti, IPv4'ün kablo
+> sayılmaması, SIGPIPE, App Nap, yeni anahtarda yeniden eşleştirme), `f0e48e7` + `96783c3` (sayfanın 4003'te yeniden
+> denemesi, kablo beklemesinden kendiliğinden çıkması, hata mesajları). Test sayısı 63'ten 79'a çıktı. Elle test
+> sonuçları: `docs/manual-testing.md`.
+
 **Sonraki planlar:** Plan 3 diğer metrikler ve komutlar; Plan 4 tam dashboard arayüzü (yerleşim C, grafikler,
 rehber, OLED kaydırma); Plan 5 dağıtım (`install.sh`, sürüm, README, simge, port menüsü).
 

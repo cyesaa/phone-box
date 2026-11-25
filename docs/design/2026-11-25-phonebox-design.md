@@ -87,7 +87,7 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 | USBWatcher | `/var/run/usbmuxd` soketini dinler; iPhone takıldı/çıktı olayları (QR penceresini açmak için) | `isIPhoneAttached`, `onChange`, `isAvailable` | usbmuxd |
 | USBLinks | Hangi ağ arayüzlerinin iPhone'un USB NCM bağlantısı olduğunu bilir (`AppleUSBNCM*` üzerindeki `anri*`/`en*`); arayüz adı ve numarası takıştan takışa değişir | `isUSB(interfaceName) -> Bool`, `onChange` | IOKit, `getifaddrs` |
 | AccessPolicy | Veri akışı ve komut iznine karar verir | `decide(mode, clientOnUSB, authenticated) -> Access` | Saf (Core) |
-| Pairing | 32 baytlık anahtarı üretir, Keychain'de saklar, sıfırlar; kişisel bağlantıyı kurar | `key`, `personalURL`, `reset()` | Keychain |
+| Pairing | 32 baytlık anahtarı üretir ve `~/Library/Application Support/PhoneBox/pairing-key` dosyasında (`0600`, klasör `0700`) saklar, sıfırlar; kişisel bağlantıyı kurar. Keychain değil: ad-hoc imzalı uygulama her güncellemeden sonra Anahtar Zinciri şifresi sorardı | `loadOrCreate() -> (key, created)`, `reset()` | Dosya |
 | Server | Tek portta dosyaları (Range destekli) ve `/ws` WebSocket'ini sunar; kimlik doğrulama; en fazla 4 istemci; her istemcinin hangi arayüzden geldiğini kaydeder | `start(port)`, `broadcast`, `onCommand` | Network.framework, CryptoKit, Core protokolü |
 | CommandRunner | Komutları çalıştırır, sonuç döner | `run(Command) -> CommandResult` | AppKit, CoreAudio, mediaremote-adapter, pmset |
 | MenuBar | Simge, menü, QR penceresi | — | AppKit, CoreImage (QR) |
@@ -97,7 +97,8 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 
 ### Eşleştirme
 
-1. PhoneBox ilk açılışta 32 rastgele bayt üretir ve Keychain'e yazar. Bu anahtar base64url biçiminde kişisel
+1. PhoneBox ilk açılışta 32 rastgele bayt üretir ve `pairing-key` dosyasına yazar (yeni bir anahtar oluşunca
+   `hasEverPaired` sıfırlanır). Bu anahtar base64url biçiminde kişisel
    bağlantının içine konur: `http://<mac>.local:4747/#k=<anahtar>`. `#` sonrası sunucuya hiç gönderilmez.
 2. iPhone takıldığında, daha önce hiçbir telefon kimlik doğrulamasını tamamlamamışsa (`hasEverPaired == false`)
    QR penceresi kendiliğinden açılır. Aksi halde hiçbir pencere açılmaz, sadece menü simgesi durumu gösterir.
@@ -112,7 +113,7 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 | Yön | Mesaj | Açıklama |
 |---|---|---|
 | Mac → telefon | `{"type":"hello","nonce":"<32 hex>","app":"PhoneBox 0.1.0"}` | Bağlantıya özgü rastgele sayı |
-| telefon → Mac | `{"type":"auth","mac":"<HMAC-SHA256(k, "auth:"+nonce) hex>"}` | 5 sn içinde gelmezse ya da yanlışsa bağlantı 4001 koduyla kapanır |
+| telefon → Mac | `{"type":"auth","mac":"<HMAC-SHA256(k, "auth:"+nonce) hex>"}` | Yanlışsa bağlantı 4001 ile kapanır (sayfa durur, "Eşleşmedi"); 5 sn içinde gelmezse 4003 ile kapanır (sayfa yeniden dener; telefon kilitliyken açılan bir bağlantı böyle kapanabilir) |
 | Mac → telefon | `{"type":"ready","mode":"cable"\|"always","access":{"streaming":bool,"commands":bool,"reason":"…"}}` | Kimlik doğrulandı; `access` alanı bir alttaki `access` mesajıyla aynı |
 | Mac → telefon | `{"type":"access","streaming":bool,"commands":bool,"reason":"ok"\|"not-on-cable"}` | Erişim değiştiğinde |
 | Mac → telefon | `{"type":"snapshot","t":<ms>, ...}` | Saniyede bir (bölüm 6) |
@@ -129,7 +130,7 @@ Kurallar:
 
 | Mod | İstemcinin bağlantısı | Veri ve komut |
 |---|---|---|
-| Kablo takılıyken (varsayılan) | USB arayüzünden (`USBLinks.isUSB`) | İzinli |
+| Kablo takılıyken (varsayılan) | Yerel ucu, iPhone USB arayüzündeki kapsamlı bir IPv6 link-local adres (`fe80::…%anri1`/`%en8`); IPv4 hiçbir zaman sayılmaz | İzinli |
 | Kablo takılıyken | Wi-Fi ya da başka bir arayüzden | Kapalı, `reason: not-on-cable` |
 | Her zaman | Herhangi biri | İzinli |
 
@@ -215,7 +216,8 @@ Okunamayan değer `null` gönderilir, dashboard "—" gösterir.
   Kestirmeler adımı spike'ta denenemedi; elle test listesinde doğrulanır.
 - **Ana ekran:** `apple-touch-icon.png` (180×180 ve 240×240) ve `<meta name="apple-mobile-web-app-title"
   content="PhoneBox">`; spike'ta simge yokken önerilen ad "eren-macbook-pro.local" olmuştu.
-- **Ekranı açık tutma (spike V4):** dashboard açılınca ve her dokunuşta, 64×64 siyah görüntü ve sessiz ses izi
+- **Ekranı açık tutma (spike V4):** Sesi açık oynatma bir dokunuş gerektirdiği için dashboard ilk açılışta "Başlat"
+  düğmesi gösterir; video ilk dokunuşta başlar (oynatma reddedilirse düğme yeniden çıkar). 64×64 siyah görüntü ve sessiz ses izi
   olan 2 saniyelik bir video (`keepawake.mp4`) sesi açık (`muted` değil), döngüsüz ve satır içi oynatılır;
   0,5 sn'yi geçince başa sarılır. Oynatmadan önce `navigator.audioSession.type = "ambient"` yapılır; böylece
   telefondaki müzik durmaz ve kilit ekranı kullanıcının şarkısında kalır. Sayfa görünürken 3 saniyede bir "video
@@ -231,7 +233,7 @@ Simge telefon çizimi: gri = izinli istemci yok, yeşil = en az bir istemci veri
 - Durum satırı (ör. "iPhone bağlı · 1 cihaz", "Port 4747 kullanımda", "USB algılanamıyor")
 - QR kodu göster
 - Mod: ● Kablo takılıyken / ○ Her zaman
-- Port: 4747…
+- Port: 4747… (Plan 5; o zamana kadar `defaults write com.phonebox.PhoneBox port -int <port>`)
 - Girişte başlat (ServiceManagement)
 - Eşleştirmeyi sıfırla
 - Güncelleme (NotchBox'taki gibi)
@@ -246,10 +248,16 @@ Simge telefon çizimi: gri = izinli istemci yok, yeşil = en az bir istemci veri
 | Tarayıcı HTTPS deniyor | İlk baytı `0x16` (TLS el sıkışması) olan bağlantı hemen kapatılır; tarayıcı HTTP'ye düşer |
 | Video byte aralığı istiyor | `Range` isteğine `206 Partial Content`, geçersize `416`; iOS aralıksız sunulan videoyu oynatmaz |
 | Collector hatası / takılma | Her `sample()` zaman sınırlı; değer `null`, aynı hata log'a bir kez yazılır |
-| Protokol ihlali | Bozuk mesaj, yanlış imza, artmayan `seq`, hız sınırı aşımı → bağlantı kapanır |
+| Protokol ihlali | Bozuk mesaj, yanlış imza, artmayan `seq`, hız sınırı aşımı → bağlantı kapanır (1008) |
+| Kimlik doğrulamadan önce metin dışı çerçeve | 1008 ile kapanır (ping seli koruması); sonrasında ikili çerçeve 1003, bir okumadaki pinglerden sadece sonuncusu cevaplanır |
+| Geçersiz WebSocket çerçevesi | 125 bayttan uzun ya da parçalı kontrol çerçevesi, RSV bitleri, ayrılmış opcode'lar, 64 KB'tan büyük ya da negatif uzunluk → 1008 |
+| Boşta ya da takılan bağlantı | İstek başlığı 10 sn'de gelmezse kapanır; en fazla 32 TCP bağlantısı; kapanış 2 sn'de bitmezse kesilir; 256'dan fazla gönderilmemiş mesaj birikirse kesilir |
+| Ölü bağlantı | 15 sn'de bir ping; 45 sn hiçbir şey gelmezse kesilir; 5 sn uygun yol yoksa kesilir; kablo çıkınca 1,5 sn sonra kaybolan USB arayüzündeki istemciler kesilir |
 | 5. istemci | Reddedilir (en fazla 4) |
 | Mac uyandı / ağ değişti | Sayaç referansları sıfırlanır; dinleyici tüm arayüzlerde kalır, `.local` yeni ağda çalışır |
 | Komut başarısız | `ack` içinde `error`; dashboard bildirim gösterir |
+
+Süreç: SIGPIPE yok sayılır; örnekleyici çalışırken App Nap engellenir (`beginActivity`), durunca bırakılır.
 
 Log: `os_log`, alt sistem `com.phonebox.PhoneBox`. Dosyaya yazılması gereken her şey `~/Library/Logs/PhoneBox` ya
 da `~/Library/Caches` altına gider: spike'ta yeni başlatılan uygulama `~/Documents`'a yazamadığı için açılamadı.
@@ -311,5 +319,9 @@ docs/design/2026-11-25-phonebox-design.md   docs/spike-results.md   docs/manual-
   üzerinden çalışır, kablo modu ise "Kabloyu tak" gösterir (menüde "Her zaman" moduna geçilebilir).
 - **Resmi olmayan API'ler** (sıcaklık, güç, kilitleme, medya): macOS güncellemesiyle bozulabilir; her biri tek
   başına devre dışı kalacak şekilde yalıtılır.
-- **Şifresiz metrik trafiği:** aynı ağdakiler CPU/uygulama adlarını görebilir; komutlar imzalı olduğu için güvende.
+- **Şifresiz metrik trafiği:** aynı ağdakiler CPU/uygulama adlarını görebilir; komutlar imzalı olduğu için pasif
+  dinleyicilere karşı güvende.
+- **Aynı ağdaki aktif saldırgan (Plan 2 son incelemesi):** sayfa düz HTTP ve `.local` adla sunulduğu için mDNS/ARP
+  sahteciliği yapan biri değiştirilmiş bir sayfa sunup anahtarı alabilir ya da kimlik doğrulamayı aktarabilir. Plan 3'te
+  komutların her iki modda da yalnızca kablodan (USB) gelen istemcilere açılması kullanıcıyla konuşulacak.
 - **Safari depolama temizliği:** anahtar kişisel bağlantıda durduğu için etkilenmez; bozulursa QR yeniden okutulur.
