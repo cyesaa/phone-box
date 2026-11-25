@@ -15,8 +15,17 @@
 <body>
 <main id="dashboard" class="dashboard stale">
   <header class="top">
-    <span class="brand">PhoneBox</span>
-    <span id="status" class="status" role="status" aria-live="polite"><span class="dot"></span><span id="status-text"></span></span>
+    <b id="clock" class="clock" aria-hidden="true"></b>
+    <span class="top-side">
+      <span id="top-line" class="top-line"></span>
+      <span id="status" class="status" role="status" aria-live="polite">
+        <span id="phone-battery" class="phone-battery" hidden>
+          <span class="battery-body"><span class="battery-fill"></span><span class="battery-bolt">⚡</span></span><span class="battery-cap"></span>
+          <span id="phone-percent"></span>
+        </span>
+        <span class="dot"></span><span id="status-text"></span>
+      </span>
+    </span>
   </header>
 
   <section class="rings">
@@ -61,10 +70,13 @@
   </section>
 </main>
 
+<div id="edge" class="edge" aria-hidden="true"></div>
+
 <div id="state" class="state" hidden><div class="state-card"><h2 id="state-title"></h2><p id="state-text"></p></div></div>
 
 <div id="menu-backdrop" class="menu-backdrop" hidden></div>
 <div id="menu" class="menu" role="menu" hidden>
+  <div id="menu-host" class="menu-host"></div>
   <button id="menu-guide" type="button" role="menuitem" data-text="guideItem"></button>
 </div>
 
@@ -98,6 +110,7 @@
 <script src="heat.js"></script>
 <script src="motion.js"></script>
 <script src="rings.js"></script>
+<script src="clock.js"></script>
 <script src="chart.js"></script>
 <script src="connection.js"></script>
 <script src="view.js"></script>

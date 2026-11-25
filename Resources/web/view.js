@@ -1,6 +1,7 @@
 // Puts the Mac's data on the page (design §8): rings, tiles, the graph and its header, the app list, the now-playing
-// card, the status line and the state card. Values glide to each new snapshot and turn red near their limits;
-// `frame` draws them on every animation frame. Text always goes in with textContent: names come from other apps.
+// card, the clock header with the phone's battery, the alarm and the state card. Values glide to each new snapshot
+// and turn red near their limits; `frame` draws them on every animation frame. Text always goes in with
+// textContent: names come from other apps.
 (function (global) {
   "use strict";
 
@@ -20,6 +21,7 @@
     if (cache[property] === value) return;
     cache[property] = value;
     if (property === "text") element.textContent = value;
+    else if (property === "class") element.className = value;
     else if (property.startsWith("--")) element.style.setProperty(property, value);
     else element.style[property] = value;
   }
@@ -46,6 +48,12 @@
       this.card = heat.rgb("#0b1622");
       this.ringButtons = {};
       for (const button of global.document.querySelectorAll(".ring-button")) this.ringButtons[button.dataset.metric] = button;
+      this.alarm = new heat.Alarm();
+      /// When each metric's alarm started, for the one-off "pop".
+      this.poppedAt = {};
+      this.clock = new (PB().clock.Clock)($("clock"));
+      this.minute = null;
+      this.day = "";
     }
 
     fillTexts() {
@@ -77,13 +85,16 @@
       this.renderStateCard();
     }
 
+    /// Stale values do not ring: the alarm and the edge light go out until fresh snapshots come.
     setStale(stale) {
       this.stale = stale;
       $("dashboard").classList.toggle("stale", stale);
+      if (stale) this.alarm.clear();
       this.renderStatus();
     }
 
-    // "● MacBook Pro · kablo": green on the cable, orange on Wi-Fi (no commands), grey while (re)connecting.
+    // The dot: green on the cable (the phone's battery shows next to it), orange and "Wi-Fi" on Wi-Fi (no commands),
+    // grey while (re)connecting, red with what is wrong. The Mac's name is at the top of the "⋯" menu.
     renderStatus() {
       const t = this.t;
       const problems = { cable: t.stateCable, offline: t.stateOffline, unpaired: t.stateUnpaired, nokey: t.stateUnpaired,
@@ -93,13 +104,30 @@
       if (this.kind === "streaming" && !this.stale) {
         const cable = Boolean(this.access && this.access.cable);
         className += cable ? " streaming" : " wifi";
-        text = `${this.host} · ${cable ? t.cable : t.wifi}`;
+        text = cable ? "" : t.wifi;
       } else if (problems[this.kind]) {
         className += " problem";
         text = problems[this.kind];
       }
       $("status").className = className;
       $("status-text").textContent = text;
+      $("menu-host").textContent = this.host;
+      this.renderPhone();
+    }
+
+    /// The phone's own battery, read by the Mac over USB (`snapshot.phone`): only on the cable.
+    renderPhone() {
+      const phone = this.snapshot.phone;
+      const element = $("phone-battery");
+      const show = Boolean(phone) && this.kind === "streaming" && !this.stale && Boolean(this.access && this.access.cable);
+      element.hidden = !show;
+      if (!show) return;
+      const { heat, metrics } = PB();
+      const level = phone.plugged ? 0 : heat.level(this.limits.battery, phone.percent) ?? 0;
+      element.style.setProperty("--level", `${Math.max(0, Math.min(100, phone.percent))}%`);
+      element.style.setProperty("--fill", heat.css(heat.color(metrics.colors.battery, level)));
+      element.classList.toggle("charging", Boolean(phone.charging));
+      $("phone-percent").textContent = this.format.percent(phone.percent);
     }
 
     renderStateCard() {
@@ -124,6 +152,9 @@
       this.snapshot = snapshot;
       this.glide.push(snapshot, now);
       this.arrivedAt = now;
+      // The alarm goes by the values that arrived, not the ones gliding on screen.
+      for (const metric of this.alarm.update(this.levelsOf(snapshot))) this.poppedAt[metric] = now;
+      this.renderPhone();
       this.fitTiles(previous);
       const playingBefore = !$("now-playing").hidden;
       this.renderNowPlaying(snapshot.media);
@@ -172,36 +203,92 @@
       const graphSize = [graph.clientWidth, graph.clientHeight];
 
       const levels = this.levelsOf(shown);
+      const ringing = new Set(this.alarm.active());
+      // The alarm's beat: once a second; steady with "Reduce Motion".
+      const pulse = still ? 1 : 0.5 + 0.5 * Math.sin((now / 1000) * Math.PI * 2);
+      const glow = (metric) => (ringing.has(metric) ? pulse : 0);
       const { cpu, mem } = shown;
       const f = this.format;
       const memoryOK = mem && mem.total > 0;
       this.drawRing("cpu", ringSizes.cpu, cpu ? cpu.total : null, levels.cpu, now, still,
-                    cpu && cpu.load && cpu.load.length ? this.t.load(f.decimal(cpu.load[0])) : "");
+                    cpu && cpu.load && cpu.load.length ? this.t.load(f.decimal(cpu.load[0])) : "", glow("cpu"),
+                    this.pop("cpu", now, still));
       this.drawRing("ram", ringSizes.ram, memoryOK ? (mem.used / mem.total) * 100 : null, levels.ram, now, still,
-                    memoryOK ? this.t.memory(f.gibibytes(mem.used), f.gibibytes(mem.total)) : "");
-      for (const metric of tileMetrics) this.paintTile(metric, shown, levels[metric]);
+                    memoryOK ? this.t.memory(f.gibibytes(mem.used), f.gibibytes(mem.total)) : "", glow("ram"),
+                    this.pop("ram", now, still));
+      for (const metric of tileMetrics) this.paintTile(metric, shown, levels[metric], glow(metric), this.pop(metric, now, still));
       this.renderHeader(shown, levels);
-      this.drawGraph(graph, graphSize, now, still);
+      const graphKey = PB().metrics.graphHeat(this.selected);
+      this.drawGraph(graph, graphSize, now, still, graphKey ? glow(graphKey) : 0);
+      this.renderTop(shown, levels, ringing, pulse, still);
+      this.renderEdge(levels, ringing, pulse, now, still);
     }
 
-    drawRing(metric, size, percent, level, now, still, sub) {
+    /// 0 → 1 → 0 over the first 0.7 s after a metric's alarm started (none with "Reduce Motion").
+    pop(metric, now, still) {
+      const since = now - (this.poppedAt[metric] ?? -Infinity);
+      return still || !this.alarm.ringing.has(metric) || since >= 700 ? 0 : Math.sin((Math.PI * since) / 700);
+    }
+
+    /// The clock, and under it the date, or "▲ CPU %100 · Sıcaklık 97 °C" while alarms ring (the two highest).
+    renderTop(shown, levels, ringing, pulse, still) {
+      const { clock, metrics } = PB();
+      const date = new Date();
+      const minute = Math.floor(date.getTime() / 60000);
+      if (minute !== this.minute) {
+        const parts = clock.parts(date, PB().i18n.language);
+        this.minute = minute;
+        this.day = parts.day;
+        this.clock.show(parts.time, still);
+      }
+      const line = $("top-line");
+      if (!ringing.size) {
+        put(line, "class", "top-line");
+        put(line, "text", this.day);
+        put(line, "opacity", "");
+        return;
+      }
+      const value = (metric) => (metric === "cpu" || metric === "ram"
+        ? metrics.header(metric, shown, this.format, this.t).value
+        : metrics.tile(metric, shown, this.format));
+      const name = (metric) => (metric === "disk" ? this.t.diskTile : this.t.metric[metric]);
+      const hottest = Array.from(ringing).sort((a, b) => (levels[b] ?? 0) - (levels[a] ?? 0)).slice(0, 2);
+      put(line, "class", "top-line alert");
+      put(line, "text", "▲ " + hottest.map((metric) => `${name(metric)} ${value(metric)}`).join(" · "));
+      put(line, "opacity", (0.6 + 0.4 * pulse).toFixed(2));
+    }
+
+    /// A red light around the screen's edge: faint while a metric nears its limit (level past 0.7), and while an
+    /// alarm rings a wide one that beats once a second, after a bright flash when it starts.
+    renderEdge(levels, ringing, pulse, now, still) {
+      let edge = 0;
+      for (const metric of Object.keys(levels)) edge = Math.max(edge, Math.max(0, ((levels[metric] ?? 0) - 0.7) / 0.3) * 0.4);
+      if (ringing.size) {
+        const flash = Math.max(...Array.from(ringing, (metric) => this.pop(metric, now, still)));
+        edge = Math.max(0.45 + 0.55 * pulse, flash);
+      }
+      put($("edge"), "opacity", (this.stale ? 0 : edge).toFixed(2));
+    }
+
+    drawRing(metric, size, percent, level, now, still, sub, glow, pop) {
       const { heat, metrics, rings } = PB();
       const ok = typeof percent === "number" && Number.isFinite(percent);
       const heated = level ?? 0;
       const from = heat.color(metrics.colors[metric], heated);
       const to = heat.color(metrics.light[metric], heated, true);
       const button = this.ringButtons[metric];
-      rings.draw(button.querySelector("canvas"), size, { fraction: ok ? percent / 100 : 0, from, to, now, still, glow: 0 });
+      rings.draw(button.querySelector("canvas"), size, { fraction: ok ? percent / 100 : 0, from, to, now, still, glow });
       const value = $(metric + "-ring");
       put(value, "text", this.format.percent(ok ? percent : null));
       put(value, "color", heat.css(heat.mix(this.white, to, smooth(heated))));
       put($(metric + "-sub"), "text", sub);
       put(button, "--color", heat.css(from));
+      put(button, "transform", pop ? `scale(${(1 + 0.07 * pop).toFixed(3)})` : "");
     }
 
     /// A tile's value and colours: the dot and the value turn red with the level, the tile's background warms a
-    /// little, and past 0.4 a thin frame appears.
-    paintTile(metric, shown, level) {
+    /// little, past 0.4 a thin frame appears, and while its alarm rings the tile glows with the beat.
+    paintTile(metric, shown, level, glow, pop) {
       const { heat, metrics } = PB();
       const heated = level ?? 0;
       const color = heat.color(metrics.colors[metric], heated);
@@ -213,8 +300,14 @@
       put(tile, "backgroundColor", heat.css(heat.mix(this.card, color, 0.2 * smooth(heated))));
       const frames = [];
       if (metric === this.selected) frames.push(`inset 0 0 0 2px ${heat.css(color)}`);
-      else if (heated > 0.4) frames.push(`inset 0 0 0 1px ${heat.css(color, ((heated - 0.4) * 0.9).toFixed(2))}`);
+      if (glow > 0) {
+        frames.push(`0 0 ${(6 + 12 * glow).toFixed(1)}px ${heat.css(color, 0.6)}`,
+                    `inset 0 0 0 1.5px ${heat.css(color, (0.5 + 0.5 * glow).toFixed(2))}`);
+      } else if (metric !== this.selected && heated > 0.4) {
+        frames.push(`inset 0 0 0 1px ${heat.css(color, ((heated - 0.4) * 0.9).toFixed(2))}`);
+      }
       put(tile, "boxShadow", frames.join(", "));
+      put(tile, "transform", pop ? `scale(${(1 + 0.06 * pop).toFixed(3)})` : "");
     }
 
     select(metric) {
@@ -262,7 +355,7 @@
       this.graph = { lines, bounds, label: m.axisLabel(this.selected, bounds, this.format) };
     }
 
-    drawGraph(canvas, size, now, still) {
+    drawGraph(canvas, size, now, still, glow) {
       if (!this.graph) return;
       const { heat, metrics, chart, motion } = PB();
       const key = metrics.graphHeat(this.selected);
@@ -278,8 +371,10 @@
         limit: range ? { value: range[1], label: this.t.limit } : null,
         now,
         still,
-        glow: 0,
+        glow,
       });
+      const red = heat.rgb(heat.hot);
+      put(canvas.parentElement, "boxShadow", glow > 0 ? `inset 0 0 0 1.5px ${heat.css(red, (0.4 + 0.5 * glow).toFixed(2))}` : "");
     }
 
     renderNowPlaying(media) {

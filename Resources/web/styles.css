@@ -89,8 +89,8 @@ p { margin: 0; }
   .dashboard {
     --ring: clamp(84px, calc((100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 72px) / 2.25), 128px);
     --row: 34px;
-    grid-template-columns: calc(var(--ring) + 8px) minmax(0, 1fr)
-      clamp(176px, calc((100vw - env(safe-area-inset-left) - env(safe-area-inset-right)) * 0.26), 240px);
+    --side: clamp(176px, calc((100vw - env(safe-area-inset-left) - env(safe-area-inset-right)) * 0.26), 240px);
+    grid-template-columns: calc(var(--ring) + 8px) minmax(0, 1fr) var(--side);
     grid-template-rows: auto auto minmax(0, 1fr) auto auto;
     grid-template-areas:
       "rings graph top"
@@ -99,8 +99,7 @@ p { margin: 0; }
       "rings tiles apps"
       "rings strip apps";
   }
-  .brand { display: none; }
-  .top { justify-content: flex-end; }
+  .clock { font-size: calc(var(--side) * 0.16); }
   .rings { flex-direction: column; justify-content: space-around; }
 }
 
@@ -113,14 +112,53 @@ p { margin: 0; }
     grid-template-areas: "top" "rings" "graph" "tiles" "apps" "playing" "strip";
   }
   .rings { flex-direction: row; justify-content: space-around; }
+  /* One short row on top, so a small phone keeps room for the app list. */
+  .clock { font-size: clamp(22px, 4dvh, 30px); }
+  .top .top-side { flex-direction: row; align-items: center; gap: 8px; }
   .np-text { flex-direction: row; gap: 6px; align-items: baseline; }
   .np-sub::before { content: "· "; }
   .np-icon { width: 24px; height: 24px; padding: 6px 0; gap: 2px; }
   .np-icon i { width: 3px; }
 }
 
-/* ---- Status ---- */
-.brand { font-weight: 600; font-size: 15px; }
+/* ---- Clock header (design §8 "Saat ve telefonun pili"); its size is set per orientation above. ---- */
+.clock {
+  display: flex;
+  align-items: center;
+  flex: none;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+/* A changed digit rolls up and out while the new one comes in from below. */
+.clock-digit { position: relative; display: block; width: 0.6em; height: 1em; overflow: hidden; }
+.clock-digit span { position: absolute; inset: 0; line-height: 1em; text-align: center; }
+.clock-digit .in { animation: digit-in 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.clock-digit .out { animation: digit-out 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.clock-colon { display: block; width: 0.3em; height: 1em; line-height: 1em; text-align: center; transform: translateY(-0.07em); animation: colon 2s ease-in-out infinite; }
+@keyframes digit-in { from { transform: translateY(90%); opacity: 0; } }
+@keyframes digit-out { to { transform: translateY(-90%); opacity: 0; } }
+@keyframes colon { 50% { opacity: 0.3; } }
+.top-side { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; min-width: 0; }
+.top-line { max-width: 100%; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top-line.alert { color: #ff6b6b; font-weight: 600; }
+
+/* The phone's battery: the fill follows the level and glides when it changes. */
+.phone-battery { display: flex; align-items: center; gap: 4px; color: var(--text); font-size: 12px; font-variant-numeric: tabular-nums; }
+.battery-body { position: relative; display: block; width: 22px; height: 11px; padding: 1px; border: 1.5px solid rgba(234, 246, 255, 0.55); border-radius: 3.5px; }
+.battery-fill {
+  display: block;
+  height: 100%;
+  width: var(--level, 100%);
+  border-radius: 1.5px;
+  background: var(--fill, var(--battery));
+  transition: width 1.2s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 1s;
+}
+.battery-bolt { display: none; position: absolute; inset: -1px 0 0; font-size: 9px; line-height: 11px; text-align: center; color: #fff; text-shadow: 0 0 2px var(--bg), 0 0 2px var(--bg); }
+.phone-battery.charging .battery-bolt { display: block; }
+.battery-cap { width: 2px; height: 5px; margin-left: -3px; margin-right: 2px; background: rgba(234, 246, 255, 0.55); border-radius: 0 1px 1px 0; }
+
 .status { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; white-space: nowrap; min-width: 0; }
 #status-text { overflow: hidden; text-overflow: ellipsis; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
@@ -235,10 +273,20 @@ p { margin: 0; }
 
 /* ---- Menu ---- */
 .menu-backdrop { position: fixed; inset: 0; }
+.menu-host { padding: 10px 14px 8px; font-size: 12px; color: var(--muted); border-bottom: 1px solid #3a3a3c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .menu { position: fixed; min-width: 220px; background: var(--raised); border-radius: 14px; overflow: hidden; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6); }
 .menu button { display: flex; align-items: center; width: 100%; height: 44px; padding: 0 14px; border-bottom: 1px solid #3a3a3c; }
 .menu button:last-child { border-bottom: 0; }
 .menu button:active { background: #3a3a3c; }
+
+/* ---- Alarm: a red light around the screen's edge, above the page and below the cards; it never takes a tap. */
+.edge {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: inset 0 0 110px 24px rgba(255, 40, 40, 0.95), inset 0 0 0 3px rgba(255, 70, 70, 0.95);
+}
 
 /* ---- State card ---- */
 .state { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; pointer-events: none; }
@@ -306,6 +354,7 @@ p { margin: 0; }
 /* "Reduce Motion": nothing slides or bounces; colours still change. */
 @media (prefers-reduced-motion: reduce) {
   .now-playing.playing .np-icon i { animation: none; height: 10px; }
-  .app-list li, #graph { transition: none; }
+  .app-list li, #graph, .battery-fill { transition: none; }
   .app-list li.enter { animation: none; }
+  .clock-colon { animation: none; }
 }

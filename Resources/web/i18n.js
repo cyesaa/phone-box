@@ -6,7 +6,6 @@
     tr: {
       connecting: "Bağlanıyor…",
       mac: "Mac",
-      cable: "kablo",
       wifi: "Wi-Fi",
       stateCable: "Kabloyu tak",
       stateCableText: "Bu telefon Wi-Fi üzerinden bağlı. Veri için iPhone'u Mac'e kabloyla tak.",
@@ -57,7 +56,6 @@
     en: {
       connecting: "Connecting…",
       mac: "Mac",
-      cable: "cable",
       wifi: "Wi-Fi",
       stateCable: "Plug in the cable",
       stateCableText: "This phone is connected over Wi-Fi. Plug the iPhone into the Mac to see data.",
