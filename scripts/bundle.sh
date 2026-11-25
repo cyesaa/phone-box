@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Builds build/PhoneBox.app (release): binary, Info.plist, translations, dashboard files, the keep-awake video and
-# mediaremote-adapter (script + framework). Ad-hoc signed, like NotchBox.
+# Builds build/PhoneBox.app (release): binary, Info.plist, translations, dashboard files, the keep-awake video, the
+# Home Screen icon and mediaremote-adapter (script + framework). Ad-hoc signed, like NotchBox.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -23,6 +23,8 @@ cp "$ROOT/Vendor/mediaremote-adapter/bin/mediaremote-adapter.pl" "$APP/Contents/
 ditto "$ROOT/build/adapter/MediaRemoteAdapter.framework" "$APP/Contents/Frameworks/MediaRemoteAdapter.framework"
 swiftc -O -suppress-warnings "$ROOT/scripts/make-video.swift" -o "$ROOT/build/make-video"
 "$ROOT/build/make-video" "$APP/Contents/Resources/web/keepawake.mp4"
+swiftc -O -suppress-warnings "$ROOT/scripts/make-touch-icon.swift" -o "$ROOT/build/make-touch-icon"
+"$ROOT/build/make-touch-icon" "$APP/Contents/Resources/web/apple-touch-icon.png"
 
 xattr -cr "$APP"
 codesign --force --sign - "$APP"
