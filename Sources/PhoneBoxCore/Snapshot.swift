@@ -1,5 +1,6 @@
 /// One second of the Mac, as the phone receives it (design §6). A metric that could not be read is left out
-/// of the JSON; the dashboard shows "—" for it. `apps` is sent every third second.
+/// of the JSON; the dashboard shows "—" for it. `apps` is sent every third second; `media` only while something
+/// is playing (or paused) and `audio` only for an output with volume control.
 public struct Snapshot: Equatable, Codable, Sendable {
     /// Milliseconds since 1970.
     public var t: Int64
@@ -12,10 +13,13 @@ public struct Snapshot: Equatable, Codable, Sendable {
     public var disk: DiskSample?
     public var battery: BatterySample?
     public var apps: [AppSample]?
+    public var media: MediaSample?
+    public var audio: AudioSample?
 
     public init(t: Int64, cpu: CPUSample? = nil, mem: MemorySample? = nil, gpu: GPUSample? = nil,
                 temp: TemperatureSample? = nil, power: PowerSample? = nil, net: NetworkSample? = nil,
-                disk: DiskSample? = nil, battery: BatterySample? = nil, apps: [AppSample]? = nil) {
+                disk: DiskSample? = nil, battery: BatterySample? = nil, apps: [AppSample]? = nil,
+                media: MediaSample? = nil, audio: AudioSample? = nil) {
         self.t = t
         self.cpu = cpu
         self.mem = mem
@@ -26,5 +30,7 @@ public struct Snapshot: Equatable, Codable, Sendable {
         self.disk = disk
         self.battery = battery
         self.apps = apps
+        self.media = media
+        self.audio = audio
     }
 }

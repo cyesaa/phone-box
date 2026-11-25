@@ -38,6 +38,13 @@ struct ServerMessageTests {
             + #""type":"snapshot","v":1}"#)
     }
 
+    @Test func encodesMediaAndAudio() {
+        let snapshot = Snapshot(t: 9, media: MediaSample(title: "Kara Toprak", artist: nil, app: "Spotify", playing: true),
+                                audio: AudioSample(volume: 0.5, muted: false))
+        #expect(ServerMessage.snapshot(snapshot).json()
+            == #"{"audio":{"muted":false,"volume":0.5},"media":{"app":"Spotify","playing":true,"title":"Kara Toprak"},"t":9,"type":"snapshot","v":1}"#)
+    }
+
     @Test func aSnapshotWithANonFiniteNumberFallsBackToItsTimestamp() {
         let snapshot = Snapshot(t: 7, cpu: CPUSample(total: .nan, cores: [], pCores: 0, load: []), gpu: GPUSample(util: 3))
         #expect(ServerMessage.snapshot(snapshot).json() == #"{"t":7,"type":"snapshot","v":1}"#)
