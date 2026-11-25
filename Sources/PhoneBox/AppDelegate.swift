@@ -47,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         usbWatcher.onChange = { [weak self] pluggedIn in self?.iPhoneChanged(pluggedIn: pluggedIn) }
+        usbWatcher.onAvailabilityChange = { [weak self] _ in self?.refreshStatus() }
         usbWatcher.start()
         server.start(port: settings.port)
 

@@ -73,8 +73,14 @@ final class QRWindowController: NSObject {
         filter.setValue("M", forKey: "inputCorrectionLevel")
         guard let output = filter.outputImage else { return nil }
         let scale = max(1, (size / output.extent.width).rounded(.down))
-        let scaled = output.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-        let representation = NSCIImageRep(ciImage: scaled)
+        let scaled = output.samplingNearest().transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        // Quiet zone: 4 modules of white on every side, so the code also scans on a dark window.
+        let margin = 4 * scale
+        let padded = scaled.extent.insetBy(dx: -margin, dy: -margin)
+        let framed = scaled
+            .composited(over: CIImage(color: .white).cropped(to: padded))
+            .transformed(by: CGAffineTransform(translationX: -padded.minX, y: -padded.minY))
+        let representation = NSCIImageRep(ciImage: framed)
         let image = NSImage(size: representation.size)
         image.addRepresentation(representation)
         return image

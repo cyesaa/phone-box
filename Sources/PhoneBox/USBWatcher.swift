@@ -7,6 +7,8 @@ import Foundation
 final class USBWatcher {
     /// Called on the main thread with `true` when an iPhone was just plugged in.
     var onChange: ((_ pluggedIn: Bool) -> Void)?
+    /// Called on the main thread when usbmuxd becomes reachable or goes away.
+    var onAvailabilityChange: ((Bool) -> Void)?
     private(set) var isAvailable = false
     private(set) var attachedDevices: Set<Int> = []
 
@@ -35,11 +37,13 @@ final class USBWatcher {
     }
 
     private func setAvailable(_ available: Bool) {
+        let changed = isAvailable != available
         isAvailable = available
         if !available, !attachedDevices.isEmpty {
             attachedDevices.removeAll()
             onChange?(false)
         }
+        if changed { onAvailabilityChange?(available) }
     }
 
     // MARK: usbmuxd, on a background thread

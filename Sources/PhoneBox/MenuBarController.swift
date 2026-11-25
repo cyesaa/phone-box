@@ -49,7 +49,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     func update(status: String, active: Bool) {
         statusLine.title = status
-        statusItem.button?.contentTintColor = active ? .systemGreen : nil
+        statusItem.button?.contentTintColor = active ? .systemGreen : .secondaryLabelColor
         statusItem.button?.toolTip = "PhoneBox: \(status)"
     }
 
