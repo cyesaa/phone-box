@@ -40,6 +40,16 @@ ya da `lsof -nP -iTCP:4747 -sTCP:ESTABLISHED` (`fe80:<scope>::…` adresinin sco
 - [ ] Pildeyken (adaptör çıkık) "Güç" satırı 0 W değil, Mac'in tamamının çekişini gösteriyor.
 - [ ] Bir telefon veri alırken PhoneBox `top`'ta %1'in altında.
 
+## Komutlar (kablodan; telefondan Plan 4'ün arayüzüyle denenir)
+- [ ] Kapat: Dock'taki bir uygulama kapanıyor (kaydedilmemiş belge varsa Mac'te sorar); `ack` `ok`.
+- [ ] Zorla kapat: uygulama hemen kapanıyor.
+- [ ] Finder ve arka plan süreçleri kapatılamıyor (`app-changed` / gri satır).
+- [ ] Medya: oynat-duraklat, sonraki, önceki Mac'te çalanı değiştiriyor; çalan şarkı kartı birkaç saniyede güncelleniyor.
+- [ ] Ses kaydırıcısı ve sessiz Mac'in sesini değiştiriyor; Mac'te değişen ses telefona yansıyor.
+- [ ] Kilitle: Mac kilit ekranına geçiyor. Ekranı kapat: ekran kararıyor.
+- [ ] Uyut: telefona önce "oldu" geliyor, Mac 1 sn sonra uyuyor; uyanınca dashboard kendiliğinden bağlanıyor.
+- [ ] Wi-Fi'deki telefon ("Her zaman" modu) veri alıyor ama her komuta `not-allowed`.
+
 ## Henüz denenmemiş (spike 8)
 - [ ] Kestirmeler → Otomasyon → Şarj Aleti → "URL'yi Aç" (kişisel bağlantı) → "Hemen Çalıştır": kablo takılınca
   dashboard onaysız açılıyor mu?
@@ -86,3 +96,19 @@ iPhone ile:
 - Geçti (kullanıcı bildirdi): Chrome'da paylaş → Ana Ekrana Ekle; simgeden açılan sayfa tam ekran (adres çubuğu yok),
   `#k=` anahtarı korunuyor, "Başlat" sonrası veri geliyor. Tarayıcıda adres çubuğu sayfadan gizlenemiyor; tam ekranın
   yolu bu.
+
+### 2026-11-25 — Plan 3B Mac tarafı (dal `plan3b`, 5651a94), MacBook Pro M4 / macOS 27.2
+
+Mac'te (tarayıcı paneli, `lo0`, "Her zaman" modu):
+- Geçti: `ready` → `host: "Eren MacBook Pro"`, `access {streaming: true, commands: false, cable: false}`.
+- Geçti: imzalı `mute` ve bilinmeyen komut → ikisi de `not-allowed` (kablo dışı istemci komut çalıştıramıyor).
+- Geçti: snapshot'ta `audio {volume: 0.81, muted: false}`; o an hiçbir şey çalmadığı için `media` yok (adaptörün `get`'i
+  `null`). Planlamada Chrome'da duraklatılmış bir YouTube videosu `media` olarak geldi.
+- Geçti: WebSocket yükseltmesinde `Origin: http://localhost:4747` → 101, `Origin: http://evil.example` → 403.
+- Geçti: PhoneBox 30 sn ortalama %0,60 CPU, adaptör süreci %0,03.
+- Geçti: `PHONEBOX_LIVE=1` canlı testler (ses seviyesi ve sessiz okunup aynen yazıldı; Satranç açılıp `quitApp` ile
+  kapandı; Finder ve çalışmayan uygulama `app-changed`; adaptörsüz medya `unsupported`).
+- Bulundu ve düzeltildi (5651a94): PhoneBox kapanınca adaptör süreci sahipsiz kalıp bir sonraki medya değişikliğine kadar
+  yaşıyordu; artık kapanışta durduruluyor (kapatma sonrası adaptör sayısı 0).
+- Denenmedi (telefon kabloda gerekir, Plan 4): komutların USB'den gelmesi; kilit, ekranı kapatma, uyku ve medya gönderme
+  bu Mac'te kullanıcıyı rahatsız etmemek için çalıştırılmadı (spike 7'de medya dışındakiler izin penceresi olmadan çalıştı).
