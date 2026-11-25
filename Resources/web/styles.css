@@ -1,31 +1,25 @@
-/* PhoneBox dashboard (design §8): black, system font, dark cards. Landscape = layout B, portrait = "tek bakış". */
+/* PhoneBox dashboard (design §8): "Aktivite Halkaları" in the "Okyanus" palette. Landscape = layout B, portrait =
+   "tek bakış". Colours that turn red near a limit are set from view.js; these are the calm ones. */
 :root {
-  --bg: #000;
-  --card: #1c1c1e;
-  --raised: #2c2c2e;
-  --track: #2c2c2e;
-  --text: #f5f5f7;
-  --muted: #8e8e93;
-  --line: #1c1c1e;
-  --cpu: #30d158;
-  --ram: #0a84ff;
-  --gpu: #bf5af2;
-  --temp: #ff9f0a;
-  --power: #ffd60a;
-  --net: #64d2ff;
-  --disk: #8e8e93;
-  --battery: #30d158;
-  --ok: #30d158;
+  --bg: #01060d;
+  --card: #0b1622;
+  --raised: #14263a;
+  --text: #eaf6ff;
+  --muted: #6d8aa3;
+  --line: #0b1622;
+  --cpu: #00c2ff;
+  --ram: #3d6bff;
+  --gpu: #7b61ff;
+  --temp: #00e0b0;
+  --power: #4ff0d0;
+  --net: #8be9ff;
+  --disk: #6f8fa8;
+  --battery: #00d0a0;
+  --ok: #00d0a0;
   --warn: #ff9f0a;
   --bad: #ff453a;
   --accent: #0a84ff;
   color-scheme: dark;
-}
-
-@property --p {
-  syntax: "<number>";
-  inherits: false;
-  initial-value: 0;
 }
 
 * { box-sizing: border-box; }
@@ -121,7 +115,8 @@ p { margin: 0; }
   .rings { flex-direction: row; justify-content: space-around; }
   .np-text { flex-direction: row; gap: 6px; align-items: baseline; }
   .np-sub::before { content: "· "; }
-  .np-icon { width: 24px; height: 24px; font-size: 13px; }
+  .np-icon { width: 24px; height: 24px; padding: 6px 0; gap: 2px; }
+  .np-icon i { width: 3px; }
 }
 
 /* ---- Status ---- */
@@ -135,21 +130,11 @@ p { margin: 0; }
 
 /* ---- Rings ---- */
 .ring-button { display: flex; flex-direction: column; align-items: center; border-radius: 50%; }
-.ring {
-  --p: 0;
-  width: var(--ring);
-  height: var(--ring);
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: conic-gradient(var(--color) calc(var(--p) * 1%), var(--track) 0);
-  transition: --p 0.6s;
-}
+.ring { position: relative; width: var(--ring); height: var(--ring); border-radius: 50%; }
+.ring canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .ring-inner {
-  width: 80%;
-  height: 80%;
-  border-radius: 50%;
-  background: var(--bg);
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -172,7 +157,8 @@ p { margin: 0; }
 .graph-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .graph-value { font-size: 19px; font-weight: 700; color: var(--color, var(--text)); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .graph-detail { font-size: 11.5px; color: var(--muted); min-height: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
-#graph { flex: 1; min-height: 0; width: 100%; margin-top: 2px; }
+#graph { flex: 1; min-height: 0; width: 100%; margin-top: 2px; transition: opacity 0.3s; }
+#graph.switching { opacity: 0.15; }
 
 /* ---- Tiles ---- */
 .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
@@ -184,7 +170,25 @@ p { margin: 0; }
 
 /* ---- Now playing ---- */
 .now-playing { display: flex; align-items: center; gap: 9px; padding: 7px 9px; min-width: 0; }
-.np-icon { width: 34px; height: 34px; border-radius: 8px; background: var(--raised); display: grid; place-items: center; flex: none; font-size: 16px; }
+/* A small equalizer that moves while something plays. */
+.np-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--raised);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  padding: 9px 0;
+  flex: none;
+}
+.np-icon i { width: 4px; height: 4px; border-radius: 2px; background: var(--ram); }
+.now-playing.playing .np-icon i { animation: eq 0.9s ease-in-out infinite alternate; }
+.now-playing.playing .np-icon i:nth-child(2) { animation-delay: -0.35s; animation-duration: 0.7s; }
+.now-playing.playing .np-icon i:nth-child(3) { animation-delay: -0.6s; animation-duration: 1.1s; }
+.now-playing.playing .np-icon i:nth-child(4) { animation-delay: -0.2s; animation-duration: 0.8s; }
+@keyframes eq { from { height: 4px; } to { height: 16px; } }
 .np-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
 .np-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .np-sub { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -195,6 +199,7 @@ p { margin: 0; }
 .app-sort { color: var(--muted); padding: 10px 0 10px 16px; margin: -8px 0; }
 .app-list { list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; overflow: hidden; }
 .app-list li {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -202,8 +207,22 @@ p { margin: 0; }
   height: var(--row);
   padding: 0 2px;
   border-bottom: 1px solid var(--line);
+  transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .app-list li:last-child { border-bottom: 0; }
+.app-list li.enter { animation: row-in 0.5s ease-out; }
+@keyframes row-in { from { opacity: 0; } }
+/* The app's share of the busiest row, under its name; it grows and shrinks with each list. */
+.app-bar {
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 1px;
+  opacity: 0.8;
+  transition: width 1s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 1s;
+}
+.app-figures { transition: color 1s; }
 .app-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .app-figures { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .app-list li.dim .app-name { color: var(--muted); }
@@ -283,3 +302,10 @@ p { margin: 0; }
 .guide-card .note { color: var(--warn); font-size: 13px; line-height: 1.4; margin: -4px 0 12px; }
 
 #keepawake { position: fixed; right: 0; bottom: 0; width: 2px; height: 2px; opacity: 0.01; pointer-events: none; }
+
+/* "Reduce Motion": nothing slides or bounces; colours still change. */
+@media (prefers-reduced-motion: reduce) {
+  .now-playing.playing .np-icon i { animation: none; height: 10px; }
+  .app-list li, #graph { transition: none; }
+  .app-list li.enter { animation: none; }
+}

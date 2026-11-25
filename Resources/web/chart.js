@@ -1,4 +1,5 @@
-// The 60-second graph on a <canvas> (design §8 "Grafik"). `range` is pure and tested; `draw` is checked by eye.
+// The 60-second graph on a <canvas> (design §8 "Grafik", "Görünüm ve hareket"). `range` is pure and tested; `draw`
+// runs on every animation frame and is checked by eye.
 (function (global) {
   "use strict";
 
@@ -26,17 +27,29 @@
     return { min: 0, max: niceCeil(Math.max(0, ...values) * 1.1) };
   }
 
-  function rgba(hex, alpha) {
-    const value = parseInt(hex.slice(1), 16);
-    return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+  /// A smooth line through `points` (midpoint curves), as the current path.
+  function trace(g, points) {
+    g.moveTo(points[0][0], points[0][1]);
+    for (let index = 1; index < points.length - 1; index += 1) {
+      const [x, y] = points[index];
+      g.quadraticCurveTo(x, y, (x + points[index + 1][0]) / 2, (y + points[index + 1][1]) / 2);
+    }
+    const last = points[points.length - 1];
+    g.lineTo(last[0], last[1]);
   }
 
-  /// Draws `lines` ([{values, color, width, fill, alpha}]) scaled to `bounds`, with `label` at the top left.
-  function draw(canvas, lines, bounds, label) {
-    const ratio = global.devicePixelRatio || 1;
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
+  /// Draws `lines` ([{values, color, width, fill, alpha}]) scaled to `bounds` on a canvas `width`×`height` CSS
+  /// pixels. `options`:
+  /// - `label`: the top of the axis, at the top left;
+  /// - `shift` 0…1: how far time has moved on since the newest value, so the line scrolls left smoothly;
+  /// - `settle` 0…1: how far the newest value has moved from the one before it;
+  /// - `heat(color, value)`: the colour at the height of `value`, as [r, g, b], or null for plain colours;
+  /// - `limit` {value, label}: the dashed red line where the metric is fully red;
+  /// - `now`, `still`: the pulse on the newest point (none with "Reduce Motion"); `glow` 0…1 makes it an alarm.
+  function draw(canvas, width, height, lines, bounds, options) {
     if (!width || !height) return;
+    const heat = global.PhoneBox.heat;
+    const ratio = Math.min(global.devicePixelRatio || 1, 3);
     if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
       canvas.width = Math.round(width * ratio);
       canvas.height = Math.round(height * ratio);
@@ -45,7 +58,7 @@
     g.setTransform(ratio, 0, 0, ratio, 0, 0);
     g.clearRect(0, 0, width, height);
 
-    g.strokeStyle = "#2c2c2e";
+    g.strokeStyle = "rgba(109, 138, 163, 0.25)";
     g.lineWidth = 1;
     g.setLineDash([3, 4]);
     g.beginPath();
@@ -54,22 +67,49 @@
     g.stroke();
     g.setLineDash([]);
 
-    if (label) {
-      g.fillStyle = "#8e8e93";
+    if (options.label) {
+      g.fillStyle = "#6d8aa3";
       g.font = "10px -apple-system, system-ui, sans-serif";
       g.textBaseline = "top";
-      g.fillText(label, 0, 0);
+      g.fillText(options.label, 0, 0);
     }
 
-    const pad = 3;
+    const pad = 4;
     const span = bounds.max - bounds.min || 1;
     const y = (value) => pad + (1 - (Math.min(Math.max(value, bounds.min), bounds.max) - bounds.min) / span) * (height - 2 * pad);
-    for (const line of lines) {
-      const count = line.values.length;
-      const x = (index) => (count <= 1 ? width : (index / (count - 1)) * width);
+
+    const limit = options.limit;
+    if (limit && limit.value >= bounds.min && limit.value <= bounds.max) {
+      const red = heat.rgb(heat.hot);
+      const ly = Math.round(y(limit.value)) + 0.5;
+      g.strokeStyle = heat.css(red, 0.5);
+      g.setLineDash([4, 4]);
+      g.beginPath();
+      g.moveTo(0, ly);
+      g.lineTo(width, ly);
+      g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = heat.css(red, 0.8);
+      g.font = "600 9px -apple-system, system-ui, sans-serif";
+      g.textBaseline = ly > 14 ? "bottom" : "top";
+      g.fillText(limit.label, width - g.measureText(limit.label).width - 2, ly > 14 ? ly - 3 : ly + 3);
+    }
+
+    const shift = options.shift || 0;
+    let head = null;
+    lines.forEach((line, lineIndex) => {
+      const values = line.values.slice();
+      const count = values.length;
+      // The newest value slides in from the one before it.
+      const last = values[count - 1];
+      const before = values[count - 2];
+      if (last !== null && before !== null && before !== undefined && options.settle < 1) {
+        values[count - 1] = before + (last - before) * options.settle;
+      }
+      const x = (index) => (count <= 1 ? width : ((index - shift) / (count - 1)) * width);
       const runs = [];
       let run = [];
-      line.values.forEach((value, index) => {
+      values.forEach((value, index) => {
         if (value === null) {
           if (run.length) runs.push(run);
           run = [];
@@ -78,37 +118,67 @@
         }
       });
       if (run.length) runs.push(run);
+
+      // Each height takes the colour of its own value, so peaks near the limit are red.
+      const base = heat.rgb(line.color);
+      const stroke = g.createLinearGradient(0, 0, 0, height);
+      const area = g.createLinearGradient(0, 0, 0, height);
+      for (let step = 12; step >= 0; step -= 1) {
+        const value = bounds.min + (span * step) / 12;
+        const position = Math.max(0, Math.min(1, y(value) / height));
+        const color = options.heat ? options.heat(line.color, value) || base : base;
+        stroke.addColorStop(position, heat.css(color));
+        area.addColorStop(position, heat.css(color, 0.35 * (1 - position)));
+      }
+
       g.globalAlpha = line.alpha ?? 1;
       for (const points of runs) {
         if (points.length === 1) {
-          g.fillStyle = line.color;
+          g.fillStyle = stroke;
           g.beginPath();
           g.arc(points[0][0], points[0][1], line.width, 0, Math.PI * 2);
           g.fill();
           continue;
         }
         if (line.fill) {
-          const gradient = g.createLinearGradient(0, 0, 0, height);
-          gradient.addColorStop(0, rgba(line.color, 0.35));
-          gradient.addColorStop(1, rgba(line.color, 0));
-          g.fillStyle = gradient;
+          g.fillStyle = area;
           g.beginPath();
-          g.moveTo(points[0][0], height);
-          for (const [px, py] of points) g.lineTo(px, py);
+          trace(g, points);
           g.lineTo(points[points.length - 1][0], height);
+          g.lineTo(points[0][0], height);
           g.closePath();
           g.fill();
         }
-        g.strokeStyle = line.color;
+        g.strokeStyle = stroke;
         g.lineWidth = line.width;
         g.lineJoin = "round";
         g.lineCap = "round";
         g.beginPath();
-        points.forEach(([px, py], index) => (index ? g.lineTo(px, py) : g.moveTo(px, py)));
+        trace(g, points);
         g.stroke();
       }
       g.globalAlpha = 1;
-    }
+      if (lineIndex === 0 && values[count - 1] !== null && runs.length) {
+        const newest = runs[runs.length - 1];
+        const value = values[count - 1];
+        head = { point: newest[newest.length - 1], color: options.heat ? options.heat(line.color, value) || base : base };
+      }
+    });
+
+    // The newest point of the main line, with a ring of light that pulses (wider while the alarm rings).
+    if (!head) return;
+    const [hx, hy] = head.point;
+    const glow = options.glow || 0;
+    const pulse = options.still ? 0 : 0.5 + 0.5 * Math.sin(options.now / 260);
+    const halo = glow > 0 ? 4 + 9 * glow : 3 + 5 * pulse;
+    g.fillStyle = heat.css(head.color, glow > 0 ? 0.3 : 0.16);
+    g.beginPath();
+    g.arc(hx, hy, 3.2 + halo, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = heat.css(head.color);
+    g.beginPath();
+    g.arc(hx, hy, 3.2, 0, Math.PI * 2);
+    g.fill();
   }
 
   global.PhoneBox = global.PhoneBox || {};

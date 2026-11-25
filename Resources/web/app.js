@@ -23,8 +23,7 @@
 
   for (const element of global.document.querySelectorAll(".ring-button, .tile")) {
     element.addEventListener("click", () => {
-      view.select(element.dataset.metric);
-      view.renderGraph(history);
+      view.switchTo(element.dataset.metric, history);
       try {
         global.localStorage.setItem(selectedKey, element.dataset.metric);
       } catch (error) {}
@@ -39,6 +38,7 @@
   global.addEventListener("hashchange", () => global.location.reload());
   view.renderApps();
   view.renderGraph(history);
+  PB.motion.onFrame((now) => view.frame(now));
 
   const key = PB.readKey();
   PB.ui.setup(t, Boolean(key));
@@ -53,11 +53,14 @@
       view.setState(kind);
     },
     onStale: (stale) => view.setStale(stale),
-    onReady: (ready) => view.setHost(ready.host),
+    onReady: (ready) => {
+      view.setHost(ready.host);
+      view.setLimits(ready.limits && ready.limits.power);
+    },
     onAccess: (access) => view.setAccess(access),
     onSnapshot: (snapshot) => {
       history.push(snapshot.t, PB.metrics.values(snapshot));
-      view.render(snapshot);
+      view.render(snapshot, global.performance.now());
       view.renderGraph(history);
     },
   });
