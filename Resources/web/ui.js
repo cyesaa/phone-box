@@ -129,9 +129,11 @@
     $("dashboard").style.setProperty("--dy", offsets[step][1] + "px");
   }, 180000);
 
-  /// The first visit gets the guide (its button starts the screen keeping); later visits the Start screen.
-  function setup(texts) {
+  /// The first visit gets the guide (its button starts the screen keeping); later visits the Start screen. A page
+  /// without a key gets neither, but "⋯ → Kurulum rehberi" still works.
+  function setup(texts, hasKey) {
     t = texts;
+    if (!hasKey) return;
     if (guideDone()) $("start").hidden = false;
     else openGuide();
   }

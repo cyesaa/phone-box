@@ -41,9 +41,11 @@ html, body {
   -webkit-text-size-adjust: 100%;
   -webkit-user-select: none;
   user-select: none;
+  touch-action: manipulation;
 }
 
 button {
+  touch-action: manipulation;
   font: inherit;
   color: inherit;
   background: none;
@@ -189,7 +191,7 @@ p { margin: 0; }
 /* ---- Apps ---- */
 .apps { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .apps-head { display: flex; justify-content: space-between; align-items: center; margin: 0 2px 2px; }
-.app-sort { color: var(--muted); padding: 2px 0 2px 12px; }
+.app-sort { color: var(--muted); padding: 10px 0 10px 16px; margin: -8px 0; }
 .app-list { list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; overflow: hidden; }
 .app-list li {
   display: flex;

@@ -35,6 +35,8 @@
   const deadAfter = 5000;
   /// Not streaming (e.g. on Wi-Fi in cable mode): reconnect this often so the phone moves to the cable by itself.
   const recheckAfter = 10000;
+  /// iOS can leave an attempt to an unreachable Mac (asleep, Wi-Fi changed) "connecting" for tens of seconds.
+  const connectTimeout = 5000;
 
   /// handlers: onState(kind) with kind "connecting" | "streaming" | "cable" | "offline" | "unpaired" | "nodata";
   /// onStale(stale); onReady({host, mode, access}); onAccess(access); onSnapshot(snapshot); onAck(ack).
@@ -53,6 +55,13 @@
       this.openedAt = 0;
       this.nextAttemptAt = 0;
       this.stale = true;
+      this.state = null;
+    }
+
+    /// Tells the page what to show and remembers it.
+    emit(kind) {
+      this.state = kind;
+      this.handlers.onState(kind);
     }
 
     start() {
@@ -95,7 +104,8 @@
     connect() {
       if (this.stopped || !this.visible()) return;
       if (this.socket && this.socket.readyState <= WebSocket.OPEN) return;
-      if (!this.lastSnapshotAt) this.handlers.onState("connecting");
+      // A reconnect while the page shows "plug in the cable" or "no data" keeps that card instead of flashing it.
+      if (!this.lastSnapshotAt && this.state !== "cable" && this.state !== "nodata") this.emit("connecting");
       const socket = new WebSocket(`ws://${global.location.host}/ws`);
       this.socket = socket;
       this.lastMessageAt = Date.now();
@@ -126,12 +136,12 @@
       if (code === 4001) {
         // Wrong key or a pairing reset: retrying cannot help.
         this.stopped = true;
-        this.handlers.onState("unpaired");
+        this.emit("unpaired");
         return;
       }
       if (code === 4003) {
         // Authentication came too late (e.g. the phone was locked): retry, it is not a bad key.
-        this.handlers.onState("connecting");
+        this.emit("connecting");
         this.retryIn(1000);
         return;
       }
@@ -142,13 +152,22 @@
       }
       // A close while the page is hidden (phone locked) is not a failure; the page reconnects when it returns.
       if (this.visible()) this.retries += 1;
-      this.handlers.onState(this.retries >= 3 ? "offline" : "connecting");
+      this.emit(this.retries >= 3 ? "offline" : "connecting");
       this.retryIn(retryDelays[Math.min(Math.max(this.retries, 1), retryDelays.length) - 1]);
     }
 
     replaceIfDead() {
       if (!this.visible()) return;
       const socket = this.socket;
+      if (socket && socket.readyState === WebSocket.CONNECTING && Date.now() - this.openedAt > connectTimeout) {
+        socket.onmessage = null;
+        socket.onclose = null;
+        try {
+          socket.close();
+        } catch (error) {}
+        this.closed(socket, 1006);
+        return;
+      }
       if (!socket || socket.readyState !== WebSocket.OPEN) return;
       if (!(this.access && this.access.streaming)) {
         if (this.access && Date.now() - this.accessSetAt >= recheckAfter) this.replace();
@@ -204,10 +223,10 @@
       this.accessSetAt = Date.now();
       this.handlers.onAccess(access);
       if (access.streaming) {
-        this.handlers.onState("streaming");
+        this.emit("streaming");
       } else {
         this.setStale(true);
-        this.handlers.onState(access.reason === "not-on-cable" ? "cable" : "nodata");
+        this.emit(access.reason === "not-on-cable" ? "cable" : "nodata");
       }
     }
 

@@ -40,11 +40,11 @@
   view.renderGraph(history);
 
   const key = PB.readKey();
+  PB.ui.setup(t, Boolean(key));
   if (!key) {
     view.setState("nokey");
     return;
   }
-  PB.ui.setup(t);
 
   const connection = new PB.Connection(key, {
     onState: (kind) => view.setState(kind),
