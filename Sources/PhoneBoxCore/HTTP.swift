@@ -32,6 +32,7 @@ public enum HTTPRequestParser {
         guard let end = data.range(of: Data("\r\n\r\n".utf8)) else {
             return data.count > maxHeadBytes ? .invalid : .incomplete
         }
+        guard end.upperBound - data.startIndex <= maxHeadBytes else { return .invalid }
         let lines = String(decoding: data[data.startIndex..<end.lowerBound], as: UTF8.self).components(separatedBy: "\r\n")
         let parts = lines[0].split(separator: " ")
         guard parts.count == 3, parts[2].hasPrefix("HTTP/1.") else { return .invalid }
@@ -96,7 +97,7 @@ public enum HTTPResponse {
             return make(status: "200 OK", contentType: type, body: body)
         case let .partial(bounds):
             return make(status: "206 Partial Content", contentType: type,
-                        body: body.subdata(in: bounds.lowerBound..<(bounds.upperBound + 1)),
+                        body: Data(body[(body.startIndex + bounds.lowerBound)...(body.startIndex + bounds.upperBound)]),
                         extraHeaders: ["Content-Range: bytes \(bounds.lowerBound)-\(bounds.upperBound)/\(body.count)"])
         case .unsatisfiable:
             return make(status: "416 Range Not Satisfiable", contentType: "text/plain", body: Data(),

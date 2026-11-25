@@ -22,6 +22,13 @@ struct HTTPRequestParserTests {
         #expect(HTTPRequestParser.parse(Data("GET / HTTP/1.1\r\nno colon here\r\n\r\n".utf8)) == .invalid)
         #expect(HTTPRequestParser.parse(Data(repeating: 0x41, count: HTTPRequestParser.maxHeadBytes + 1)) == .invalid)
     }
+
+    @Test func rejectsAnOversizedHeadEvenWithItsTerminator() {
+        let big = "GET / HTTP/1.1\r\nX-Big: " + String(repeating: "a", count: 20_000) + "\r\n\r\n"
+        #expect(HTTPRequestParser.parse(Data(big.utf8)) == .invalid)
+        #expect(HTTPRequestParser.parse(Data("GET / HTTP/1.1\r\nHost: x\r\n\r\n".utf8))
+            == .complete(HTTPRequestHead(method: "GET", path: "/", headers: ["host": "x"])))
+    }
 }
 
 struct ByteRangeTests {
@@ -71,5 +78,12 @@ struct HTTPResponseTests {
         let response = String(decoding: HTTPResponse.file(Data("ab".utf8), name: "v.mp4", range: "bytes=5-"), as: UTF8.self)
         #expect(response.hasPrefix("HTTP/1.1 416 Range Not Satisfiable\r\n"))
         #expect(response.contains("Content-Range: bytes */2\r\n"))
+    }
+
+    @Test func answersARangeOnADataSlice() {
+        let body = Data("xxabcdef".utf8).dropFirst(2)
+        let response = String(decoding: HTTPResponse.file(body, name: "v.mp4", range: "bytes=1-2"), as: UTF8.self)
+        #expect(response.contains("Content-Range: bytes 1-2/6\r\n"))
+        #expect(response.hasSuffix("\r\n\r\nbc"))
     }
 }

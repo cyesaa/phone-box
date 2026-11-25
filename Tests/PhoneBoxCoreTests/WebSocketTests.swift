@@ -68,4 +68,13 @@ struct WebSocketTests {
         let header = Data([0x81, 0x80 | 127, 0, 0, 0, 0, 0, 0x10, 0, 0])
         #expect(throws: WebSocketDecoder.DecodeError.tooLarge) { try huge.append(header) }
     }
+
+    @Test func rejectsA64BitLengthWithTheTopBitSet() {
+        for first in [UInt8(0xFF), UInt8(0x80)] {
+            var decoder = WebSocketDecoder()
+            let length: [UInt8] = first == 0xFF ? Array(repeating: 0xFF, count: 8) : [0x80, 0, 0, 0, 0, 0, 0, 0]
+            let frame = Data([0x81, 0x80 | 127] + length + [0x11, 0x22, 0x33, 0x44, 0x41, 0x42, 0x43])
+            #expect(throws: WebSocketDecoder.DecodeError.tooLarge) { try decoder.append(frame) }
+        }
+    }
 }

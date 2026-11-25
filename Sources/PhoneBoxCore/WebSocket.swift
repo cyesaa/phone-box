@@ -86,10 +86,11 @@ public struct WebSocketDecoder: Sendable {
                 offset = 4
             } else if length == 127 {
                 guard buffer.count >= 10 else { break }
+                guard buffer[2] & 0x80 == 0 else { throw DecodeError.tooLarge }
                 length = buffer[2..<10].reduce(0) { $0 << 8 | Int($1) }
                 offset = 10
             }
-            guard length <= Self.maxPayload else { throw DecodeError.tooLarge }
+            guard length >= 0, length <= Self.maxPayload else { throw DecodeError.tooLarge }
             guard final, opcode != WebSocketOpcode.continuation.rawValue else { throw DecodeError.fragmented }
             guard buffer.count >= offset + 4 + length else { break }
             let mask = Array(buffer[offset..<(offset + 4)])
