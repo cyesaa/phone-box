@@ -19,7 +19,7 @@ final class DiskCollector {
     func sample() -> DiskSample? {
         let now = Double(DispatchTime.now().uptimeNanoseconds) / 1e9
         if now - capacityTime >= Self.capacityInterval {
-            capacity = Self.readCapacity()
+            capacity = Self.readCapacity() ?? capacity
             capacityTime = now
         }
         guard let capacity else { return nil }

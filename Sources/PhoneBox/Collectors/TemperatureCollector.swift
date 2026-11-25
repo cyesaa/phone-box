@@ -59,7 +59,11 @@ final class TemperatureCollector {
             else { continue }
             readings.append((sensor.name, celsius))
         }
-        last = Temperatures.summary(readings)
+        if sensors.isEmpty {
+            last = nil
+        } else if let summary = Temperatures.summary(readings) {
+            last = summary
+        }
         return last
     }
 

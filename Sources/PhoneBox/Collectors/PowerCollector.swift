@@ -72,14 +72,15 @@ final class PowerCollector {
         return nil
     }
 
-    /// `AppleSmartBattery` → `PowerTelemetryData.SystemPowerIn` (milliwatts); nil on Macs without a battery.
+    /// `AppleSmartBattery` → `PowerTelemetryData.SystemLoad` (milliwatts): the Mac's total draw from any source. Falls back
+    /// to `SystemPowerIn` (adapter input, about 0 on battery) only when `SystemLoad` is missing; nil on Macs without a battery.
     static func systemWatts() -> Double? {
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
         guard service != 0 else { return nil }
         defer { IOObjectRelease(service) }
         guard let telemetry = IORegistryEntryCreateCFProperty(service, "PowerTelemetryData" as CFString, kCFAllocatorDefault, 0)?
                 .takeRetainedValue() as? [String: Any],
-              let milliwatts = telemetry["SystemPowerIn"] as? Int, milliwatts >= 0
+              let milliwatts = (telemetry["SystemLoad"] as? Int) ?? (telemetry["SystemPowerIn"] as? Int), milliwatts >= 0
         else { return nil }
         return (Double(milliwatts) / 10).rounded() / 100
     }
