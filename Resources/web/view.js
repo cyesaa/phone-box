@@ -373,10 +373,11 @@
       // Still with "Reduce Motion" and while stale: the newest value then sits at the right edge.
       const macNow = this.timeline.at(now);
       const shift = still || macNow === null || this.graph.latest === null ? 0
-        : Math.max(-2, Math.min(3, macNow / 1000 - (this.graph.latest + 0.5)));
+        : Math.max(-3, Math.min(3, macNow / 1000 - (this.graph.latest + 0.5)));
       chart.draw(canvas, size[0], size[1], this.graph.lines, this.graph.bounds, {
         label: this.graph.label,
         shift,
+        span: 59,
         heat: range ? (color, value) => heat.color(color, heat.level(range, value)) : null,
         limit: range ? { value: range[1], label: this.t.limit } : null,
         now,

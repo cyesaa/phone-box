@@ -324,10 +324,13 @@ Kullanıcının isteği: "akıcı, baktıkça bakası gelen" bir ekran; bileşen
 - **Sayılar:** her yeni değere 0,9 sn'de yumuşakça kayar (yavaşlayarak biten geçiş); halkalar, kutucuklar, grafik
   başlığı. Metni kutuya sığdırma her karede değil, hedef değerin yazısı geldiğinde (saniyede bir) yapılır.
 - **Grafik:** yumuşatılmış eğri, altı renk geçişiyle dolu; zaman sürekli akar (her karede kayar). Grafik Mac'in
-  saatine (`snapshot.t`) göre ve son gelişlerin düzensizliği kadar (artı 100 ms; 150 ms–1,5 sn) geriden çizilir;
-  yeni değer sağ kenardan kayarak girer. Böylece Wi-Fi'deki iPhone'un veriyi toplu teslim etmesi grafiği
-  duraklatıp sıçratmaz (telefon denemesinde görüldü, 2026-11-26). En sondaki nokta nabız gibi atan bir ışık
-  halkasıyla işaretli. Metrik değişince eski grafik 0,3 sn'de söner, yenisi belirir.
+  saatine (`snapshot.t`) göre, bir snapshot aralığı (1 sn) artı son gelişlerin düzensizliği kadar (artı 100 ms;
+  150 ms–1,5 sn) geriden çizilir; yeni değer hep sağ kenarın dışından kayarak girer. Bu gecikmedeki değişimler
+  gerçek zamanın en çok %10'u hızla yumuşatılır: grafiğin saati durmaz, sıçramaz, geri gitmez (3 sn'den çok
+  saparsa, örneğin sayfa uyuduysa, atlar). Böylece Wi-Fi'deki iPhone'un veriyi toplu teslim etmesi grafiği
+  duraklatıp sıçratmaz (telefon denemesinde görüldü, 2026-11-26); grafik sayılardan 1–2,5 sn geriden gelir. Geçmiş
+  63 sn tutulur, ekranda 60 sn görünür. En sondaki nokta nabız gibi atan bir ışık halkasıyla işaretli. Metrik
+  değişince eski grafik 0,3 sn'de söner, yenisi belirir.
 - **Uygulama listesi:** sıra değişince satırlar eski yerlerinden yenilerine 0,7 sn'de kayar; altlarındaki CPU çubuğu
   1 sn'de uzar ya da kısalır; listeye giren satır belirir.
 - **Şimdi çalıyor:** çalarken küçük bir ekolayzer (4 çubuk) oynar, duraklayınca durur.

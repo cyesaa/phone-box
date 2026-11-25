@@ -43,31 +43,47 @@
     }
   }
 
-  /// The Mac's clock as the graph sees it. Snapshots carry the Mac's time `t` but arrive after a delay that varies
-  /// (an iPhone on Wi-Fi gets them in bursts). The graph is drawn a little behind the Mac's clock — by the spread of
-  /// the last `size` delays plus 100 ms, between 150 ms and 1.5 s — so a late snapshot is already there when its
-  /// turn comes and the line scrolls evenly instead of stopping and jumping.
+  /// The Mac's clock as the graph sees it. Snapshots carry the Mac's time `t`, come once a second and arrive after a
+  /// delay that varies (an iPhone on Wi-Fi gets them in bursts). The graph is drawn one snapshot period plus the
+  /// spread of the last `size` delays (+100 ms, 150 ms–1.5 s) behind the quickest arrival, so the newest value is
+  /// always still coming in from the right and a late one is already there when its turn comes. A change in that lag
+  /// is eased in at no more than 10 % of real time: the clock never stops, steps or runs backwards. Only when it is
+  /// more than 3 s off (the page was asleep) does it jump.
   class Timeline {
     constructor(size = 20) {
       this.size = size;
       this.offsets = [];
+      /// [page time, Mac time] of the last answer.
+      this.shown = null;
     }
 
     /// A snapshot with the Mac's time `t` arrived at page time `now` (both in ms).
     arrived(t, now) {
       const offset = t - now;
       // The Mac's clock jumped (set by hand, a long sleep) or the page was asleep: start over.
-      if (this.offsets.length && Math.abs(offset - this.offsets[this.offsets.length - 1]) > 5000) this.offsets = [];
+      if (this.offsets.length && Math.abs(offset - this.offsets[this.offsets.length - 1]) > 5000) {
+        this.offsets = [];
+        this.shown = null;
+      }
       this.offsets.push(offset);
       if (this.offsets.length > this.size) this.offsets.shift();
     }
 
-    /// The Mac time (ms) to draw at page time `now`; null before the first snapshot.
+    /// The Mac time (ms) to draw at page time `now`; null before the first snapshot. Called once a frame.
     at(now) {
       if (!this.offsets.length) return null;
       const quickest = Math.max(...this.offsets);
       const spread = quickest - Math.min(...this.offsets);
-      return now + quickest - Math.min(1500, Math.max(150, spread + 100));
+      const target = now + quickest - 1000 - Math.min(1500, Math.max(150, spread + 100));
+      let mac = target;
+      if (this.shown) {
+        const elapsed = Math.max(0, now - this.shown[0]);
+        const natural = this.shown[1] + elapsed;
+        const room = 0.1 * elapsed;
+        if (Math.abs(target - natural) <= 3000) mac = natural + Math.max(-room, Math.min(room, target - natural));
+      }
+      this.shown = [now, mac];
+      return mac;
     }
   }
 

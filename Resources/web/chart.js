@@ -43,6 +43,7 @@
   /// - `label`: the top of the axis, at the top left;
   /// - `shift`: how many seconds the graph's clock is past the newest value. Negative while that value is still
   ///   coming in from the right; the line is cut where it crosses the right edge, so it scrolls in evenly;
+  /// - `span`: how many seconds fill the width (default: all the values); older values are drawn past the left edge;
   /// - `heat(color, value)`: the colour at the height of `value`, as [r, g, b], or null for plain colours;
   /// - `limit` {value, label}: the dashed red line where the metric is fully red;
   /// - `now`, `still`: the pulse on the newest point (none with "Reduce Motion"); `glow` 0…1 makes it an alarm.
@@ -100,7 +101,8 @@
     lines.forEach((line, lineIndex) => {
       const values = line.values;
       const count = values.length;
-      const x = (index) => (count <= 1 ? width : ((index - shift) / (count - 1)) * width);
+      const span = options.span || count - 1;
+      const x = (index) => (count <= 1 ? width : ((index - (count - 1 - span) - shift) / span) * width);
       const runs = [];
       let run = [];
       // The value at the line's last drawn point, for the head's colour.

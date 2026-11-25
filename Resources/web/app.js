@@ -7,7 +7,8 @@
   const { t, language } = PB.i18n;
   const format = PB.format(language);
   const view = new PB.View(t, format);
-  const history = new PB.History(60);
+  // 60 s on screen, plus 3 s that scroll out past the left edge (the graph runs a second or two behind the Mac).
+  const history = new PB.History(63);
   const selectedKey = "phonebox-metric";
 
   global.document.documentElement.lang = language;
