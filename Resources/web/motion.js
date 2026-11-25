@@ -43,6 +43,34 @@
     }
   }
 
+  /// The Mac's clock as the graph sees it. Snapshots carry the Mac's time `t` but arrive after a delay that varies
+  /// (an iPhone on Wi-Fi gets them in bursts). The graph is drawn a little behind the Mac's clock — by the spread of
+  /// the last `size` delays plus 100 ms, between 150 ms and 1.5 s — so a late snapshot is already there when its
+  /// turn comes and the line scrolls evenly instead of stopping and jumping.
+  class Timeline {
+    constructor(size = 20) {
+      this.size = size;
+      this.offsets = [];
+    }
+
+    /// A snapshot with the Mac's time `t` arrived at page time `now` (both in ms).
+    arrived(t, now) {
+      const offset = t - now;
+      // The Mac's clock jumped (set by hand, a long sleep) or the page was asleep: start over.
+      if (this.offsets.length && Math.abs(offset - this.offsets[this.offsets.length - 1]) > 5000) this.offsets = [];
+      this.offsets.push(offset);
+      if (this.offsets.length > this.size) this.offsets.shift();
+    }
+
+    /// The Mac time (ms) to draw at page time `now`; null before the first snapshot.
+    at(now) {
+      if (!this.offsets.length) return null;
+      const quickest = Math.max(...this.offsets);
+      const spread = quickest - Math.min(...this.offsets);
+      return now + quickest - Math.min(1500, Math.max(150, spread + 100));
+    }
+  }
+
   // One loop for every drawing. The browser stops it while the page is hidden (phone locked, other tab).
   const tasks = [];
   let running = false;
@@ -81,5 +109,5 @@
   }
 
   global.PhoneBox = global.PhoneBox || {};
-  global.PhoneBox.motion = { ease, between, Glide, onFrame, reduced };
+  global.PhoneBox.motion = { ease, between, Glide, Timeline, onFrame, reduced };
 })(typeof window !== "undefined" ? window : globalThis);

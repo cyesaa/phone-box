@@ -41,7 +41,7 @@
       this.apps = null;
       this.glide = new motion.Glide(900);
       this.limits = heat.limits();
-      this.arrivedAt = 0;
+      this.timeline = new motion.Timeline();
       this.graph = null;
       this.rows = new Map();
       this.white = heat.rgb("#eaf6ff");
@@ -152,7 +152,7 @@
       const previous = this.glide.at(now);
       this.snapshot = snapshot;
       this.glide.push(snapshot, now);
-      this.arrivedAt = now;
+      this.timeline.arrived(snapshot.t, now);
       // The alarm goes by the values that arrived, not the ones gliding on screen.
       for (const metric of this.alarm.update(this.levelsOf(snapshot))) this.poppedAt[metric] = now;
       this.renderPhone();
@@ -359,21 +359,24 @@
       const m = PB().metrics;
       const lines = m.lines(this.selected).map((line) => Object.assign({}, line, { values: history.series(line.key) }));
       const bounds = PB().chart.range(m.scale(this.selected), lines.map((line) => line.values));
-      this.graph = { lines, bounds, label: m.axisLabel(this.selected, bounds, this.format) };
+      this.graph = { lines, bounds, label: m.axisLabel(this.selected, bounds, this.format), latest: history.latest };
     }
 
     drawGraph(canvas, size, now, still, glow) {
       if (!this.graph) return;
-      const { heat, metrics, chart, motion } = PB();
+      const { heat, metrics, chart } = PB();
       const key = metrics.graphHeat(this.selected);
       const battery = this.snapshot.battery;
       // The battery's graph turns red only when the Mac is not on power.
       const range = key && !(key === "battery" && !(battery && battery.plugged === false)) ? this.limits[key] : null;
-      const since = now - this.arrivedAt;
+      // Seconds the graph's clock is past the newest value (each snapshot is taken half way through its second).
+      // Still with "Reduce Motion" and while stale: the newest value then sits at the right edge.
+      const macNow = this.timeline.at(now);
+      const shift = still || macNow === null || this.graph.latest === null ? 0
+        : Math.max(-2, Math.min(3, macNow / 1000 - (this.graph.latest + 0.5)));
       chart.draw(canvas, size[0], size[1], this.graph.lines, this.graph.bounds, {
         label: this.graph.label,
-        shift: still ? 0 : Math.max(0, Math.min(1, since / 1000)),
-        settle: still ? 1 : motion.ease(since / 700),
+        shift,
         heat: range ? (color, value) => heat.color(color, heat.level(range, value)) : null,
         limit: range ? { value: range[1], label: this.t.limit } : null,
         now,

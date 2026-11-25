@@ -107,6 +107,28 @@ struct WebMotionTests {
         #expect(result == "0,88,100,13,50 true")
     }
 
+    @Test func drawsTheGraphBehindTheMacsClockByTheArrivalSpread() {
+        let result = string("""
+            (function () {
+              var line = new M.Timeline(20), out = [];
+              out.push(line.at(0) === null);
+              line.arrived(10000, 500);   // the Mac's 10.0 s arrived at page time 0.5 s
+              out.push(line.at(1000));    // 1000 + 9500 - 150: no spread yet, the 150 ms floor
+              line.arrived(11000, 1800);  // 300 ms later than the first
+              out.push(line.at(2000));    // 2000 + 9500 - (300 + 100)
+              line.arrived(12000, 2000);  // the quickest so far: spread 800
+              out.push(line.at(3000));    // 3000 + 10000 - 900
+              line.arrived(99000, 3000);  // the Mac's clock jumped: start over
+              out.push(line.at(4000));    // 4000 + 96000 - 150
+              var slow = new M.Timeline(20);
+              slow.arrived(0, 0); slow.arrived(1000, 4000);
+              out.push(slow.at(5000));    // spread 3000: capped at 1500
+              return out.join(",");
+            })()
+            """)
+        #expect(result == "true,10350,11100,12100,99850,3500")
+    }
+
     @Test func roundsTheBatteryTimeWhileItGlides() {
         let detail = string("""
             PhoneBox.metrics.header("battery", M.between({ battery: { percent: 50, charging: false, minutesLeft: 312 } },

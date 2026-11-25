@@ -41,8 +41,8 @@
   /// Draws `lines` ([{values, color, width, fill, alpha}]) scaled to `bounds` on a canvas `width`×`height` CSS
   /// pixels. `options`:
   /// - `label`: the top of the axis, at the top left;
-  /// - `shift` 0…1: how far time has moved on since the newest value, so the line scrolls left smoothly;
-  /// - `settle` 0…1: how far the newest value has moved from the one before it;
+  /// - `shift`: how many seconds the graph's clock is past the newest value. Negative while that value is still
+  ///   coming in from the right; the line is cut where it crosses the right edge, so it scrolls in evenly;
   /// - `heat(color, value)`: the colour at the height of `value`, as [r, g, b], or null for plain colours;
   /// - `limit` {value, label}: the dashed red line where the metric is fully red;
   /// - `now`, `still`: the pulse on the newest point (none with "Reduce Motion"); `glow` 0…1 makes it an alarm.
@@ -98,25 +98,35 @@
     const shift = options.shift || 0;
     let head = null;
     lines.forEach((line, lineIndex) => {
-      const values = line.values.slice();
+      const values = line.values;
       const count = values.length;
-      // The newest value slides in from the one before it.
-      const last = values[count - 1];
-      const before = values[count - 2];
-      if (last !== null && before !== null && before !== undefined && options.settle < 1) {
-        values[count - 1] = before + (last - before) * options.settle;
-      }
       const x = (index) => (count <= 1 ? width : ((index - shift) / (count - 1)) * width);
       const runs = [];
       let run = [];
-      values.forEach((value, index) => {
+      // The value at the line's last drawn point, for the head's colour.
+      let end = null;
+      for (let index = 0; index < count; index += 1) {
+        const value = values[index];
         if (value === null) {
           if (run.length) runs.push(run);
           run = [];
-        } else {
-          run.push([x(index), y(value)]);
+          end = null;
+          continue;
         }
-      });
+        const point = [x(index), y(value)];
+        // A value still on its way in from the right: the line ends where it crosses the edge.
+        if (point[0] > width) {
+          if (run.length) {
+            const [px, py] = run[run.length - 1];
+            const part = (width - px) / (point[0] - px);
+            run.push([width, py + (point[1] - py) * part]);
+            end += (value - end) * part;
+          }
+          break;
+        }
+        run.push(point);
+        end = value;
+      }
       if (run.length) runs.push(run);
 
       // Each height takes the colour of its own value, so peaks near the limit are red.
@@ -158,10 +168,9 @@
         g.stroke();
       }
       g.globalAlpha = 1;
-      if (lineIndex === 0 && values[count - 1] !== null && runs.length) {
+      if (lineIndex === 0 && end !== null && runs.length) {
         const newest = runs[runs.length - 1];
-        const value = values[count - 1];
-        head = { point: newest[newest.length - 1], color: options.heat ? options.heat(line.color, value) || base : base };
+        head = { point: newest[newest.length - 1], color: options.heat ? options.heat(line.color, end) || base : base };
       }
     });
 
