@@ -15,6 +15,9 @@ final class DashboardServer {
         didSet { onStateChange?(state) }
     }
 
+    /// Most connections tracked at once; further ones are refused.
+    static let maxConnections = 32
+
     private let webDirectory: URL
     private let hub: DashboardHub
     private var listener: NWListener?
@@ -66,6 +69,10 @@ final class DashboardServer {
     }
 
     private func accept(_ connection: NWConnection) {
+        guard connections.count < Self.maxConnections else {
+            connection.cancel()
+            return
+        }
         let client = ClientConnection(connection: connection, webDirectory: webDirectory, hub: hub)
         connections[ObjectIdentifier(client)] = client
         client.start()

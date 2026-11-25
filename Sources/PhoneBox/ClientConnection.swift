@@ -11,6 +11,11 @@ final class ClientConnection {
     private(set) var interfaceName: String?
     private(set) var isWebSocket = false
 
+    /// Seconds a connection may take to become a WebSocket before it is dropped.
+    static let headTimeout: TimeInterval = 10
+    /// Seconds a closing connection may take to finish before it is cancelled.
+    static let closeTimeout: TimeInterval = 2
+
     private let webDirectory: URL
     private weak var hub: DashboardHub?
     private var head = Data()
@@ -31,7 +36,9 @@ final class ClientConnection {
                 case .ready:
                     self.interfaceName = Self.interfaceName(of: self.connection)
                     self.readHead()
-                case .failed, .cancelled:
+                case .failed, .waiting:
+                    self.cancel()
+                case .cancelled:
                     self.finish()
                 default:
                     break
@@ -39,18 +46,57 @@ final class ClientConnection {
             }
         }
         connection.start(queue: .main)
-    }
-
-    /// The interface of the local end: link-local IPv6 addresses carry it (`fe80::…%en8`); otherwise the path's.
-    static func interfaceName(of connection: NWConnection) -> String? {
-        if case let .hostPort(host, _)? = connection.currentPath?.localEndpoint {
-            switch host {
-            case let .ipv6(address): if let name = address.interface?.name { return name }
-            case let .ipv4(address): if let name = address.interface?.name { return name }
-            default: break
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.headTimeout) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, !self.isWebSocket, !self.closed else { return }
+                self.cancel()
             }
         }
-        return connection.currentPath?.availableInterfaces.first { $0.type != .loopback }?.name
+    }
+
+    /// The interface of the local end. Link-local IPv6 addresses carry it (`fe80::…%en8`); otherwise the interface
+    /// that owns the local address is looked up. Unknown means nil: the hub then treats the client as not on USB.
+    static func interfaceName(of connection: NWConnection) -> String? {
+        guard case let .hostPort(host, _)? = connection.currentPath?.localEndpoint else { return nil }
+        let bytes: [UInt8]
+        switch host {
+        case let .ipv6(address):
+            if let name = address.interface?.name { return name }
+            bytes = Array(address.rawValue)
+        case let .ipv4(address):
+            if let name = address.interface?.name { return name }
+            bytes = Array(address.rawValue)
+        default:
+            return nil
+        }
+        return InterfaceAddress.owner(of: bytes, among: localAddresses())
+    }
+
+    /// Every IPv4 and IPv6 address of this Mac with its interface name, from `getifaddrs`.
+    private static func localAddresses() -> [(name: String, address: [UInt8])] {
+        var list: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&list) == 0, let first = list else { return [] }
+        defer { freeifaddrs(list) }
+        var result: [(name: String, address: [UInt8])] = []
+        for entry in sequence(first: first, next: { $0.pointee.ifa_next }) {
+            guard let addr = entry.pointee.ifa_addr else { continue }
+            let name = String(cString: entry.pointee.ifa_name)
+            switch Int32(addr.pointee.sa_family) {
+            case AF_INET:
+                let bytes = addr.withMemoryRebound(to: sockaddr_in.self, capacity: 1) {
+                    withUnsafeBytes(of: $0.pointee.sin_addr) { Array($0) }
+                }
+                result.append((name, bytes))
+            case AF_INET6:
+                let bytes = addr.withMemoryRebound(to: sockaddr_in6.self, capacity: 1) {
+                    withUnsafeBytes(of: $0.pointee.sin6_addr) { Array($0) }
+                }
+                result.append((name, bytes))
+            default:
+                break
+            }
+        }
+        return result
     }
 
     // MARK: HTTP
@@ -148,6 +194,9 @@ final class ClientConnection {
             MainActor.assumeIsolated { self?.cancel() }
         })
         closed = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.closeTimeout) { [weak self] in
+            MainActor.assumeIsolated { self?.cancel() }
+        }
     }
 
     func cancel() {
