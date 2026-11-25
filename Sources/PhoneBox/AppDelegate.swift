@@ -67,6 +67,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        // Stops the sampler and with it the media adapter's child process, which would otherwise outlive the app
+        // until its next write.
+        sampler.setRunning(false)
+    }
+
     private func showQR() {
         qrWindow.show(link: settings.personalURL(key: key))
     }
