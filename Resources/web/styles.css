@@ -1,0 +1,132 @@
+/* "Sade koyu" (design §8): black, system font, soft cards. Plan 4 replaces this with the full layout C. */
+:root {
+  --bg: #000;
+  --card: #1c1c1e;
+  --text: #f5f5f7;
+  --muted: #8e8e93;
+  --track: #2c2c2e;
+  --cpu: #30d158;
+  --ram: #0a84ff;
+  --warn: #ff9f0a;
+  --bad: #ff453a;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  padding: max(16px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+           max(16px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title { font-weight: 600; font-size: 17px; }
+
+.status { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.status.connected .dot { background: var(--cpu); }
+.status.cable .dot { background: var(--warn); }
+.status.offline .dot { background: var(--bad); }
+
+main {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8vmin;
+  flex-wrap: wrap;
+}
+
+main.stale { opacity: 0.35; }
+
+.gauge { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+
+.ring {
+  --p: 0;
+  --color: var(--cpu);
+  width: 38vmin;
+  height: 38vmin;
+  max-width: 220px;
+  max-height: 220px;
+  border-radius: 50%;
+  background: conic-gradient(var(--color) calc(var(--p) * 1%), var(--track) 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: --p 0.6s;
+}
+
+#ram .ring { --color: var(--ram); }
+
+.inner {
+  width: 80%;
+  height: 80%;
+  border-radius: 50%;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.value { font-size: 9vmin; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.label { margin-top: 4px; font-size: 12px; color: var(--muted); letter-spacing: 0.08em; }
+.detail { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; min-height: 1.2em; }
+
+.message {
+  position: fixed;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  max-width: 90vw;
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: var(--card);
+  text-align: center;
+  font-size: 15px;
+}
+
+.start {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(0, 0, 0, 0.85);
+  text-align: center;
+  padding: 24px;
+}
+
+.start[hidden] { display: none; }
+
+.start button {
+  border: 0;
+  border-radius: 14px;
+  padding: 16px 28px;
+  background: var(--cpu);
+  color: #000;
+  font: 600 18px -apple-system, system-ui, sans-serif;
+}
+
+.start p { max-width: 420px; color: var(--muted); font-size: 14px; margin: 0; }
+
+#keepawake { position: fixed; right: 0; bottom: 0; width: 2px; height: 2px; opacity: 0.01; pointer-events: none; }

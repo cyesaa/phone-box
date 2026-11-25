@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PhoneBox">
+<meta name="theme-color" content="#000000">
+<title>PhoneBox</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <span class="title">PhoneBox</span>
+  <span id="status" class="status"><span class="dot"></span><span id="status-text"></span></span>
+</header>
+
+<main id="metrics">
+  <section class="gauge" id="cpu">
+    <div class="ring"><div class="inner"><span class="value" id="cpu-value">—</span><span class="label">CPU</span></div></div>
+    <div class="detail" id="cpu-detail"></div>
+  </section>
+  <section class="gauge" id="ram">
+    <div class="ring"><div class="inner"><span class="value" id="ram-value">—</span><span class="label">RAM</span></div></div>
+    <div class="detail" id="ram-detail"></div>
+  </section>
+</main>
+
+<div id="message" class="message" hidden></div>
+
+<div id="start" class="start">
+  <button id="start-button" type="button"></button>
+  <p id="start-note"></p>
+</div>
+
+<video id="keepawake" playsinline preload="auto" src="keepawake.mp4"></video>
+<script src="sha256.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
