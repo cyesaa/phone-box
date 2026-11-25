@@ -8,7 +8,7 @@ final class MemoryCollector {
         var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.stride / MemoryLayout<integer_t>.stride)
         let result = withUnsafeMutablePointer(to: &stats) {
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
+                host_statistics64(HostPort.host, HOST_VM_INFO64, $0, &count)
             }
         }
         guard result == KERN_SUCCESS, Self.totalBytes > 0 else { return nil }
