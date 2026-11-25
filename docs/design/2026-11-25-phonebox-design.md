@@ -128,11 +128,16 @@ Kurallar:
 
 ### AccessPolicy
 
-| Mod | İstemcinin bağlantısı | Veri ve komut |
-|---|---|---|
-| Kablo takılıyken (varsayılan) | Yerel ucu, iPhone USB arayüzündeki kapsamlı bir IPv6 link-local adres (`fe80::…%anri1`/`%en8`); IPv4 hiçbir zaman sayılmaz | İzinli |
-| Kablo takılıyken | Wi-Fi ya da başka bir arayüzden | Kapalı, `reason: not-on-cable` |
-| Her zaman | Herhangi biri | İzinli |
+| Mod | İstemcinin bağlantısı | Veri | Komut |
+|---|---|---|---|
+| Kablo takılıyken (varsayılan) | Yerel ucu, iPhone USB arayüzündeki kapsamlı bir IPv6 link-local adres (`fe80::…%anri1`/`%en8`); IPv4 hiçbir zaman sayılmaz | İzinli | İzinli |
+| Kablo takılıyken | Wi-Fi ya da başka bir arayüzden | Kapalı, `reason: not-on-cable` | Kapalı |
+| Her zaman | Kablodan | İzinli | İzinli |
+| Her zaman | Wi-Fi ya da başka bir arayüzden | İzinli | **Kapalı** (`commands: false`) |
+
+Komutlar her iki modda da yalnızca kablodan gelen istemcilere açıktır (kullanıcı kararı, 2026-11-25): sayfa düz
+HTTP ile sunulduğu için aynı ağdaki aktif bir saldırgan sahte sayfa sunup anahtarı ele geçirebilir; kablo ise sadece
+Mac'e takılı ve ona güvenen iPhone'dan gelebilir. Wi-Fi'deki telefon verileri görür, komut düğmeleri kapalı görünür.
 
 Kimlik doğrulamamış bir bağlantı hiçbir durumda veri almaz. USB bağlantısı yalnızca bu Mac'e kabloyla takılı ve
 Mac'e güvenen bir iPhone'dan gelebilir; bu yüzden kablo modu gerçekten "kabloyla bağlı telefon" demektir.
@@ -322,6 +327,7 @@ docs/design/2026-11-25-phonebox-design.md   docs/spike-results.md   docs/manual-
 - **Şifresiz metrik trafiği:** aynı ağdakiler CPU/uygulama adlarını görebilir; komutlar imzalı olduğu için pasif
   dinleyicilere karşı güvende.
 - **Aynı ağdaki aktif saldırgan (Plan 2 son incelemesi):** sayfa düz HTTP ve `.local` adla sunulduğu için mDNS/ARP
-  sahteciliği yapan biri değiştirilmiş bir sayfa sunup anahtarı alabilir ya da kimlik doğrulamayı aktarabilir. Plan 3'te
-  komutların her iki modda da yalnızca kablodan (USB) gelen istemcilere açılması kullanıcıyla konuşulacak.
+  sahteciliği yapan biri değiştirilmiş bir sayfa sunup anahtarı alabilir ya da kimlik doğrulamayı aktarabilir. Bu yüzden
+  komutlar her iki modda da yalnızca kablodan (USB) gelen istemcilere açıktır (bölüm 5, AccessPolicy). Böyle bir
+  saldırgan "Her zaman" modunda yine de metrikleri görebilir.
 - **Safari depolama temizliği:** anahtar kişisel bağlantıda durduğu için etkilenmez; bozulursa QR yeniden okutulur.
