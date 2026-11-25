@@ -34,6 +34,11 @@ final class PowerCollector {
               let channels = copyChannels("Energy Model" as CFString, nil, 0, 0, 0)?.takeRetainedValue(),
               let mutable = CFDictionaryCreateMutableCopy(kCFAllocatorDefault, CFDictionaryGetCount(channels), channels)
         else { return }
+        // Only the GPU channel is needed; sampling the whole group (175 channels) costs about ten times more CPU.
+        if let channelName, let all = (mutable as NSMutableDictionary)["IOReportChannels"] as? [NSDictionary] {
+            let gpuOnly = all.filter { channelName($0 as CFDictionary)?.takeUnretainedValue() as String? == "GPU Energy" }
+            if !gpuOnly.isEmpty { (mutable as NSMutableDictionary)["IOReportChannels"] = gpuOnly as NSArray }
+        }
         var subscribed: Unmanaged<CFMutableDictionary>?
         subscription = subscribe(nil, mutable, &subscribed, 0, nil)?.takeRetainedValue()
         subscribedChannels = subscribed?.takeUnretainedValue()

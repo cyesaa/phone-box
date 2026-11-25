@@ -2,10 +2,10 @@ import Foundation
 import IOKit
 import PhoneBoxCore
 
-/// Free and total space of the startup volume (refreshed every 10 s; it is slow to compute) and the read/write
+/// Free and total space of the startup volume (refreshed every 60 s; it is slow to compute) and the read/write
 /// speed of all block storage drivers.
 final class DiskCollector {
-    private static let capacityInterval: TimeInterval = 10
+    private static let capacityInterval: TimeInterval = 60
     private var capacity: (free: UInt64, total: UInt64)?
     private var capacityTime: TimeInterval = -.infinity
     private var reads = CounterRate()

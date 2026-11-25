@@ -64,6 +64,7 @@ struct EnergyRateTests {
         #expect(EnergyRate.watts(energy: 500_000, unit: "uJ", seconds: 0.5) == 1)
         #expect(EnergyRate.watts(energy: 510_018_661, unit: "nJ", seconds: 2) == 0.26)
         #expect(EnergyRate.watts(energy: 1_000_000, unit: " µJ ", seconds: 1) == 1)
+        #expect(EnergyRate.watts(energy: 2_000_000, unit: "\u{03BC}J", seconds: 2) == 1)
     }
 
     @Test func refusesUnknownUnitsAndBadIntervals() {

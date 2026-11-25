@@ -100,7 +100,7 @@ public enum Temperatures {
         return Set(die.isEmpty ? names.filter { $0.hasPrefix("PMU") && !$0.contains("tcal") } : die)
     }
 
-    /// Average and maximum of the chip sensors (see `chipSensors`). Readings outside 1…130 °C are ignored.
+    /// Average and maximum of the chip sensors (see `chipSensors`). Readings of 0 °C or less, or 130 °C or more, are ignored.
     public static func summary(_ readings: [(name: String, celsius: Double)]) -> TemperatureSample? {
         let chosenNames = chipSensors(readings.map(\.name))
         let chosen = readings.filter { chosenNames.contains($0.name) && $0.celsius > 0 && $0.celsius < 130 }
@@ -112,13 +112,13 @@ public enum Temperatures {
 }
 
 public enum EnergyRate {
-    /// Watts from an energy counter delta in IOReport's unit (`mJ`, `uJ`/`µJ` or `nJ`) over `seconds`.
+    /// Watts from an energy counter delta in IOReport's unit (`mJ`, `uJ`/`µJ`/`μJ` or `nJ`) over `seconds`.
     public static func watts(energy: Double, unit: String, seconds: Double) -> Double? {
         guard seconds > 0, energy >= 0 else { return nil }
         let joules: Double
         switch unit.trimmingCharacters(in: .whitespaces) {
         case "mJ": joules = energy / 1e3
-        case "uJ", "µJ": joules = energy / 1e6
+        case "uJ", "µJ", "\u{03BC}J": joules = energy / 1e6
         case "nJ": joules = energy / 1e9
         default: return nil
         }

@@ -66,4 +66,18 @@ struct AppUsageTests {
         let current = [ProcessReading(pid: 1, path: "/bin/a", cpuNanos: 1, memory: 1)]
         #expect(AppUsage.top(previousCPU: [:], current: current, elapsedNanos: 0, apps: [:]).isEmpty)
     }
+
+    @Test func capsNamesAtEightyCharacters() {
+        #expect(AppUsage.displayName(String(repeating: "a", count: 200)).count == AppUsage.maxNameLength)
+        let exact = String(repeating: "b", count: 80)
+        #expect(AppUsage.displayName(exact) == exact)
+    }
+
+    @Test func neverSplitsACharacterWhenCapping() {
+        let thumb = "\u{1F44D}\u{1F3FD}"
+        let name = String(repeating: "a", count: 79) + thumb + "tail"
+        let shown = AppUsage.displayName(name)
+        #expect(shown.count == 80)
+        #expect(shown.hasSuffix(thumb))
+    }
 }

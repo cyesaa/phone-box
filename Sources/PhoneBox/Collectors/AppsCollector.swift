@@ -22,6 +22,8 @@ final class AppsCollector {
     func sample() -> [AppSample]? {
         let now = DispatchTime.now().uptimeNanoseconds
         let readings = Self.readProcesses()
+        // A failed process listing is not "no apps": keep the earlier readings and let the page keep its list.
+        guard !readings.isEmpty else { return nil }
         defer {
             previousCPU = Dictionary(readings.map { ($0.pid, $0.cpuNanos) }, uniquingKeysWith: { first, _ in first })
             previousTime = now

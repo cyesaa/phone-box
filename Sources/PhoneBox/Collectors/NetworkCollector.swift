@@ -25,27 +25,37 @@ final class NetworkCollector {
             primaryName = Self.primaryInterface()
             primaryTime = tick
         }
-        guard let name = primaryName, let counters = Self.counters(for: name) else { return nil }
+        guard let name = primaryName else { return nil }
+        guard let counters = Self.counters(for: name) else {
+            primaryName = nil  // e.g. the adapter was unplugged: look the primary interface up again next second
+            return nil
+        }
         if name != interface {
             interface = name
             reset()
         }
         let now = Double(tick) / 1e9
-        guard let rx = received.rate(value: counters.rx, at: now), let tx = sent.rate(value: counters.tx, at: now)
-        else { return nil }
+        // Both counters must be read before the guard, or the first reading would leave `sent` unprimed.
+        let rx = received.rate(value: counters.rx, at: now)
+        let tx = sent.rate(value: counters.tx, at: now)
+        guard let rx, let tx else { return nil }
         return NetworkSample(rx: rx, tx: tx, iface: name)
     }
 
     /// The interface macOS uses for the default route, e.g. `en0` (Wi-Fi).
     static func primaryInterface() -> String? {
-        let global = SCDynamicStoreCopyValue(nil, "State:/Network/Global/IPv4" as CFString) as? [String: Any]
-        return global?["PrimaryInterface"] as? String
+        for key in ["State:/Network/Global/IPv4", "State:/Network/Global/IPv6"] {
+            let global = SCDynamicStoreCopyValue(nil, key as CFString) as? [String: Any]
+            if let name = global?["PrimaryInterface"] as? String { return name }
+        }
+        return nil
     }
 
     static func counters(for name: String) -> (rx: UInt64, tx: UInt64)? {
         let index = if_nametoindex(name)
-        guard index != 0 else { return nil }
-        var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST2, 0]
+        guard index != 0, index <= UInt32(Int32.max) else { return nil }
+        // The last element makes the kernel return only this interface.
+        var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST2, Int32(index)]
         var length = 0
         guard sysctl(&mib, 6, nil, &length, nil, 0) == 0, length > 0 else { return nil }
         length += length / 8

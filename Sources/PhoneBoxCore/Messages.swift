@@ -15,7 +15,8 @@ public enum ServerMessage: Equatable, Sendable {
     }()
 
     /// Compact JSON with sorted keys. Never crashes: a snapshot that cannot be encoded (a non-finite number that
-    /// slipped past a collector) is sent with its timestamp only, and the phone keeps its previous values.
+    /// slipped past a collector) is sent with its timestamp only: for one second the phone keeps its CPU and RAM values and shows "—" for the
+    /// other rows.
     public func json() -> String {
         if let data = try? Self.encoder.encode(self) { return String(decoding: data, as: UTF8.self) }
         if case let .snapshot(snapshot) = self, snapshot != Snapshot(t: snapshot.t) {

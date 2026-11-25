@@ -69,12 +69,17 @@ public enum AppUsage {
         return nil
     }
 
-    /// Removes the invisible direction marks some apps put in their names (WhatsApp starts with U+200E) and trims.
+    /// Longest name sent to the phone, in characters (grapheme clusters).
+    public static let maxNameLength = 80
+
+    /// Removes the invisible direction marks some apps put in their names (WhatsApp starts with U+200E), trims, and
+    /// keeps at most `maxNameLength` characters.
     public static func displayName(_ raw: String) -> String {
         let marks: Set<Unicode.Scalar> = ["\u{200E}", "\u{200F}", "\u{202A}", "\u{202B}", "\u{202C}", "\u{202D}",
                                           "\u{202E}", "\u{2066}", "\u{2067}", "\u{2068}", "\u{2069}"]
         let kept = raw.unicodeScalars.filter { !marks.contains($0) }
-        return String(String.UnicodeScalarView(kept)).trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = String(String.UnicodeScalarView(kept)).trimmingCharacters(in: .whitespacesAndNewlines)
+        return String(trimmed.prefix(maxNameLength)).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Groups processes into apps, turns CPU time into percent of one core over `elapsedNanos`, and returns the
