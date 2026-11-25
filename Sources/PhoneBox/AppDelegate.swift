@@ -8,7 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let sampler = Sampler()
     private let usbWatcher = USBWatcher()
     private let qrWindow = QRWindowController()
-    private let commandRunner = CommandRunner()
+    private lazy var commandRunner = CommandRunner(nowPlaying: sampler.nowPlaying)
     private let loaded = PairingStore.loadOrCreate()
     private var key: PairingKey
     private var hub: DashboardHub!

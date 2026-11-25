@@ -13,4 +13,5 @@ enum PrivateSymbols {
 
     static let iokit = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW)
     static let ioReport = dlopen("/usr/lib/libIOReport.dylib", RTLD_NOW)
+    static let login = dlopen("/System/Library/PrivateFrameworks/login.framework/Versions/Current/login", RTLD_NOW)
 }
