@@ -8,17 +8,27 @@ public enum ServerMessage: Equatable, Sendable {
     case snapshot(Snapshot)
     case ack(seq: Int, ok: Bool, error: String?)
 
-    /// Compact JSON with sorted keys.
-    public func json() -> String {
+    private static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        return String(decoding: try! encoder.encode(self), as: UTF8.self)
+        return encoder
+    }()
+
+    /// Compact JSON with sorted keys. Never crashes: a snapshot that cannot be encoded (a non-finite number that
+    /// slipped past a collector) is sent with its timestamp only, and the phone keeps its previous values.
+    public func json() -> String {
+        if let data = try? Self.encoder.encode(self) { return String(decoding: data, as: UTF8.self) }
+        if case let .snapshot(snapshot) = self, snapshot != Snapshot(t: snapshot.t) {
+            return ServerMessage.snapshot(Snapshot(t: snapshot.t)).json()
+        }
+        return #"{"type":"error","v":1}"#
     }
 }
 
 extension ServerMessage: Encodable {
     private enum Keys: String, CodingKey {
-        case v, type, nonce, app, mode, access, streaming, commands, reason, t, cpu, mem, seq, ok, error
+        case v, type, nonce, app, mode, access, streaming, commands, reason, t, cpu, mem, gpu, temp, power, net, disk,
+             battery, apps, seq, ok, error
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -43,6 +53,13 @@ extension ServerMessage: Encodable {
             try container.encode(snapshot.t, forKey: .t)
             try container.encodeIfPresent(snapshot.cpu, forKey: .cpu)
             try container.encodeIfPresent(snapshot.mem, forKey: .mem)
+            try container.encodeIfPresent(snapshot.gpu, forKey: .gpu)
+            try container.encodeIfPresent(snapshot.temp, forKey: .temp)
+            try container.encodeIfPresent(snapshot.power, forKey: .power)
+            try container.encodeIfPresent(snapshot.net, forKey: .net)
+            try container.encodeIfPresent(snapshot.disk, forKey: .disk)
+            try container.encodeIfPresent(snapshot.battery, forKey: .battery)
+            try container.encodeIfPresent(snapshot.apps, forKey: .apps)
         case let .ack(seq, ok, error):
             try container.encode("ack", forKey: .type)
             try container.encode(seq, forKey: .seq)

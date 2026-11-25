@@ -23,6 +23,24 @@ struct ServerMessageTests {
             == #"{"cpu":{"cores":[10,15],"load":[1,2,3],"pCores":1,"total":12.5},"t":1000,"type":"snapshot","v":1}"#)
     }
 
+    @Test func encodesEveryPlan3AMetric() {
+        let snapshot = Snapshot(
+            t: 5, gpu: GPUSample(util: 17), temp: TemperatureSample(avg: 52.5, max: 56), power: PowerSample(gpu: 0.2, system: nil),
+            net: NetworkSample(rx: 1_200, tx: 30, iface: "en0"), disk: DiskSample(free: 10, total: 20, read: nil, write: 4),
+            battery: BatterySample(percent: 86, charging: true, minutesLeft: nil),
+            apps: [AppSample(pid: 9, bundleId: nil, name: "node", cpu: 1.5, mem: 64, quittable: false)])
+        #expect(ServerMessage.snapshot(snapshot).json()
+            == #"{"apps":[{"cpu":1.5,"mem":64,"name":"node","pid":9,"quittable":false}],"#
+            + #""battery":{"charging":true,"percent":86},"disk":{"free":10,"total":20,"write":4},"gpu":{"util":17},"#
+            + #""net":{"iface":"en0","rx":1200,"tx":30},"power":{"gpu":0.2},"t":5,"temp":{"avg":52.5,"max":56},"#
+            + #""type":"snapshot","v":1}"#)
+    }
+
+    @Test func aSnapshotWithANonFiniteNumberFallsBackToItsTimestamp() {
+        let snapshot = Snapshot(t: 7, cpu: CPUSample(total: .nan, cores: [], pCores: 0, load: []), gpu: GPUSample(util: 3))
+        #expect(ServerMessage.snapshot(snapshot).json() == #"{"t":7,"type":"snapshot","v":1}"#)
+    }
+
     @Test func encodesAcks() {
         #expect(ServerMessage.ack(seq: 4, ok: true, error: nil).json() == #"{"ok":true,"seq":4,"type":"ack","v":1}"#)
         #expect(ServerMessage.ack(seq: 5, ok: false, error: "not-allowed").json()
