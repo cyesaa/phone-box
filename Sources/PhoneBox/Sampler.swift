@@ -22,6 +22,7 @@ final class Sampler {
     private let disk = DiskCollector()
     private let battery = BatteryCollector()
     private let apps = AppsCollector()
+    private let audio = AudioCollector()
 
     var isRunning: Bool { timer != nil }
 
@@ -75,6 +76,6 @@ final class Sampler {
         onSnapshot?(Snapshot(
             t: now, cpu: cpu.sample(), mem: memory.sample(), gpu: gpu.sample(), temp: temperature.sample(),
             power: power.sample(), net: network.sample(), disk: disk.sample(), battery: battery.sample(),
-            apps: tickCount % Self.appsEvery == 0 ? apps.sample() : nil))
+            apps: tickCount % Self.appsEvery == 0 ? apps.sample() : nil, audio: audio.sample()))
     }
 }
