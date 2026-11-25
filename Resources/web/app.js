@@ -70,7 +70,7 @@
   const key = readKey();
   const state = {
     socket: null, retries: 0, started: false, stopped: false, nonce: null,
-    receivedAt: 0, lastMessageAt: 0, access: null,
+    receivedAt: 0, lastMessageAt: 0, access: null, accessSetAt: 0,
   };
 
   function setStatus(kind, text) {
@@ -130,7 +130,7 @@
   }
 
   function connect() {
-    if (state.stopped || (state.socket && state.socket.readyState <= WebSocket.OPEN)) return;
+    if (state.stopped || document.visibilityState !== "visible" || (state.socket && state.socket.readyState <= WebSocket.OPEN)) return;
     if (!state.receivedAt) setStatus("", t.connecting);
     const socket = new WebSocket(`ws://${location.host}/ws`);
     state.socket = socket;
@@ -146,8 +146,15 @@
       setStale(true);
       if (event.code === 4001) {
         state.stopped = true;
+        $("start").hidden = true;
         setStatus("offline", t.unpaired);
         showMessage(t.badKey);
+        return;
+      }
+      if (event.code === 4003) {
+        // Authentication did not arrive in time: retryable, not a bad key.
+        setStatus("", t.connecting);
+        setTimeout(connect, 1000);
         return;
       }
       if (event.code === 4002) {
@@ -169,10 +176,23 @@
   // After lock/sleep iOS can leave a socket that reports OPEN but delivers nothing. While the Mac is streaming
   // (snapshots arrive every second or so), silence for 5 s means the socket is dead: replace it right away.
   function replaceStaleSocket() {
+    if (document.visibilityState !== "visible") return;
     const socket = state.socket;
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
-    if (!(state.access && state.access.streaming)) return;
+    if (!(state.access && state.access.streaming)) {
+      // Not streaming (e.g. first connected over Wi-Fi, or before the USB link came up): try again every ~10 s
+      // so the phone moves to the cable without a reload.
+      if (state.access && Date.now() - state.accessSetAt >= 10000) replaceSocket();
+      return;
+    }
     if (Date.now() - state.lastMessageAt <= 5000) return;
+    replaceSocket();
+  }
+
+  function replaceSocket() {
+    const socket = state.socket;
+    if (!socket) return connect();
+    state.accessSetAt = Date.now();
     socket.onmessage = null;
     socket.onclose = null;
     try {
@@ -204,6 +224,7 @@
 
   function applyAccess(access) {
     state.access = access;
+    state.accessSetAt = Date.now();
     if (access.streaming) {
       setStatus("connected", t.connected);
       showMessage("");
@@ -245,10 +266,12 @@
   for (const name of ["visibilitychange", "pageshow", "focus"]) {
     window.addEventListener(name, () => {
       if (document.visibilityState !== "visible") return;
-      replaceStaleSocket();
+      if (state.access && !state.access.streaming && state.socket) replaceSocket();
+      else replaceStaleSocket();
       connect();
     });
   }
+  window.addEventListener("hashchange", () => location.reload());
 
   if (!key) {
     $("start").hidden = true;
