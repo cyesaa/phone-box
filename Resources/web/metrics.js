@@ -6,10 +6,12 @@
   const num = (value) => (typeof value === "number" && Number.isFinite(value) ? value : null);
   const GiB = 1073741824;
 
+  // The "Okyanus" palette (design §8 "Stil"); `light` is the bright end of a ring.
   const colors = {
-    cpu: "#30d158", ram: "#0a84ff", gpu: "#bf5af2", temp: "#ff9f0a", power: "#ffd60a", net: "#64d2ff",
-    disk: "#8e8e93", battery: "#30d158",
+    cpu: "#00c2ff", ram: "#3d6bff", gpu: "#7b61ff", temp: "#00e0b0", power: "#4ff0d0", net: "#8be9ff",
+    disk: "#6f8fa8", battery: "#00d0a0",
   };
+  const light = { cpu: "#7ff3ff", ram: "#9db4ff" };
   const order = ["cpu", "ram", "gpu", "temp", "power", "net", "disk", "battery"];
 
   /// The numbers the history keeps for one snapshot.
@@ -37,12 +39,31 @@
       case "temp":
         return [{ key: "tempAvg", color, width: 2.2, fill: true }, { key: "tempMax", color, width: 1, fill: false, alpha: 0.55 }];
       case "net":
-        return [{ key: "netRx", color, width: 2.2, fill: true }, { key: "netTx", color: "#bf5af2", width: 1.6, fill: false }];
+        return [{ key: "netRx", color, width: 2.2, fill: true }, { key: "netTx", color: "#7b61ff", width: 1.6, fill: false }];
       case "disk":
-        return [{ key: "diskRead", color: "#d1d1d6", width: 2.2, fill: true }, { key: "diskWrite", color: "#ff9f0a", width: 1.6, fill: false }];
+        return [{ key: "diskRead", color, width: 2.2, fill: true }, { key: "diskWrite", color: "#4ff0d0", width: 1.6, fill: false }];
       default:
         return [{ key: metric, color, width: 2.2, fill: true }];
     }
+  }
+
+  /// The numbers that turn a metric red (design §8, see `PhoneBox.heat.limits`): the network's ↓ + ↑, free disk
+  /// space in bytes, and the battery only when it is not on power.
+  function heatValues(snapshot) {
+    const v = values(snapshot);
+    const { net, disk, battery } = snapshot;
+    return {
+      cpu: v.cpu, ram: v.ram, gpu: v.gpu, temp: v.tempAvg, power: v.power,
+      net: net ? num(net.rx + net.tx) : null,
+      disk: disk ? num(disk.free) : null,
+      battery: battery && battery.plugged === false ? num(battery.percent) : null,
+    };
+  }
+
+  /// Which limits the graph's lines are measured against: the disk graph shows reading and writing, not free space,
+  /// so it never turns red.
+  function graphHeat(metric) {
+    return metric === "disk" ? null : metric;
   }
 
   /// How the graph's vertical axis is chosen (see `PhoneBox.chart.range`).
@@ -120,5 +141,5 @@
   }
 
   global.PhoneBox = global.PhoneBox || {};
-  global.PhoneBox.metrics = { colors, order, values, lines, scale, tile, header, axisLabel, GiB };
+  global.PhoneBox.metrics = { colors, light, order, values, heatValues, graphHeat, lines, scale, tile, header, axisLabel, GiB };
 })(typeof window !== "undefined" ? window : globalThis);

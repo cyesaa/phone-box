@@ -166,7 +166,7 @@ struct WebPageTests {
     @Test func describesEachMetricsGraph() {
         #expect(string(#"PhoneBox.metrics.lines("temp").map(function (l) { return l.key; }).join(",")"#) == "tempAvg,tempMax")
         #expect(string(#"PhoneBox.metrics.lines("net").map(function (l) { return l.key; }).join(",")"#) == "netRx,netTx")
-        #expect(string(#"PhoneBox.metrics.lines("cpu")[0].color"#) == "#30d158")
+        #expect(string(#"PhoneBox.metrics.lines("cpu")[0].color"#) == "#00c2ff")
         #expect(string(#"["cpu", "temp", "net", "power", "battery"].map(PhoneBox.metrics.scale).join(",")"#)
             == "percent,temperature,fromZero,fromZero,percent")
         #expect(string(#"PhoneBox.metrics.axisLabel("net", { min: 0, max: 5e6 }, tr)"#) == "5,0 MB/s")
