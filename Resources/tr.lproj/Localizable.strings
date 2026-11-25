@@ -1,0 +1,23 @@
+"status.waiting" = "iPhone bekleniyor";
+"status.streaming" = "iPhone bağlı · %d cihaz";
+"status.waitingForCable" = "Telefon Wi-Fi'de: kabloyu tak";
+"status.portInUse" = "Port %d kullanımda";
+"status.usbUnavailable" = "USB aygıtları görülemiyor";
+
+"menu.showQR" = "QR kodunu göster…";
+"menu.mode" = "Veri gönder";
+"menu.mode.cable" = "Sadece kablo takılıyken";
+"menu.mode.always" = "Her zaman, Wi-Fi'de de";
+"menu.launchAtLogin" = "Girişte başlat";
+"menu.resetPairing" = "Eşleştirmeyi sıfırla…";
+"menu.quit" = "PhoneBox'tan çık";
+
+"reset.title" = "Eşleştirme sıfırlansın mı?";
+"reset.message" = "Eşleşmiş bütün telefonların bağlantısı kesilir; yeni QR kodunu okutmaları gerekir.";
+"reset.confirm" = "Sıfırla";
+"cancel" = "Vazgeç";
+
+"qr.title" = "iPhone'unu eşleştir";
+"qr.instructions" = "Bu kodu iPhone'un kamerasıyla okut. Dashboard telefonun tarayıcısında açılır.";
+"qr.copy" = "Bağlantıyı kopyala";
+"qr.copied" = "Kopyalandı";

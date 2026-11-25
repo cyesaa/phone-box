@@ -1,0 +1,23 @@
+"status.waiting" = "Waiting for an iPhone";
+"status.streaming" = "iPhone connected · %d";
+"status.waitingForCable" = "Phone on Wi-Fi: plug in the cable";
+"status.portInUse" = "Port %d is in use";
+"status.usbUnavailable" = "Cannot see USB devices";
+
+"menu.showQR" = "Show QR Code…";
+"menu.mode" = "Send data";
+"menu.mode.cable" = "Only While the Cable Is Plugged In";
+"menu.mode.always" = "Always, Also over Wi-Fi";
+"menu.launchAtLogin" = "Open at Login";
+"menu.resetPairing" = "Reset Pairing…";
+"menu.quit" = "Quit PhoneBox";
+
+"reset.title" = "Reset pairing?";
+"reset.message" = "Every paired phone is disconnected and has to scan the new QR code.";
+"reset.confirm" = "Reset";
+"cancel" = "Cancel";
+
+"qr.title" = "Pair your iPhone";
+"qr.instructions" = "Scan this code with the iPhone's camera. The dashboard opens in its browser.";
+"qr.copy" = "Copy Link";
+"qr.copied" = "Copied";
