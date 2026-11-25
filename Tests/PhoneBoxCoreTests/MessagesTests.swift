@@ -8,13 +8,15 @@ struct ServerMessageTests {
     }
 
     @Test func encodesReadyWithTheAccessObject() {
-        #expect(ServerMessage.ready(mode: .cable, access: .notOnCable).json()
-            == #"{"access":{"commands":false,"reason":"not-on-cable","streaming":false},"mode":"cable","type":"ready","v":1}"#)
+        #expect(ServerMessage.ready(mode: .cable, host: "Eren's MacBook Pro", access: .notOnCable).json()
+            == #"{"access":{"cable":false,"commands":false,"reason":"not-on-cable","streaming":false},"host":"Eren's MacBook Pro","mode":"cable","type":"ready","v":1}"#)
     }
 
     @Test func encodesAccessFlat() {
-        #expect(ServerMessage.access(.granted).json()
-            == #"{"commands":true,"reason":"ok","streaming":true,"type":"access","v":1}"#)
+        #expect(ServerMessage.access(.onCable).json()
+            == #"{"cable":true,"commands":true,"reason":"ok","streaming":true,"type":"access","v":1}"#)
+        #expect(ServerMessage.access(.overWiFi).json()
+            == #"{"cable":false,"commands":false,"reason":"ok","streaming":true,"type":"access","v":1}"#)
     }
 
     @Test func encodesSnapshotAndLeavesOutMissingMetrics() {

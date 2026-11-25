@@ -3,13 +3,23 @@ import Testing
 
 struct AccessPolicyTests {
     @Test func cableModeAllowsOnlyClientsOnTheUSBLink() {
-        #expect(AccessPolicy.decide(mode: .cable, clientOnUSB: true, authenticated: true) == .granted)
+        #expect(AccessPolicy.decide(mode: .cable, clientOnUSB: true, authenticated: true) == .onCable)
         #expect(AccessPolicy.decide(mode: .cable, clientOnUSB: false, authenticated: true) == .notOnCable)
     }
 
-    @Test func alwaysModeAllowsEveryAuthenticatedClient() {
-        #expect(AccessPolicy.decide(mode: .always, clientOnUSB: true, authenticated: true) == .granted)
-        #expect(AccessPolicy.decide(mode: .always, clientOnUSB: false, authenticated: true) == .granted)
+    @Test func alwaysModeStreamsToEveryoneButTakesCommandsOnlyFromTheCable() {
+        #expect(AccessPolicy.decide(mode: .always, clientOnUSB: true, authenticated: true) == .onCable)
+        let wifi = AccessPolicy.decide(mode: .always, clientOnUSB: false, authenticated: true)
+        #expect(wifi == .overWiFi)
+        #expect(wifi.streaming && !wifi.commands && !wifi.cable)
+    }
+
+    @Test func commandsNeverComeFromOffTheCable() {
+        for mode in AccessMode.allCases {
+            for authenticated in [true, false] {
+                #expect(!AccessPolicy.decide(mode: mode, clientOnUSB: false, authenticated: authenticated).commands)
+            }
+        }
     }
 
     @Test func unauthenticatedClientsGetNothingInAnyMode() {
@@ -23,7 +33,8 @@ struct AccessPolicyTests {
     }
 
     @Test func reasonsMatchTheProtocol() {
-        #expect(Access.granted.reason == "ok")
+        #expect(Access.onCable.reason == "ok")
+        #expect(Access.overWiFi.reason == "ok")
         #expect(Access.notOnCable.reason == "not-on-cable")
     }
 }

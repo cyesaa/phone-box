@@ -25,6 +25,8 @@ final class DashboardHub {
     }
     private var key: PairingKey
     private let appName: String
+    /// The Mac's name, shown in the page's status line.
+    private let hostName: String
     private let usbInterfaces: () -> Set<String>
     private var clients: [ObjectIdentifier: Client] = [:]
     private var livenessTimer: Timer?
@@ -37,10 +39,12 @@ final class DashboardHub {
     var onAuthenticated: (() -> Void)?
     var onConnectionClosed: ((ClientConnection) -> Void)?
 
-    init(mode: AccessMode, key: PairingKey, appName: String, usbInterfaces: @escaping () -> Set<String> = USBLinks.iPhoneInterfaceNames) {
+    init(mode: AccessMode, key: PairingKey, appName: String, hostName: String,
+         usbInterfaces: @escaping () -> Set<String> = USBLinks.iPhoneInterfaceNames) {
         self.mode = mode
         self.key = key
         self.appName = appName
+        self.hostName = hostName
         self.usbInterfaces = usbInterfaces
         let timer = Timer(timeInterval: Self.pingInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.checkLiveness() }
@@ -105,7 +109,7 @@ final class DashboardHub {
             connection.markAuthenticated()
             client.access = AccessPolicy.decide(mode: mode, clientOnUSB: client.onUSB, authenticated: true)
             clients[id] = client
-            connection.send(.ready(mode: mode, access: client.access))
+            connection.send(.ready(mode: mode, host: hostName, access: client.access))
             onAuthenticated?()
             changed(wasStreaming: wasStreaming)
         case let .command(seq, _, _):

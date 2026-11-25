@@ -34,6 +34,11 @@ final class Settings {
         (SCDynamicStoreCopyLocalHostName(nil) as String?) ?? "localhost"
     }
 
+    /// "Eren's MacBook Pro" from System Settings → General → Sharing; the page shows it in its status line.
+    static func computerName() -> String {
+        (SCDynamicStoreCopyComputerName(nil, nil) as String?) ?? localHostName()
+    }
+
     /// The personal link in the QR code (design §5). Always with `http://`: Safari tries HTTPS first for an
     /// address typed without a scheme (spike).
     func personalURL(key: PairingKey) -> String {

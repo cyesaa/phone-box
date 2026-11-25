@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         if loaded.created { settings.hasEverPaired = false }
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
-        hub = DashboardHub(mode: settings.mode, key: key, appName: "PhoneBox \(version)")
+        hub = DashboardHub(mode: settings.mode, key: key, appName: "PhoneBox \(version)", hostName: Settings.computerName())
         let webDirectory = Bundle.main.resourceURL!.appendingPathComponent("web", isDirectory: true)
         server = DashboardServer(webDirectory: webDirectory, hub: hub)
         menuBar = MenuBarController(mode: settings.mode)
