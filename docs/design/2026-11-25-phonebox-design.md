@@ -1,7 +1,7 @@
 # PhoneBox — Tasarım Dokümanı
 
 - **Tarih:** 2026-11-25
-- **Durum:** Taslak, kullanıcı onayı bekliyor
+- **Durum:** Onaylandı (2026-11-25). Deneme planı: `docs/design/plans/2026-11-25-phonebox-spike.md`
 - **Geliştirme Mac'i:** MacBook Pro (Mac16,1), Apple M4, 16 GB, macOS 27.2, Xcode yok (Command Line Tools)
 - **Test telefonu:** Kullanıcının günlük iPhone'u
 - **Örnek alınan proje:** NotchBox (`cyesaa/notch-box`): paketleme, kurulum, README ve doküman düzeni ondan alınır
