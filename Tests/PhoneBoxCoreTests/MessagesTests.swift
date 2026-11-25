@@ -47,6 +47,12 @@ struct ServerMessageTests {
             == #"{"audio":{"muted":false,"volume":0.5},"media":{"app":"Spotify","playing":true,"title":"Kara Toprak"},"t":9,"type":"snapshot","v":1}"#)
     }
 
+    @Test func encodesThePhonesBattery() {
+        let snapshot = Snapshot(t: 3, phone: PhoneBatterySample(percent: 76, charging: true, plugged: true))
+        #expect(ServerMessage.snapshot(snapshot).json()
+            == #"{"phone":{"charging":true,"percent":76,"plugged":true},"t":3,"type":"snapshot","v":1}"#)
+    }
+
     @Test func aSnapshotWithANonFiniteNumberFallsBackToItsTimestamp() {
         let snapshot = Snapshot(t: 7, cpu: CPUSample(total: .nan, cores: [], pCores: 0, load: []), gpu: GPUSample(util: 3))
         #expect(ServerMessage.snapshot(snapshot).json() == #"{"t":7,"type":"snapshot","v":1}"#)

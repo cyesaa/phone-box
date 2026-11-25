@@ -14,4 +14,7 @@ enum PrivateSymbols {
     static let iokit = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW)
     static let ioReport = dlopen("/usr/lib/libIOReport.dylib", RTLD_NOW)
     static let login = dlopen("/System/Library/PrivateFrameworks/login.framework/Versions/Current/login", RTLD_NOW)
+    /// Finder and Xcode talk to iPhones through it; newer macOS keeps it under /Library/Apple.
+    static let mobileDevice = dlopen("/Library/Apple/System/Library/PrivateFrameworks/MobileDevice.framework/MobileDevice", RTLD_NOW)
+        ?? dlopen("/System/Library/PrivateFrameworks/MobileDevice.framework/MobileDevice", RTLD_NOW)
 }

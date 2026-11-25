@@ -25,6 +25,7 @@ final class Sampler {
     private let battery = BatteryCollector()
     private let apps = AppsCollector()
     private let audio = AudioCollector()
+    private let phoneBattery = PhoneBatteryReader()
 
     var isRunning: Bool { timer != nil }
 
@@ -42,7 +43,9 @@ final class Sampler {
             activity = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep,
                                                              reason: "Streaming to iPhone")
             nowPlaying.start()
+            phoneBattery.start()
         } else {
+            phoneBattery.stop()
             nowPlaying.stop()
             if let activity { ProcessInfo.processInfo.endActivity(activity) }
             activity = nil
@@ -80,6 +83,7 @@ final class Sampler {
         onSnapshot?(Snapshot(
             t: now, cpu: cpu.sample(), mem: memory.sample(), gpu: gpu.sample(), temp: temperature.sample(),
             power: power.sample(), net: network.sample(), disk: disk.sample(), battery: battery.sample(),
-            apps: tickCount % Self.appsEvery == 0 ? apps.sample() : nil, media: nowPlaying.current(), audio: audio.sample()))
+            apps: tickCount % Self.appsEvery == 0 ? apps.sample() : nil, media: nowPlaying.current(), audio: audio.sample(),
+            phone: phoneBattery.latest))
     }
 }

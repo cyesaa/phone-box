@@ -29,7 +29,7 @@ public enum ServerMessage: Equatable, Sendable {
 extension ServerMessage: Encodable {
     private enum Keys: String, CodingKey {
         case v, type, nonce, app, mode, host, limits, access, streaming, commands, cable, reason, t, cpu, mem, gpu, temp, power, net, disk,
-             battery, apps, media, audio, seq, ok, error
+             battery, apps, media, audio, phone, seq, ok, error
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -66,6 +66,7 @@ extension ServerMessage: Encodable {
             try container.encodeIfPresent(snapshot.apps, forKey: .apps)
             try container.encodeIfPresent(snapshot.media, forKey: .media)
             try container.encodeIfPresent(snapshot.audio, forKey: .audio)
+            try container.encodeIfPresent(snapshot.phone, forKey: .phone)
         case let .ack(seq, ok, error):
             try container.encode("ack", forKey: .type)
             try container.encode(seq, forKey: .seq)
