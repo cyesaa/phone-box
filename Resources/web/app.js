@@ -1,4 +1,5 @@
-// PhoneBox dashboard (Plan 2: CPU and RAM). Design §5 (protocol), §8 (keep-awake, states).
+// PhoneBox dashboard (Plan 2: CPU and RAM; Plan 3A: the other metrics and the app list as plain rows).
+// Design §5 (protocol), §6 (metrics), §8 (keep-awake, states).
 (function () {
   "use strict";
 
@@ -18,6 +19,22 @@
       startNote: "Dokunduğunda ekran açık kalır. Telefonda çalan müzik durmaz.",
       memory: (used, total) => `${used} / ${total} GB`,
       load: (value) => `Yük ${value}`,
+      gpu: "GPU",
+      temp: "Sıcaklık",
+      power: "Güç",
+      net: "Ağ",
+      disk: "Disk",
+      battery: "Pil",
+      apps: "En çok kullananlar",
+      hottest: (value) => `en yüksek ${value} °C`,
+      gpuPower: "GPU",
+      systemPower: "Mac'in tamamı",
+      free: (free, total) => `${free} / ${total} GB boş`,
+      diskSpeed: (read, write) => `okuma ${read} · yazma ${write}`,
+      charging: "şarj oluyor",
+      untilEmpty: (time) => `${time} kaldı`,
+      untilFull: (time) => `dolmasına ${time}`,
+      duration: (hours, minutes) => (hours ? `${hours} sa ` : "") + `${minutes} dk`,
     },
     en: {
       connecting: "Connecting…",
@@ -34,13 +51,31 @@
       startNote: "Once you tap, the screen stays on. Music playing on the phone keeps playing.",
       memory: (used, total) => `${used} / ${total} GB`,
       load: (value) => `Load ${value}`,
+      gpu: "GPU",
+      temp: "Temperature",
+      power: "Power",
+      net: "Network",
+      disk: "Disk",
+      battery: "Battery",
+      apps: "Top apps",
+      hottest: (value) => `hottest ${value} °C`,
+      gpuPower: "GPU",
+      systemPower: "whole Mac",
+      free: (free, total) => `${free} of ${total} GB free`,
+      diskSpeed: (read, write) => `read ${read} · write ${write}`,
+      charging: "charging",
+      untilEmpty: (time) => `${time} left`,
+      untilFull: (time) => `${time} to full`,
+      duration: (hours, minutes) => (hours ? `${hours} h ` : "") + `${minutes} min`,
     },
   };
   const language = (navigator.language || "en").toLowerCase().startsWith("tr") ? "tr" : "en";
   const t = TEXT[language];
   const number = new Intl.NumberFormat(language, { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+  const whole = new Intl.NumberFormat(language, { maximumFractionDigits: 0 });
   const $ = (id) => document.getElementById(id);
   document.documentElement.lang = language;
+  for (const element of document.querySelectorAll("[data-text]")) element.textContent = t[element.dataset.text];
 
   // The key comes from the personal link's fragment (#k=…), or from localStorage on later visits (design §5).
   function readKey() {
@@ -84,7 +119,7 @@
   }
 
   function setStale(stale) {
-    $("metrics").classList.toggle("stale", stale);
+    for (const id of ["metrics", "details", "apps"]) $(id).classList.toggle("stale", stale);
   }
 
   // ---- Keep the screen on (spike V4): an unmuted, silent video that never loops, in an "ambient" audio
@@ -259,6 +294,76 @@
       const gb = (bytes) => number.format(bytes / 1073741824);
       $("ram-detail").textContent = t.memory(gb(snapshot.mem.used), gb(snapshot.mem.total));
     }
+    renderDetails(snapshot);
+    if (snapshot.apps) renderApps(snapshot.apps);
+  }
+
+  // ---- Plan 3A rows. A missing metric shows "—".
+  function setRow(id, value, sub) {
+    $(id + "-value").textContent = value == null ? "—" : value;
+    $(id + "-sub").textContent = value == null || !sub ? "" : sub;
+  }
+
+  function speed(bytesPerSecond) {
+    if (bytesPerSecond == null) return "—";
+    if (bytesPerSecond >= 1e6) return number.format(bytesPerSecond / 1e6) + " MB/s";
+    if (bytesPerSecond >= 1e3) return whole.format(bytesPerSecond / 1e3) + " KB/s";
+    return whole.format(bytesPerSecond) + " B/s";
+  }
+
+  function duration(minutes) {
+    return t.duration(Math.floor(minutes / 60), minutes % 60);
+  }
+
+  function renderDetails(snapshot) {
+    const gpu = snapshot.gpu;
+    setRow("gpu", gpu ? Math.round(gpu.util) + "%" : null);
+
+    const temp = snapshot.temp;
+    setRow("temp", temp ? number.format(temp.avg) + " °C" : null,
+           temp && temp.max - temp.avg >= 1 ? t.hottest(number.format(temp.max)) : "");
+
+    const power = snapshot.power;
+    if (power && power.system != null) setRow("power", number.format(power.system) + " W", t.systemPower);
+    else if (power && power.gpu != null) setRow("power", number.format(power.gpu) + " W", t.gpuPower);
+    else setRow("power", null);
+
+    const net = snapshot.net;
+    setRow("net", net ? `↓ ${speed(net.rx)} · ↑ ${speed(net.tx)}` : null, net ? net.iface : "");
+
+    const disk = snapshot.disk;
+    const gb = (bytes) => number.format(bytes / 1e9);
+    setRow("disk", disk ? t.free(gb(disk.free), gb(disk.total)) : null,
+           disk && (disk.read != null || disk.write != null) ? t.diskSpeed(speed(disk.read), speed(disk.write)) : "");
+
+    const battery = snapshot.battery;
+    let batterySub = "";
+    if (battery && battery.minutesLeft != null) {
+      batterySub = battery.charging ? t.untilFull(duration(battery.minutesLeft)) : t.untilEmpty(duration(battery.minutesLeft));
+    } else if (battery && battery.charging) {
+      batterySub = t.charging;
+    }
+    setRow("battery", battery ? battery.percent + "%" + (battery.charging ? " ⚡" : "") : null, batterySub);
+  }
+
+  function renderApps(apps) {
+    const list = $("app-list");
+    const sorted = apps.slice().sort((a, b) => b.cpu - a.cpu || b.mem - a.mem);
+    list.replaceChildren(...sorted.map((app) => {
+      const item = document.createElement("li");
+      const cells = [
+        ["app-name", app.name],
+        ["app-cpu", number.format(app.cpu) + "%"],
+        ["app-mem", app.mem >= 1e9 ? number.format(app.mem / 1e9) + " GB" : whole.format(app.mem / 1e6) + " MB"],
+      ];
+      for (const [className, text] of cells) {
+        const cell = document.createElement("span");
+        cell.className = className;
+        cell.textContent = text;
+        item.append(cell);
+      }
+      return item;
+    }));
   }
 
   function setRing(id, percent) {

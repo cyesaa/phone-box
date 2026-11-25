@@ -155,7 +155,7 @@ gösterilir.
 
 ## 6. Metrikler
 
-Sampler sadece en az bir izinli istemci varken çalışır. Hedef: PhoneBox'ın kendi CPU kullanımı %1'in altında.
+Sampler sadece en az bir izinli istemci varken çalışır. Hedef: PhoneBox'ın kendi CPU kullanımı %1'in altında. Ölçülen (Plan 3A, M4): veri gönderirken ~%1; sıcaklığı her saniye okumak tek başına ~%3 tutuyordu.
 Okunamayan değer `null` gönderilir, dashboard "—" gösterir.
 
 | Alan | İçerik | Kaynak |
@@ -163,12 +163,12 @@ Okunamayan değer `null` gönderilir, dashboard "—" gösterir.
 | `cpu` | `total` (%), `cores` (% dizisi), `pCores` (performans çekirdeği sayısı), `load` (1/5/15 dk) | `host_processor_info`, `sysctl hw.perflevel*`, `getloadavg` |
 | `mem` | `used`, `total`, `app`, `wired`, `compressed`, `swapUsed` (bayt), `pressure` (`normal`/`warn`/`critical`) | `host_statistics64`, `sysctl hw.memsize`, `vm.swapusage`, `kern.memorystatus_vm_pressure_level` |
 | `gpu` | `util` (%) | IOKit `IOAccelerator` → `PerformanceStatistics` |
-| `temp` | `cpuAvg`, `cpuMax`, `gpuAvg`, `gpuMax` (°C) | `IOHIDEventSystemClient` (resmi olmayan) |
+| `temp` | `avg`, `max` (°C): çip die sensörleri (`PMU tdie*`, `PMU2 tdie*`); CPU/GPU ayrımı sensör adlarından güvenilir çıkarılamadığı için tek değer. 5 sn'de bir okunur | `IOHIDEventSystemClient` (resmi olmayan) |
 | `power` | `gpu` (W); MacBook'ta `system` (W). CPU ve ANE watt'ı root gerektirdiği için yok | `IOReport` "Energy Model" → `GPU Energy` (resmi olmayan); `AppleSmartBattery` → `PowerTelemetryData.SystemPowerIn` |
 | `net` | `rx`, `tx` (bayt/sn), `iface` | `getifaddrs` sayaçları, birincil arayüz |
 | `disk` | `free`, `total` (bayt), `read`, `write` (bayt/sn) | `URLResourceValues`, IOKit `IOBlockStorageDriver` istatistikleri |
 | `battery` | `percent`, `charging`, `minutesLeft`; masaüstü Mac'te `null` | `IOPSCopyPowerSourcesInfo` |
-| `apps` | 2 saniyede bir (diğer saniyelerde alan gönderilmez): CPU'ya göre ilk 5 ile RAM'e göre ilk 5'in birleşimi, en fazla 10 kayıt `{pid, bundleId, name, cpu, mem, quittable}` | `libproc` (`proc_listallpids`, `proc_pid_rusage`, `proc_pidpath`) |
+| `apps` | 3 saniyede bir (diğer saniyelerde alan gönderilmez): CPU'ya göre ilk 5 ile RAM'e göre ilk 5'in birleşimi, en fazla 10 kayıt `{pid, bundleId, name, cpu, mem, quittable}` | `libproc` (`proc_listallpids`, `proc_pid_rusage`, `proc_pidpath`) |
 
 - **Gruplama:** Bir sürecin yolu bir `.app` paketinin içindeyse en dıştaki `.app`'e yazılır ("Chrome Helper" →
   "Chrome"). Root'a ait sistem süreçleri izin olmadan okunamaz ve listede yer almaz. Uygulama adlarından
