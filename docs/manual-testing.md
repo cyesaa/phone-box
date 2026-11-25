@@ -45,10 +45,25 @@ ya da `lsof -nP -iTCP:4747 -sTCP:ESTABLISHED` (`fe80:<scope>::…` adresinin sco
 - [ ] Halkaya ya da kutucuğa dokununca grafik ve başlık o metriğe geçiyor; seçim sayfa yeniden açılınca hatırlanıyor.
 - [ ] Uygulama listesinin başlığına dokununca CPU/RAM sıralaması değişiyor; kapatılamayan uygulamalar gri.
 - [ ] Mac'te bir şey çalarken şarkı kartı görünüyor, hiçbir şey çalmayınca birkaç saniyede gidiyor.
-- [ ] Durum satırı kabloda yeşil "kablo", Wi-Fi'de turuncu "Wi-Fi"; veri kesilince gri "Bağlanıyor…" ve soluk değerler.
+- [ ] Saat başlığındaki nokta kabloda yeşil (yanında telefonun pili), Wi-Fi'de turuncu ve "Wi-Fi"; veri kesilince gri
+  "Bağlanıyor…" ve soluk değerler. Mac'in adı "⋯" menüsünün başında.
 - [ ] İlk açılışta rehber çıkıyor, "Başlat" ekranı açık tutuyor; "⋯ → Kurulum rehberi" yeniden açıyor; "Kopyala"
   kişisel bağlantıyı kopyalıyor.
 - [ ] Ana ekran simgesi yeşil ve mavi halkalı.
+
+## Görünüm ve kızarma (Plan 4C)
+- [ ] Okyanus renkleri; halkaların ucu parlıyor, üstünden parıltı akıyor; sayılar yumuşakça değişiyor; uygulama
+  satırları yer değiştirirken kayıyor; çalarken ekolayzer oynuyor.
+- [ ] Grafik Wi-Fi'de de, kabloda da düzgün akıyor (durup geri sıçramıyor); tepeler sınıra yaklaştıkça kırmızı,
+  sınır kesikli kırmızı çizgi.
+- [ ] Saat ve tarih doğru, dakika değişince rakam kayarak dönüyor; kabloda telefonun pili Ayarlar'daki yüzdeyle aynı;
+  kilitleyip açınca pil simgesi birkaç saniyede geri geliyor.
+- [ ] Mac'te `bash -c 'for i in $(seq 10); do yes > /dev/null & done; sleep 20; kill $(jobs -p)'`: CPU halkası kızarıyor,
+  ~3 sn sonra kenar ışığı atıyor ve saatin altında "▲ CPU %…"; yük bitince birkaç saniyede susuyor.
+- [ ] Veri kesilince (kablo çıkar, Wi-Fi kapalı) alarm ve kenar ışığı sönüyor, değerler soluk ve kıpırdamıyor.
+- [ ] Ayarlar → Erişilebilirlik → Hareket → Hareketi Azalt: parıltı, nabız ve kayma duruyor; renkler ve sayılar kalıyor.
+- [ ] Güç sınırı: Mac'te en az 1 dk tam yükte (CPU + GPU) güç kutusunun gösterdiği en yüksek watt, çipin sınırına
+  (M4: 35 W) yakın mı? (Mac'in güç değeri ~20 sn'de bir güncelleniyor.)
 
 ## Komutlar (kablodan; telefondan Plan 4'ün arayüzüyle denenir)
 - [ ] Kapat: Dock'taki bir uygulama kapanıyor (kaydedilmemiş belge varsa Mac'te sorar); `ack` `ok`.
@@ -141,4 +156,27 @@ iPhone ile (Chrome, ana ekran simgesi):
 - Geçti (kullanıcı bildirdi): yeni simgeyle yeniden eklendi; rehber ve "Başlat"; yatay ve dikeyde düzgün; kutucuk
   grafiği değiştiriyor; sıralama; çalan şarkı kartı; kablo çıkar-tak. Adımlar ayrı ayrı kaydedilmedi.
 - Denenmedi: telefonda "Kopyala" düğmesi, Safari'deki rehber metni, 3 dakikalık OLED kayması.
+
+### 2026-11-26 — Plan 4C (dal `plan4c`, 39338f1), MacBook Pro M4 / macOS 27.2, iPhone iOS 27.0.1
+
+Mac'te (tarayıcı paneli, sahte veriyle deneme sayfası):
+- Geçti: 734×372, 667×375, 393×759, 375×647 ölçülerinde taşan ya da kesilen öğe yok; konsolda JavaScript hatası yok.
+- Geçti: CPU %100 + 101 °C + 40 W senaryosunda renkler kızardı; 3 sn sonra kenar ışığı, atan halka ve kutucuklar,
+  "▲ Güç 40,0 W · CPU %100". Değerler düşünce alarm 3 sn sonra sustu.
+- Geçti: veri kesilince sayfa soluklaştı, alarm ve kenar ışığı söndü, saatin altına tarih döndü.
+- Geçti: `PHONEBOX_LIVE=1 make test FILTER="PhoneBatteryLiveTests"`: kabloda takılı iPhone'un pili 2,35 sn'de okundu.
+
+iPhone ile (Chrome, ana ekran simgesi; Mac "Her zaman" modunda):
+- Geçti (kullanıcı bildirdi): saat, tarih ve hareketler düzgün.
+- Bulundu ve düzeltildi: Wi-Fi'de grafik atlayarak ilerliyordu. Grafik snapshot'ın geliş anına göre kayıyordu;
+  iPhone Wi-Fi'de veriyi toplu teslim ettiği için çizgi durup geri sıçrıyordu. 79f64a3 ve 39338f1 ile grafik Mac'in
+  saatine göre, bir saniye artı geliş düzensizliği kadar geriden ve yumuşatılmış bir saatle çiziliyor. Sonra Wi-Fi'de
+  düzgün aktı.
+- Geçti: Mac'e 20 sn tam CPU yükü (`yes` ×10): CPU halkası kızardı, alarm çaldı, yük bitince sustu.
+- Geçti: veri kablosu takılınca sayfa USB'ye (`en8`) geçti; sağ üstte telefonun pili Ayarlar'daki yüzdeyle aynı;
+  telefon kilitlenip açılınca simge geri geldi.
+- Not: Mac'in güç değeri (`AppleSmartBattery` `SystemLoad`) ~20 sn'de bir güncelleniyor (20 sn'lik yükte 8,3 W'ta
+  kaldı, sonunda 12,5 W). M4'ün 35 W sınırı bu kısa testle ölçülemedi; daha uzun bir yükle bakılacak.
+- Denenmedi: Hareketi Azalt; SE ve Pro Max'te telefonda görünüm; telefon kilitliyken pilin okunması (sayfa kilitliyken
+  görünmediği ve PhoneBox o sırada okumadığı için gerekmiyor).
 
