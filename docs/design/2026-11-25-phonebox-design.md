@@ -2,7 +2,9 @@
 
 - **Tarih:** 2026-11-25
 - **Durum:** Onaylandı (2026-11-25); deneme sonuçlarına göre güncellendi (2026-11-25). Deneme planı:
-  `docs/design/plans/2026-11-25-phonebox-spike.md`, sonuçlar: `docs/spike-results.md`
+  `docs/design/plans/2026-11-25-phonebox-spike.md`, sonuçlar: `docs/spike-results.md`. Görünüm ve canlılık
+  (Aktivite Halkaları, Okyanus paleti, sınıra yaklaşınca kızarma, saat ve telefonun pili) eklendi ve onaylandı
+  (2026-11-26, bölüm 8)
 - **Geliştirme Mac'i:** MacBook Pro (Mac16,1), Apple M4, 16 GB, macOS 27.2, Xcode yok (Command Line Tools)
 - **Test telefonu:** Kullanıcının günlük iPhone'u
 - **Örnek alınan proje:** NotchBox (`cyesaa/notch-box`): paketleme, kurulum, README ve doküman düzeni ondan alınır
@@ -27,6 +29,8 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 - Telefona uygulama, profil ya da sertifika kurmadan, sadece tarayıcıyla (Safari ya da Chrome) çalışan dashboard.
 - Yatay ana görünüm (yerleşim C, "sade koyu" stil); dikey tutulunca "tek bakış" yerleşimi.
 - Saniyede bir güncellenen metrikler (bölüm 6), uygulama listesi 2 saniyede bir.
+- Akıcı, canlı görünüm: değerler yumuşakça değişir, sınırına yaklaşan metrik kızarır, sınırda kalan göz ucuyla fark
+  edilecek kadar belirgin uyarır; telefonun saati ve pili göstergede (bölüm 8).
 - Telefondan komutlar: uygulama kapat / zorla kapat, oynat-duraklat / önceki / sonraki, ses seviyesi ve sessiz,
   Mac'i kilitle, ekranı kapat, uyut.
 - QR kodla eşleştirme; imzalı (HMAC) kimlik doğrulama ve komutlar.
@@ -38,7 +42,8 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 
 - Android ve native iOS uygulaması (kullanıcı kararı: sadece iPhone, telefona kurulum yok).
 - CPU ve Neural Engine watt'ı (sayaçları root olmadan ilerlemiyor; bkz. `docs/spike-results.md`).
-- Fan hızı, geçmiş kaydı (telefondaki 60 saniyelik grafik dışında), uyarı/bildirim eşikleri.
+- Fan hızı, geçmiş kaydı (telefondaki 60 saniyelik grafik dışında), bildirimler (ses, titreşim, telefon
+  bildirimi). Sınırlar yalnız ekranda renk ve ışıkla gösterilir (bölüm 8); sınırlar ayarlardan değiştirilemez.
 - Telefondan Mac'i uyandırma (Wake on LAN).
 - Kendi Kestirmeler komutlarını ya da scriptleri çalıştırma.
 - HTTPS, Apple notarization, App Store, Intel Mac'ler.
@@ -90,6 +95,7 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 | Pairing | 32 baytlık anahtarı üretir ve `~/Library/Application Support/PhoneBox/pairing-key` dosyasında (`0600`, klasör `0700`) saklar, sıfırlar; kişisel bağlantıyı kurar. Keychain değil: ad-hoc imzalı uygulama her güncellemeden sonra Anahtar Zinciri şifresi sorardı | `loadOrCreate() -> (key, created)`, `reset()` | Dosya |
 | Server | Tek portta dosyaları (Range destekli) ve `/ws` WebSocket'ini sunar; kimlik doğrulama; en fazla 4 istemci; her istemcinin hangi arayüzden geldiğini kaydeder | `start(port)`, `broadcast`, `onCommand` | Network.framework, CryptoKit, Core protokolü |
 | CommandRunner | Komutları çalıştırır, sonuç döner | `run(Command) -> CommandResult` | AppKit, CoreAudio, mediaremote-adapter, pmset |
+| PhoneBattery | Kabloyla takılı iPhone'un pilini okur (bölüm 6, `phone`) | `start()`, `stop()`, `latest` | `MobileDevice.framework` (resmi olmayan, `dlopen`) |
 | MenuBar | Simge, menü, QR penceresi | — | AppKit, CoreImage (QR) |
 | Web dashboard | Yatay/dikey görünüm, grafik geçmişi, komut arayüzü, rehber, ekranı açık tutma | WebSocket protokolü (bölüm 5) | iOS WebKit (Safari, Chrome) |
 
@@ -117,7 +123,7 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 |---|---|---|
 | Mac → telefon | `{"type":"hello","nonce":"<32 hex>","app":"PhoneBox 0.1.0"}` | Bağlantıya özgü rastgele sayı |
 | telefon → Mac | `{"type":"auth","mac":"<HMAC-SHA256(k, "auth:"+nonce) hex>"}` | Yanlışsa bağlantı 4001 ile kapanır (sayfa durur, "Eşleşmedi"); 5 sn içinde gelmezse 4003 ile kapanır (sayfa yeniden dener; telefon kilitliyken açılan bir bağlantı böyle kapanabilir) |
-| Mac → telefon | `{"type":"ready","mode":"cable"\|"always","host":"<Mac'in adı>","access":{"streaming":bool,"commands":bool,"cable":bool,"reason":"…"}}` | Kimlik doğrulandı; `host` bilgisayarın adı (durum satırında görünür); `access` alanı bir alttaki `access` mesajıyla aynı |
+| Mac → telefon | `{"type":"ready","mode":"cable"\|"always","host":"<Mac'in adı>","limits":{"power":[15,35]},"access":{"streaming":bool,"commands":bool,"cable":bool,"reason":"…"}}` | Kimlik doğrulandı; `host` bilgisayarın adı ("⋯" menüsünün başlığında görünür); `limits.power` güç kutusunun kızarmaya başladığı ve kıpkırmızı olduğu watt (bölüm 8, Mac çipine göre seçer); `access` alanı bir alttaki `access` mesajıyla aynı |
 | Mac → telefon | `{"type":"access","streaming":bool,"commands":bool,"cable":bool,"reason":"ok"\|"not-on-cable"}` | Erişim değiştiğinde; `cable` bu bağlantının USB'den gelip gelmediği ("kablo" / "Wi-Fi") |
 | Mac → telefon | `{"type":"snapshot","t":<ms>, ...}` | Saniyede bir (bölüm 6) |
 | telefon → Mac | `{"type":"cmd","seq":n,"name":"…","args":"<JSON metni>","mac":"<HMAC(k, "cmd:"+nonce+":"+seq+":"+name+":"+args) hex>"}` | `args` bir metin; imza tam bu metin üzerinden atılır, sonra çözülür |
@@ -178,7 +184,8 @@ Okunamayan değer JSON'a hiç yazılmaz (alan yok); dashboard "—" gösterir.
 | `power` | `gpu` (W); MacBook'ta `system` (W). CPU ve ANE watt'ı root gerektirdiği için yok | `IOReport` "Energy Model" grubunun yalnızca `GPU Energy` kanalına abone olunur (resmi olmayan); `AppleSmartBattery` → `PowerTelemetryData.SystemLoad` (pildeyken de Mac'in toplam çekişi), yoksa `SystemPowerIn` |
 | `net` | `rx`, `tx` (bayt/sn), `iface` | `sysctl net.link.generic.ifdata.<index>.general` 64 bit sayaçları (`getifaddrs` ve `NET_RT_IFLIST2` güncel macOS'ta sadece alt 32 biti veriyor, 4 GiB'da başa dönüyor); birincil arayüz `SCDynamicStore`'dan (IPv4, yoksa IPv6), bulunan ad 10 sn saklanır |
 | `disk` | `free`, `total` (bayt; 60 sn'de bir, okuması ~9 ms sürüyor), `read`, `write` (bayt/sn) | `URLResourceValues` (`volumeAvailableCapacityForImportantUsage`), IOKit `IOBlockStorageDriver` istatistikleri |
-| `battery` | `percent`, `charging`, `minutesLeft`; masaüstü Mac'te alan yok, prizdeyken şarj olmuyorsa `minutesLeft` yok | `IOPSCopyPowerSourcesInfo` |
+| `battery` | `percent`, `charging`, `plugged` (prizde mi), `minutesLeft`; masaüstü Mac'te alan yok, prizdeyken şarj olmuyorsa `minutesLeft` yok | `IOPSCopyPowerSourcesInfo` (`plugged`: `Power Source State` = `AC Power`) |
+| `phone` | Kabloyla takılı iPhone'un pili: `percent`, `charging`, `plugged`. USB'den yalnız bir iPhone takılıysa ve okunabildiyse var; okuma başarısız olursa son iyi değer 5 dk tutulur, sonra alan kalkar. Telefon takılınca ve sonra dakikada bir, yalnız örnekleyici çalışırken okunur; okuma ~150 ms sürdüğü için örnekleyiciyi bekletmez, ayrı kuyrukta yapılır, biri sürerken yenisi başlamaz | `MobileDevice.framework` (resmi olmayan, `dlopen`): `AMDeviceNotificationSubscribe`, yalnız USB arayüzündeki cihazlar (`AMDeviceGetInterfaceType` = 1); `AMDeviceConnect` → `ValidatePairing` → `StartSession` → `AMDeviceCopyValue("com.apple.mobile.battery", "BatteryCurrentCapacity" / "BatteryIsCharging" / "ExternalConnected")`. Root gerekmez; telefonun bu Mac'e güvenmesi yeter (2026-11-26, M4 / macOS 27.2'de denendi: %100, dolu, prizde, 149 ms) |
 | `media` | Mac'te çalan: `title`, `artist`, `app` (uygulama adı), `playing` (bool); hiçbir şey yoksa alan yok | mediaremote-adapter'ın olay akışındaki son durum (bölüm 7) |
 | `audio` | `volume` (0…1), `muted` (bool); varsayılan çıkışta ses kontrolü yoksa alan yok | CoreAudio varsayılan çıkış cihazı |
 | `apps` | 3 saniyede bir (diğer saniyelerde alan gönderilmez): CPU'ya göre ilk 5 ile RAM'e göre ilk 5'in birleşimi, en fazla 10 kayıt `{pid, bundleId, name, cpu, mem, quittable}` | `libproc` (`proc_listallpids`, `proc_pid_rusage`, `proc_pidpath`) |
@@ -229,11 +236,23 @@ ekran yüksekliğine göre ayarlanır, iPhone SE'den Pro Max'e kadar her şey ka
   - Sol: CPU (altında yük) ve RAM (altında kullanılan / toplam) halkaları.
   - Orta: seçili metriğin son 60 saniyelik grafiği; altında 3×2 metrik kutucuğu (GPU, Sıcaklık, Güç, Ağ, Disk boş,
     Pil); en altta kontrol şeridi.
-  - Sağ: durum satırı, "Şimdi çalıyor" kartı, uygulama listesi (7–8 satır).
-- **Dikey ("tek bakış"):** yukarıdan aşağı durum satırı, yan yana iki halka, grafik, 3×2 kutucuk, en çok kullanan
-  5 uygulama, "Şimdi çalıyor" (tek satır), kontrol şeridi. Kaydırma yok.
-- **Stil:** siyah zemin, sistem fontu, `#1c1c1e` kartlar, 16 px köşe, sayılarda sabit genişlikli rakamlar. Renkler:
-  CPU yeşil, RAM mavi, GPU mor, sıcaklık turuncu, güç sarı, ağ camgöbeği, disk gri, pil yeşil.
+  - Sağ: saat başlığı (aşağıda "Saat ve telefonun pili"), "Şimdi çalıyor" kartı, uygulama listesi (7 satır).
+- **Dikey ("tek bakış"):** yukarıdan aşağı saat satırı (solda saat, sağda tarih ve telefonun pili), yan yana iki
+  halka, grafik, 3×2 kutucuk, en çok kullanan 5 uygulama, "Şimdi çalıyor" (tek satır), kontrol şeridi. Kaydırma yok.
+- **Stil: Aktivite Halkaları, Okyanus paleti** (2026-11-26, 12 stil ve 12 renk paleti arasından seçildi). Çok koyu
+  lacivert zemin `#01060d`, kartlar `#0b1622`, ikincil yazı `#6d8aa3`, ana yazı `#eaf6ff`; sistem fontu, 16 px köşe,
+  sayılarda sabit genişlikli rakamlar. Metrik renkleri (halkalarda koyudan açığa geçiş):
+
+  | Metrik | Renk | Halkanın açık ucu |
+  |---|---|---|
+  | CPU | `#00c2ff` | `#7ff3ff` |
+  | RAM | `#3d6bff` | `#9db4ff` |
+  | GPU | `#7b61ff` | |
+  | Sıcaklık | `#00e0b0` | |
+  | Güç | `#4ff0d0` | |
+  | Ağ | `#8be9ff` (↑ çizgisi `#7b61ff`) | |
+  | Disk | `#6f8fa8` (yazma çizgisi `#4ff0d0`) | |
+  | Pil | `#00d0a0` | |
 - **Kutucuklar:** sadece ana değer (GPU %, ortalama °C, Mac'in tamamı W, ↓/↑ hız, boş alan, pil % ve şarj simgesi).
   Ayrıntılar grafik seçilince grafik başlığında görünür.
 - **Grafik:** seçili metriğin son 60 saniyesi, `<canvas>` ile. Bir halkaya ya da kutucuğa dokununca grafik o metriğe
@@ -265,8 +284,8 @@ ekran yüksekliğine göre ayarlanır, iPhone SE'den Pro Max'e kadar her şey ka
     komutlarında "Bu çıkışta ses kontrolü yok", diğerlerinde "Bu komut desteklenmiyor", `failed` → "Olmadı").
   - `access.commands` false iken (Wi-Fi) şerit, panel düğmeleri ve menüdeki komutlar soluk; dokununca "Komutlar
     sadece kabloyla çalışır".
-- **Durum satırı:** renkli nokta, Mac'in adı (`ready.host`) ve yol (`access.cable`): "● MacBook Pro · kablo". Yeşil
-  bağlı, gri bağlanıyor, turuncu Wi-Fi'de (komutlar kapalı).
+- **Bağlantı göstergesi:** saat başlığında telefonun pilinin yanında renkli nokta: yeşil kabloda, turuncu Wi-Fi'de
+  (yanında "Wi-Fi" yazar, komutlar kapalı), gri bağlanıyor. Mac'in adı (`ready.host`) "⋯" menüsünün başlığındadır.
 - **Durumlar:** veri gelmezse değerler donar ve soluklaşır, ortada küçük bir kart çıkar: "Kabloyu tak" (kablo
   modunda telefon Wi-Fi'de) · "Mac'e ulaşılamıyor" (arka planda yeniden dener) · "Eşleşmedi" ("Mac'teki QR kodunu
   okut, açılan sayfayı yeniden Ana Ekrana Ekle, eski simgeyi sil"). Okunamayan metrik "—".
@@ -294,6 +313,93 @@ ekran yüksekliğine göre ayarlanır, iPhone SE'den Pro Max'e kadar her şey ka
 - **OLED koruması:** 3 dakikada bir bütün içerik ±2 piksel kayar.
 - **Dil ve sayı biçimi:** `navigator.language`'a göre Türkçe/İngilizce; sayılar `Intl.NumberFormat` ile.
 
+### Görünüm ve hareket
+
+Kullanıcının isteği: "akıcı, baktıkça bakası gelen" bir ekran; bileşenlerin yeri yukarıdaki gibi kalır. Görsel
+önizlemelerle seçildi (2026-11-26).
+
+- **Halkalar:** `<canvas>` üstünde kalın (çapın %12'si) halka; renk halka boyunca koyudan açığa geçer, ucu yuvarlak ve
+  parlar (hafif nefes alan ışık), dolu kısmın üstünden 1,4 sn'de bir beyaz bir parıltı akar. Boş kısım metriğin
+  renginde soluk iz.
+- **Sayılar:** her yeni değere 0,9 sn'de yumuşakça kayar (yavaşlayarak biten geçiş); halkalar, kutucuklar, grafik
+  başlığı. Metni kutuya sığdırma her karede değil, hedef değerin yazısı geldiğinde (saniyede bir) yapılır.
+- **Grafik:** yumuşatılmış eğri, altı renk geçişiyle dolu; zaman sürekli akar (her karede kayar), yeni değer 0,7 sn'de
+  yerine oturur; en sondaki nokta nabız gibi atan bir ışık halkasıyla işaretli. Metrik değişince eski grafik 0,3 sn'de
+  söner, yenisi belirir.
+- **Uygulama listesi:** sıra değişince satırlar eski yerlerinden yenilerine 0,7 sn'de kayar; altlarındaki CPU çubuğu
+  1 sn'de uzar ya da kısalır; listeye giren satır belirir.
+- **Şimdi çalıyor:** çalarken küçük bir ekolayzer (4 çubuk) oynar, duraklayınca durur.
+- **Tek döngü:** bütün çizimleri tek bir `requestAnimationFrame` döngüsü yapar (ekranın tazelenme hızında, en fazla
+  60 kare); sayfa görünmezken döngü durur. Telefondaki işlemci yükü telefon denemesinde ölçülür; ağır gelirse çizim
+  30 kareye indirilir.
+- **Hareketi Azalt:** telefonda açıksa (`prefers-reduced-motion`) parıltı, nabız, ışığın atması, rakam kayması ve
+  satır kayması kapanır; renk değişimi ve sayı geçişleri kalır.
+
+### Sınıra yaklaşınca kızarma
+
+Telefon çalışırken yanda açık durur; bir metrik sınırına yaklaşınca dikkat çekmelidir (kullanıcı isteği, 2026-11-26).
+
+- **Seviye:** her metrik için iki değer: kızarmaya başladığı ve kıpkırmızı olduğu. Aradaki değer 0…1 seviyeye
+  çevrilir (doğrusal, iki uçta yumuşatılmış). Bazı metriklerde düşük değer kötüdür (disk boş yeri, pil); onlarda sınır
+  başlangıçtan küçüktür.
+
+  | Metrik | Kızarmaya başlar | Kıpkırmızı | Not |
+  |---|---|---|---|
+  | CPU | %40 | %95 | `cpu.total` |
+  | RAM | %75 | %95 | kullanılan / toplam |
+  | GPU | %40 | %95 | |
+  | Sıcaklık | 60 °C | 95 °C | ortalama (`temp.avg`) |
+  | Güç | `ready.limits.power[0]` | `ready.limits.power[1]` | Mac çipine göre seçer (aşağıda); gelmezse 15 / 35 W |
+  | Ağ | 10 MB/s | 100 MB/s | ↓ + ↑ toplamı |
+  | Disk boş | 30 GB | 5 GB | ondalık GB (Finder gibi); azaldıkça kızarır |
+  | Pil | %30 | %10 | yalnız prizde değilken (`plugged` false); azaldıkça kızarır |
+  | Uygulama satırı | %60 | %200 | uygulamanın CPU'su (iki çekirdek dolu = %200) |
+
+  Güç sınırı (watt, `power.system` için; masaüstü Mac'te `power.gpu` için ikinci sütun). Değerler tahmindir, README'de
+  "topluluk testine açık" diye belirtilir; M4'te telefon denemesinde gerçek yükle kontrol edilir:
+
+  | Çip (`machdep.cpu.brand_string`) | Mac'in tamamı | Yalnız GPU |
+  |---|---|---|
+  | Apple M… (temel) | 15 → 35 | 5 → 15 |
+  | Apple M… Pro | 25 → 60 | 10 → 30 |
+  | Apple M… Max | 35 → 100 | 20 → 60 |
+  | Apple M… Ultra | 50 → 160 | 30 → 90 |
+- **Renk yolu (B, "mor üzerinden"):** seviye arttıkça metriğin rengi OKLCH renk uzayında tonu artan yönde döner:
+  okyanus → mavi → mor → pembe → kırmızı (`#ff2d2d`; halkanın açık ucu `#ff8a7a`). Ara renkler canlı kalsın diye yolun
+  ortasında doygunluk biraz artırılır; ekranın gösteremediği renkte doygunluk ekrana sığana kadar azaltılır. Orta
+  yükte okyanus havası bozulmaz (seçilmeyen yol A: yeşil-sarı-turuncu).
+- **Kızaranlar:** halka (iki ucu da), halkadaki yüzde yazısı, kutucuğun noktası ve değeri, kutucuğun zemini (seviyeyle
+  hafifçe), kutucuğun çerçevesi (seviye 0,4'ten sonra), grafik başlığındaki değer, uygulama satırının çubuğu ve
+  yüzdesi. Renk değer gelir gelmez (sayı geçişiyle birlikte) kayar, beklemez.
+- **Grafik:** çizginin ve altındaki dolgunun her yüksekliği kendi değerinin rengini alır; tepeler kırmızı görünür.
+  Sınır kesikli kırmızı bir çizgi ve "SINIR" yazısıyla gösterilir. Disk grafiği okuma/yazma hızını çizdiği için
+  kızarmaz (disk kutusu boş yere göre kızarır); pil grafiği prizdeyken kızarmaz.
+- **Uyarı (alarm), "güçlü":** değer art arda 3 snapshot'ta (≈3 sn) sınırda ya da ötesindeyse çalar; seviye art arda
+  3 snapshot'ta 0,9'un altındaysa söner (sınırın üstünde gidip gelen değer yanıp sönmez). Değeri gelmeyen ya da
+  kızarmayan (prizdeki pil) metrik sakin sayılır. Bir anlık sıçrama (uygulama açılırken CPU %100) alarm çaldırmaz, renk yine anında kızarır. Karar
+  gelen gerçek değerle verilir, ekrandaki geçiş değeriyle değil. Uygulama satırları yalnız kızarır, alarm çaldırmaz.
+  - Çaldığı an: halka ya da kutucuk 0,7 sn içinde bir kez hafifçe büyüyüp döner, ekranın kenarı parlar.
+  - Çaldığı sürece: ekranın dört kenarında geniş kırmızı bir ışık (ekranın üstünde, dokunmayı engellemeyen bir
+    katman) saniyede bir nefes alır gibi atar; halka ve kutucuk aynı ritimde kırmızı ışıkla atar; grafik o metrikteyse
+    çerçevesi de atar.
+  - Saat başlığında tarihin yerine kırmızı "▲ CPU %100" yazar; birden fazla alarm varsa en yüksek seviyeli ikisi
+    ("▲ CPU %100 · Sıcaklık 97 °C").
+  - Alarm yokken bir metrik seviye 0,7'yi geçerse kenarda soluk bir ışık belirir (seviye arttıkça güçlenir).
+- **Veri bayatlayınca** (bölüm 5, değerler soluk): alarm ve kenar ışığı söner, renkler son değerde kalır.
+
+### Saat ve telefonun pili
+
+- **Yer (yerleşim 3):** sağ sütunun başında büyük saat (`HH:MM`, telefonun kendi saati); sağında üstte tarih
+  ("26 Kas Per" / "Thu, Nov 26", `Intl.DateTimeFormat`), altta telefonun pili ve bağlantı noktası. Yatayda saatin
+  boyu sağ sütunun genişliğinin %16'sı (28–38 px). Dikeyde en üstte tek satır: saat (22–30 px, ekran yüksekliğine
+  göre), tarih, pil ve nokta; küçük telefonda uygulama listesine yer kalsın diye.
+- **Saat:** dakika değişince değişen rakam yukarı kayarak çıkar, yenisi aşağıdan gelir (0,7 sn); iki nokta 2 sn'de
+  bir yavaşça soluklaşıp parlar. Saniye yok.
+- **Telefonun pili:** Safari sayfaya pil bilgisini vermez (Battery Status API yok); pil Mac'ten `phone` alanıyla
+  gelir (bölüm 6). Pil simgesi: dolgusu seviyeye göre 1,2 sn'de kayar, şarj olurken üstünde ⚡; yanında "%76".
+  Dolgu prizde değilken pil sınırlarına göre kızarır. Simge yalnız sayfa kablodaysa (`access.cable`) ve `phone`
+  alanı varsa görünür; Wi-Fi'deki sayfada yerinde "Wi-Fi" yazar.
+
 ### Sayfa kodu
 
 Sade HTML/CSS/JS, derleme adımı ve dış kütüphane yok. Her dosya tek bir iş yapar, `globalThis.PhoneBox` altına
@@ -307,11 +413,15 @@ parçaları JavaScriptCore'da doğrudan çalıştırabilir. İki yön için tek 
 | `i18n.js` | TR/EN metinler | — |
 | `format.js` | sayı ve birim biçimleri | JavaScriptCore |
 | `history.js` | metrik başına 60 saniyelik geçmiş | JavaScriptCore |
-| `metrics.js` | her metriğin geçmişe yazılan değerleri, grafik çizgileri ve ölçeği, kutucuk ve başlık metinleri | JavaScriptCore |
-| `chart.js` | grafik ölçeği (saf) ve `<canvas>` çizimi | ölçek JavaScriptCore'da, çizim gözle |
+| `metrics.js` | her metriğin geçmişe yazılan değerleri, grafik çizgileri ve ölçeği, kutucuk ve başlık metinleri, renkleri ve kızarma değeri | JavaScriptCore |
+| `heat.js` | sınırlar, seviye, OKLCH renk yolu, alarm kuralı (3 sn / 0,9) | JavaScriptCore |
+| `motion.js` | sayı geçişleri (tween), tek `requestAnimationFrame` döngüsü, Hareketi Azalt | geçiş hesabı JavaScriptCore'da |
+| `rings.js` | halkanın `<canvas>` çizimi | gözle |
+| `clock.js` | saat, tarih, rakam kayması | biçim JavaScriptCore'da, kayma gözle |
+| `chart.js` | grafik ölçeği (saf) ve her karede `<canvas>` çizimi (kızarma, sınır çizgisi, nabız) | ölçek JavaScriptCore'da, çizim gözle |
 | `connection.js` | bağlantı, eşleşme, yeniden bağlanma (bugünkü `app.js`'ten) | gözle / telefonda |
 | `commands.js` | komut imzası, `seq`, ses kaydırıcısının hız sınırı | imza ve hız sınırı JavaScriptCore'da |
-| `view.js` | halkalar, kutucuklar, liste, şarkı kartı, durumlar | gözle |
+| `view.js` | halkalar, kutucuklar, liste (satır kayması), şarkı kartı, saat başlığı, telefonun pili, alarm ve kenar ışığı, durumlar | gözle |
 | `ui.js` | panel, menü, onay, bildirim, rehber, Başlat ekranı, OLED kayması | gözle |
 | `app.js` | parçaları birbirine bağlar | — |
 
@@ -320,8 +430,9 @@ parçaları JavaScriptCore'da doğrudan çalıştırabilir. İki yön için tek 
 Plan 3B (Mac tarafı: bölüm 7'deki komutlar, `media` ve `audio` alanları, `host` ve `cable`, bölüm 5'teki protokol
 kuralları ve bağlantı yöneticisinin testlerle denenebilir hâle getirilmesi) → Plan 4A (izleme arayüzü: yerleşimler,
 halkalar, grafik, kutucuklar, uygulama listesi, şarkı kartı, durumlar, Başlat, rehber, OLED, ana ekran simgesi) →
-Plan 4B (komut arayüzü: kontrol şeridi, uygulama paneli, "⋯" komutları, onay, bildirim; son görevi kullanıcıyla
-telefonda uçtan uca kontrol) → Plan 5 (dağıtım).
+Plan 4C (görünüm ve canlılık, 4B'den önce: Okyanus paleti, halkalar, hareketler, kızarma ve alarm, saat başlığı;
+Mac tarafında `phone`, `battery.plugged`, `ready.limits`) → Plan 4B (komut arayüzü: kontrol şeridi, uygulama paneli,
+"⋯" komutları, onay, bildirim; son görevi kullanıcıyla telefonda uçtan uca kontrol) → Plan 5 (dağıtım).
 
 ### Menü çubuğu (Mac)
 
@@ -366,7 +477,14 @@ da `~/Library/Caches` altına gider: spike'ta yeni başlatılan uygulama `~/Docu
   artmayan `seq`'in reddi, `AccessPolicy` tablosunun bütün satırları.
 - **JS testleri:** Swift testleri sayfanın saf parçalarını JavaScriptCore'da çalıştırır (Node/npm gerekmez):
   `sha256.js` RFC 4231 vektörleri ve Swift'in HMAC sonucuyla; `format.js`, `history.js`, grafik ölçeği, komut imzası
-  ve ses kaydırıcısının hız sınırı (bölüm 8, Sayfa kodu).
+  ve ses kaydırıcısının hız sınırı (bölüm 8, Sayfa kodu). Kızarma (`heat.js`): her metriğin seviyesi (ters çalışan
+  disk ve pil, prizdeki pil, `ready.limits` ile gelen güç sınırı), renk yolunun iki ucu (seviye 0 metriğin rengi,
+  1 kırmızı) ve tonun artan yönde döndüğü, alarmın 3 sn sonra çalıp seviye 0,9 altında 3 sn sonra söndüğü; sayı
+  geçişinin hesabı; saatin ve tarihin biçimi.
+- **Mac tarafı yeni testler:** `ready.limits` ve `phone`, `battery.plugged` kodlaması; çip adından güç sınırı tablosu;
+  pil kaynağının `Power Source State`'ten `plugged` çıkarması; `MobileDevice` değerlerinden (`BatteryCurrentCapacity`,
+  `BatteryIsCharging`, `ExternalConnected`) `phone` üretimi (saf). Takılı gerçek iPhone'dan pil okuma sadece
+  `PHONEBOX_LIVE=1` ile çalışır.
 - **Görünüm kontrolü:** Mac'teki tarayıcı panelinde canlı veriyle dört iPhone ölçüsü (SE, standart, Pro Max; yatay ve
   dikey), ekran görüntüsüyle.
 - **Bağlantı yöneticisi testleri (`Tests/PhoneBoxTests`):** uygulama hedefini `@testable import` ile dener; sahte
@@ -412,8 +530,9 @@ scripts/                  bundle.sh, build-adapter.sh, dist.sh, release.sh, make
 Sources/PhoneBoxCore/     modeller, hesaplar, protokol, HMAC, AccessPolicy
 Sources/PhoneBox/         uygulama, Collectors, Sampler, USBWatcher, Server, Pairing, CommandRunner, MenuBar
 Resources/                Info.plist, AppIcon.icns, en.lproj, tr.lproj
-Resources/web/            index.html, styles.css, sha256.js, i18n.js, format.js, history.js, chart.js,
-                          connection.js, commands.js, view.js, ui.js, app.js, keepawake.mp4, apple-touch-icon.png
+Resources/web/            index.html, styles.css, sha256.js, i18n.js, format.js, history.js, metrics.js, heat.js,
+                          motion.js, rings.js, clock.js, chart.js, connection.js, commands.js, view.js, ui.js,
+                          app.js, keepawake.mp4, apple-touch-icon.png
 Vendor/mediaremote-adapter/   (git alt modülü)
 Tests/PhoneBoxCoreTests/  Tests/PhoneBoxTests/
 docs/design/2026-11-25-phonebox-design.md   docs/spike-results.md   docs/manual-testing.md
@@ -425,8 +544,12 @@ docs/design/2026-11-25-phonebox-design.md   docs/spike-results.md   docs/manual-
   API'ye dayanıyor; bir iOS güncellemesi değiştirirse kullanıcı "Otomatik Kilit"i elle ayarlar.
 - **USB ağ bağlantısı:** iOS'un güvenilen bir Mac'e USB ağ bağlantısı açmasına dayanıyor; açmazsa dashboard Wi-Fi
   üzerinden çalışır, kablo modu ise "Kabloyu tak" gösterir (menüde "Her zaman" moduna geçilebilir).
-- **Resmi olmayan API'ler** (sıcaklık, güç, kilitleme, medya): macOS güncellemesiyle bozulabilir; her biri tek
-  başına devre dışı kalacak şekilde yalıtılır.
+- **Resmi olmayan API'ler** (sıcaklık, güç, kilitleme, medya, telefonun pili): macOS güncellemesiyle bozulabilir; her
+  biri tek başına devre dışı kalacak şekilde yalıtılır (telefonun pili okunamazsa simge gizlenir).
+- **Telefonun pili kilitliyken:** iPhone kilitliyken pilin okunup okunmadığı henüz denenmedi (telefon denemesinde
+  bakılır); okunmazsa son iyi değer 5 dk gösterilir, sonra simge gizlenir.
+- **Animasyonun telefona yükü:** her karede çizim telefonu ısıtabilir; telefon denemesinde işlemci yükü ölçülür,
+  gerekirse 30 kareye inilir (bölüm 8, Görünüm ve hareket).
 - **Şifresiz metrik trafiği:** aynı ağdakiler CPU/uygulama adlarını görebilir; komutlar imzalı olduğu için pasif
   dinleyicilere karşı güvende.
 - **Aynı ağdaki aktif saldırgan (Plan 2 son incelemesi):** sayfa düz HTTP ve `.local` adla sunulduğu için mDNS/ARP
