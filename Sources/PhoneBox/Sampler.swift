@@ -1,24 +1,35 @@
 import Foundation
 import PhoneBoxCore
 
-/// Builds a `Snapshot` once a second while at least one phone may receive data (design §4, §6).
+/// Builds a `Snapshot` once a second while at least one phone may receive data (design §4, §6). The app list
+/// is the most expensive part, so it is read every `appsEvery` seconds.
 @MainActor
 final class Sampler {
+    /// Reading every process takes a few milliseconds; every 3 s keeps PhoneBox under 1 % CPU.
+    static let appsEvery = 3
     var onSnapshot: ((Snapshot) -> Void)?
 
     private var timer: Timer?
     /// Keeps App Nap from slowing the one-second timer while a phone is streaming.
     private var activity: NSObjectProtocol?
+    private var tickCount = 0
     private let cpu = CPUCollector()
     private let memory = MemoryCollector()
+    private let gpu = GPUCollector()
+    private let temperature = TemperatureCollector()
+    private let power = PowerCollector()
+    private let network = NetworkCollector()
+    private let disk = DiskCollector()
+    private let battery = BatteryCollector()
+    private let apps = AppsCollector()
 
     var isRunning: Bool { timer != nil }
 
     func setRunning(_ running: Bool) {
         guard running != isRunning else { return }
         if running {
-            cpu.reset()
-            _ = cpu.sample()
+            resetCounters()
+            primeCounters()
             let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated { self?.tick() }
             }
@@ -35,13 +46,35 @@ final class Sampler {
         }
     }
 
-    /// After sleep the tick counters jumped; start over so the first value is not nonsense.
+    /// After sleep every counter jumped; start over so the first values are not nonsense.
     func resetAfterWake() {
+        resetCounters()
+    }
+
+    private func resetCounters() {
         cpu.reset()
+        power.reset()
+        network.reset()
+        disk.reset()
+        apps.reset()
+        tickCount = 0
+    }
+
+    /// Take a first reading of every counter so the first tick already has rates.
+    private func primeCounters() {
+        _ = cpu.sample()
+        _ = power.sample()
+        _ = network.sample()
+        _ = disk.sample()
+        _ = apps.sample()
     }
 
     private func tick() {
+        tickCount += 1
         let now = Int64(Date().timeIntervalSince1970 * 1000)
-        onSnapshot?(Snapshot(t: now, cpu: cpu.sample(), mem: memory.sample()))
+        onSnapshot?(Snapshot(
+            t: now, cpu: cpu.sample(), mem: memory.sample(), gpu: gpu.sample(), temp: temperature.sample(),
+            power: power.sample(), net: network.sample(), disk: disk.sample(), battery: battery.sample(),
+            apps: tickCount % Self.appsEvery == 0 ? apps.sample() : nil))
     }
 }
