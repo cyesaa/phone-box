@@ -8,49 +8,96 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="PhoneBox">
 <meta name="theme-color" content="#000000">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>PhoneBox</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<header>
-  <span class="title">PhoneBox</span>
-  <span id="status" class="status"><span class="dot"></span><span id="status-text"></span></span>
-</header>
+<main id="dashboard" class="dashboard stale">
+  <header class="top">
+    <span class="brand">PhoneBox</span>
+    <span id="status" class="status" role="status" aria-live="polite"><span class="dot"></span><span id="status-text"></span></span>
+  </header>
 
-<main id="metrics">
-  <section class="gauge" id="cpu">
-    <div class="ring"><div class="inner"><span class="value" id="cpu-value">—</span><span class="label">CPU</span></div></div>
-    <div class="detail" id="cpu-detail"></div>
+  <section class="rings">
+    <button class="ring-button" data-metric="cpu" type="button">
+      <span class="ring"><span class="ring-inner"><span class="ring-value" id="cpu-ring">—</span><span class="ring-label">CPU</span></span></span>
+      <span class="ring-sub" id="cpu-sub"></span>
+    </button>
+    <button class="ring-button" data-metric="ram" type="button">
+      <span class="ring"><span class="ring-inner"><span class="ring-value" id="ram-ring">—</span><span class="ring-label">RAM</span></span></span>
+      <span class="ring-sub" id="ram-sub"></span>
+    </button>
   </section>
-  <section class="gauge" id="ram">
-    <div class="ring"><div class="inner"><span class="value" id="ram-value">—</span><span class="label">RAM</span></div></div>
-    <div class="detail" id="ram-detail"></div>
+
+  <section class="graph card">
+    <div class="graph-head"><span class="graph-title" id="graph-title"></span><span class="graph-value" id="graph-value">—</span></div>
+    <div class="graph-detail" id="graph-detail"></div>
+    <canvas id="graph" aria-hidden="true"></canvas>
+  </section>
+
+  <section class="tiles">
+    <button class="tile card" data-metric="gpu" type="button"><span class="tile-label"><i></i><span data-metric-label="gpu"></span></span><span class="tile-value" id="gpu-tile">—</span></button>
+    <button class="tile card" data-metric="temp" type="button"><span class="tile-label"><i></i><span data-metric-label="temp"></span></span><span class="tile-value" id="temp-tile">—</span></button>
+    <button class="tile card" data-metric="power" type="button"><span class="tile-label"><i></i><span data-metric-label="power"></span></span><span class="tile-value" id="power-tile">—</span></button>
+    <button class="tile card" data-metric="net" type="button"><span class="tile-label"><i></i><span data-metric-label="net"></span></span><span class="tile-value" id="net-tile">—</span></button>
+    <button class="tile card" data-metric="disk" type="button"><span class="tile-label"><i></i><span data-text="diskTile"></span></span><span class="tile-value" id="disk-tile">—</span></button>
+    <button class="tile card" data-metric="battery" type="button"><span class="tile-label"><i></i><span data-metric-label="battery"></span></span><span class="tile-value" id="battery-tile">—</span></button>
+  </section>
+
+  <section class="now-playing card" id="now-playing" hidden>
+    <span class="np-icon" aria-hidden="true">♪</span>
+    <span class="np-text"><span class="np-title" id="np-title"></span><span class="np-sub" id="np-sub"></span></span>
+  </section>
+
+  <section class="apps">
+    <div class="apps-head"><span data-text="apps"></span><button id="app-sort" class="app-sort" type="button"></button></div>
+    <ol id="app-list" class="app-list"></ol>
+  </section>
+
+  <section class="strip card">
+    <span class="strip-space"></span>
+    <button id="more" class="strip-button" type="button" aria-haspopup="menu">⋯</button>
   </section>
 </main>
 
-<section id="details" class="details">
-  <div class="row"><span class="name" data-text="gpu"></span><span class="value-cell"><span id="gpu-value">—</span><span class="sub" id="gpu-sub"></span></span></div>
-  <div class="row"><span class="name" data-text="temp"></span><span class="value-cell"><span id="temp-value">—</span><span class="sub" id="temp-sub"></span></span></div>
-  <div class="row"><span class="name" data-text="power"></span><span class="value-cell"><span id="power-value">—</span><span class="sub" id="power-sub"></span></span></div>
-  <div class="row"><span class="name" data-text="net"></span><span class="value-cell"><span id="net-value">—</span><span class="sub" id="net-sub"></span></span></div>
-  <div class="row"><span class="name" data-text="disk"></span><span class="value-cell"><span id="disk-value">—</span><span class="sub" id="disk-sub"></span></span></div>
-  <div class="row"><span class="name" data-text="battery"></span><span class="value-cell"><span id="battery-value">—</span><span class="sub" id="battery-sub"></span></span></div>
-</section>
+<div id="state" class="state" hidden><div class="state-card"><h2 id="state-title"></h2><p id="state-text"></p></div></div>
 
-<section id="apps" class="apps">
-  <h2 data-text="apps"></h2>
-  <ol id="app-list"></ol>
-</section>
+<div id="menu-backdrop" class="menu-backdrop" hidden></div>
+<div id="menu" class="menu" role="menu" hidden>
+  <button id="menu-guide" type="button" role="menuitem" data-text="guideItem"></button>
+</div>
 
-<div id="message" class="message" hidden></div>
+<div id="guide" class="overlay guide" hidden>
+  <div class="guide-card">
+    <h2 data-text="guideTitle"></h2>
+    <ol class="guide-steps">
+      <li><strong data-text="guide1Title"></strong><p id="guide1-text"></p></li>
+      <li>
+        <strong data-text="guide2Title"></strong><p data-text="guide2Text"></p>
+        <span class="link-row"><input id="guide-link" readonly><button id="guide-copy" type="button" data-text="copy"></button></span>
+      </li>
+      <li><strong data-text="guide3Title"></strong><p data-text="guide3Text"></p></li>
+    </ol>
+    <button id="guide-done" class="primary" type="button"></button>
+  </div>
+</div>
 
-<div id="start" class="start">
-  <button id="start-button" type="button"></button>
-  <p id="start-note"></p>
+<div id="start" class="overlay start" hidden>
+  <button id="start-button" class="primary" type="button" data-text="start"></button>
+  <p data-text="startNote"></p>
 </div>
 
 <video id="keepawake" playsinline preload="auto" src="keepawake.mp4"></video>
 <script src="sha256.js"></script>
+<script src="i18n.js"></script>
+<script src="format.js"></script>
+<script src="history.js"></script>
+<script src="metrics.js"></script>
+<script src="chart.js"></script>
+<script src="connection.js"></script>
+<script src="view.js"></script>
+<script src="ui.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
