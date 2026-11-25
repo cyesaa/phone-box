@@ -6,6 +6,17 @@
 > durdurmaz, `defaults`'a ve eşleştirme anahtarına dokunmaz, `PHONEBOX_LIVE=1` testlerini çalıştırmaz. Görev 9
 > kontrolcü tarafından (inline) yapılır: uygulamayı Mac'te çalıştırıp dener ve sonuçları yazar. Komutların telefondan
 > kabloyla uçtan uca denenmesi Plan 4'ün son görevindedir (o zamana kadar sayfada komut düğmesi yok).
+>
+> **Yürütme notu (2026-11-25):** Plan alt ajanlarla yürütüldü (dal `plan3b`); Görev 1–8'in kodu planlamada denenen
+> kodla birebir aynı çıktı. Plandan sapmalar ve sonradan gelen düzeltmeler:
+> - Görev 6: canlı testte `#require(SystemAudio.isMuted() as Bool?)` (plandaki satır "ambiguous" uyarısı veriyordu).
+> - `5651a94`: PhoneBox kapanınca örnekleyici durduruluyor; yoksa adaptör süreci sahipsiz kalıp bir sonraki medya
+>   değişikliğine kadar yaşıyordu (Görev 9'daki Mac denemesinde bulundu).
+> - `09d8ac4` (son inceleme): bir iPhone takılınca "Her zaman" modunda da Wi-Fi'deki telefonlar 4002 ile kabloya
+>   yönlendiriliyor (yoksa takılı telefon komut alamıyordu); adaptör başlatılamazsa boru ve okuyucu bırakılıyor;
+>   `ShortProcess` testleri; design §5'ten `bad-signature` çıkarıldı; elle test listesine Kişisel Erişim Noktası denetimi.
+>
+> Sonuç: 135 + 17 test; PhoneBox veri gönderirken %0,60 CPU, adaptör %0,03.
 
 **Goal:** Telefondan gelen imzalı komutları (uygulama kapatma, medya, ses, kilit, ekranı kapatma, uyku) sadece kablodaki
 telefon için Mac'te çalıştırmak; telefona çalan şarkıyı ve ses seviyesini göndermek; incelemelerden ertelenen protokol
