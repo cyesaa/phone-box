@@ -21,6 +21,27 @@ struct AppUsageTests {
         #expect(AppUsage.displayName("çğıöşü") == "çğıöşü")
     }
 
+    @Test func flattensControlCharactersSeparatorsAndInvisibleMarks() {
+        #expect(AppUsage.displayName("Line\nbreak\tand\u{2028}separator") == "Line break and separator")
+        #expect(AppUsage.displayName("zero\u{200B}width\u{FEFF}") == "zerowidth")
+        #expect(AppUsage.displayName("  many   spaces\u{00A0} ") == "many spaces")
+        #expect(AppUsage.displayName("\u{0007}\u{200E}\n ") == "")
+    }
+
+    @Test func fallsBackToTheBundleOrExecutableName() {
+        #expect(AppUsage.name(app: "\u{200E} ", bundle: "/Applications/Notes.app", executable: "/x/Notes") == "Notes")
+        #expect(AppUsage.name(app: nil, bundle: "/Applications/My.app.Tools.app", executable: "/x/y") == "My.app.Tools")
+        #expect(AppUsage.name(app: nil, bundle: nil, executable: "/usr/bin/node") == "node")
+        #expect(AppUsage.name(app: "", bundle: nil, executable: "") == "?")
+    }
+
+    @Test func keepsTiesInAStableOrder() {
+        let tied = (1...4).map { AppSample(pid: Int32(10 - $0), bundleId: nil, name: ["d", "b", "c", "a"][$0 - 1], cpu: 0,
+                                         mem: 5, quittable: false) }
+        #expect(tied.sorted(by: AppUsage.busier).map(\.name) == ["a", "b", "c", "d"])
+        #expect(tied.shuffled().sorted(by: AppUsage.larger).map(\.name) == ["a", "b", "c", "d"])
+    }
+
     @Test func groupsHelpersIntoTheirAppAndComputesPercentOfOneCore() {
         let apps = [chrome: AppInfo(pid: 10, bundleId: "com.google.Chrome", name: "Google Chrome", quittable: true)]
         let helperPath = chrome + "/Contents/Frameworks/X.framework/Helpers/Helper.app/Contents/MacOS/Helper"

@@ -72,14 +72,50 @@ public enum AppUsage {
     /// Longest name sent to the phone, in characters (grapheme clusters).
     public static let maxNameLength = 80
 
-    /// Removes the invisible direction marks some apps put in their names (WhatsApp starts with U+200E), trims, and
-    /// keeps at most `maxNameLength` characters.
+    /// Cleans a name that an app or a web page chose before it reaches the phone: invisible format characters
+    /// (direction marks such as WhatsApp's leading U+200E, zero-width spaces) are removed; control characters, line
+    /// and paragraph separators and runs of white space become one space; the result is trimmed and keeps at most
+    /// `maxNameLength` characters.
     public static func displayName(_ raw: String) -> String {
-        let marks: Set<Unicode.Scalar> = ["\u{200E}", "\u{200F}", "\u{202A}", "\u{202B}", "\u{202C}", "\u{202D}",
-                                          "\u{202E}", "\u{2066}", "\u{2067}", "\u{2068}", "\u{2069}"]
-        let kept = raw.unicodeScalars.filter { !marks.contains($0) }
-        let trimmed = String(String.UnicodeScalarView(kept)).trimmingCharacters(in: .whitespacesAndNewlines)
-        return String(trimmed.prefix(maxNameLength)).trimmingCharacters(in: .whitespacesAndNewlines)
+        var scalars = String.UnicodeScalarView()
+        var pendingSpace = false
+        for scalar in raw.unicodeScalars {
+            switch scalar.properties.generalCategory {
+            case .format:
+                continue
+            case .control, .lineSeparator, .paragraphSeparator, .spaceSeparator:
+                pendingSpace = true
+            default:
+                if pendingSpace, !scalars.isEmpty { scalars.append(" ") }
+                pendingSpace = false
+                scalars.append(scalar)
+            }
+        }
+        return String(String(scalars).prefix(maxNameLength)).trimmingCharacters(in: .whitespaces)
+    }
+
+    /// The first of the app's own name, its bundle's file name and the executable's file name that is not empty
+    /// after cleaning.
+    static func name(app: String?, bundle: String?, executable: String) -> String {
+        let candidates = [app, bundle.map { (($0 as NSString).lastPathComponent as NSString).deletingPathExtension },
+                          (executable as NSString).lastPathComponent]
+        for case let candidate? in candidates {
+            let cleaned = displayName(candidate)
+            if !cleaned.isEmpty { return cleaned }
+        }
+        return "?"
+    }
+
+    /// Busiest first; equal rows keep a stable order (by name, then pid) so the phone's list does not flicker.
+    static func busier(_ a: AppSample, _ b: AppSample) -> Bool {
+        if a.cpu != b.cpu { return a.cpu > b.cpu }
+        if a.mem != b.mem { return a.mem > b.mem }
+        if a.name != b.name { return a.name < b.name }
+        return a.pid < b.pid
+    }
+
+    static func larger(_ a: AppSample, _ b: AppSample) -> Bool {
+        a.mem != b.mem ? a.mem > b.mem : busier(a, b)
     }
 
     /// Groups processes into apps, turns CPU time into percent of one core over `elapsedNanos`, and returns the
@@ -102,12 +138,11 @@ public enum AppUsage {
             let key = bundle ?? process.path
             var group = groups[key] ?? {
                 if let bundle, let info = apps[bundle] {
-                    return Group(pid: info.pid, bundleId: info.bundleId, name: displayName(info.name),
-                                 quittable: info.quittable)
+                    return Group(pid: info.pid, bundleId: info.bundleId,
+                                 name: name(app: info.name, bundle: bundle, executable: process.path), quittable: info.quittable)
                 }
-                let fallback = bundle.map { ($0 as NSString).lastPathComponent.replacingOccurrences(of: ".app", with: "") }
-                return Group(pid: process.pid, bundleId: nil,
-                             name: displayName(fallback ?? (process.path as NSString).lastPathComponent), quittable: false)
+                return Group(pid: process.pid, bundleId: nil, name: name(app: nil, bundle: bundle, executable: process.path),
+                             quittable: false)
             }()
             if let before = previousCPU[process.pid], process.cpuNanos >= before {
                 group.cpuNanos += process.cpuNanos - before
@@ -120,8 +155,8 @@ public enum AppUsage {
                       cpu: CPULoad.rounded(Double(group.cpuNanos) / Double(elapsedNanos) * 100),
                       mem: group.memory, quittable: group.quittable)
         }
-        let byCPU = samples.sorted { ($0.cpu, $0.mem) > ($1.cpu, $1.mem) }.prefix(topCount)
-        let byMemory = samples.sorted { $0.mem > $1.mem }.prefix(topCount)
+        let byCPU = samples.sorted(by: busier).prefix(topCount)
+        let byMemory = samples.sorted(by: larger).prefix(topCount)
         var result = Array(byCPU)
         for sample in byMemory where !result.contains(where: { $0.pid == sample.pid && $0.name == sample.name }) {
             result.append(sample)

@@ -140,11 +140,14 @@ final class NowPlayingService {
         }
     }
 
-    /// "Spotify" for `com.spotify.client`; the player is running, so its name is at hand. Cached: players are few.
+    /// "Spotify" for `com.spotify.client`; the player is running, so its name is at hand. Found names are cached
+    /// (players are few); the bundle identifier stands in until macOS lists the player.
     private func appName(for bundleId: String) -> String {
         if let name = names[bundleId] { return name }
-        let raw = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first?.localizedName ?? bundleId
+        guard let raw = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first?.localizedName
+        else { return bundleId }
         let name = AppUsage.displayName(raw)
+        guard !name.isEmpty else { return bundleId }
         names[bundleId] = name
         return name
     }
