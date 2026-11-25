@@ -4,13 +4,16 @@ ifeq ($(DEV_DIR),/Library/Developer/CommandLineTools)
 TEST_FLAGS := -Xswiftc -plugin-path -Xswiftc $(DEV_DIR)/usr/lib/swift/host/plugins/testing
 endif
 
-.PHONY: build test app run clean
+.PHONY: build test adapter app run clean
 
 build:
 	swift build
 
 test:
 	swift test $(TEST_FLAGS) $(if $(FILTER),--filter '$(FILTER)',)
+
+adapter:
+	scripts/build-adapter.sh
 
 app:
 	scripts/bundle.sh

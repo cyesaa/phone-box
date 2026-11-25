@@ -8,6 +8,8 @@ final class Sampler {
     /// Reading every process takes a few milliseconds; every 3 s keeps PhoneBox under 1 % CPU.
     static let appsEvery = 3
     var onSnapshot: ((Snapshot) -> Void)?
+    /// Also sends the media commands, so the command runner shares it.
+    let nowPlaying = NowPlayingService()
 
     private var timer: Timer?
     /// Keeps App Nap from slowing the one-second timer while a phone is streaming.
@@ -39,7 +41,9 @@ final class Sampler {
             self.timer = timer
             activity = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep,
                                                              reason: "Streaming to iPhone")
+            nowPlaying.start()
         } else {
+            nowPlaying.stop()
             if let activity { ProcessInfo.processInfo.endActivity(activity) }
             activity = nil
             timer?.invalidate()
@@ -76,6 +80,6 @@ final class Sampler {
         onSnapshot?(Snapshot(
             t: now, cpu: cpu.sample(), mem: memory.sample(), gpu: gpu.sample(), temp: temperature.sample(),
             power: power.sample(), net: network.sample(), disk: disk.sample(), battery: battery.sample(),
-            apps: tickCount % Self.appsEvery == 0 ? apps.sample() : nil, audio: audio.sample()))
+            apps: tickCount % Self.appsEvery == 0 ? apps.sample() : nil, media: nowPlaying.current(), audio: audio.sample()))
     }
 }
