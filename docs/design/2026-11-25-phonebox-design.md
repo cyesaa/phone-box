@@ -197,19 +197,20 @@ Okunamayan değer JSON'a hiç yazılmaz (alan yok); dashboard "—" gösterir.
 
 | `name` | `args` | Uygulama | Telefonda onay |
 |---|---|---|---|
-| `quitApp` | `{pid, bundleId, force}` | `NSRunningApplication.terminate()` / `forceTerminate()` | Sadece `force` ("Zorla kapat") |
+| `quitApp` | `{bundleId, force}` | `NSRunningApplication.terminate()` / `forceTerminate()` | Sadece `force` ("Zorla kapat") |
 | `media` | `{action: "playPause"\|"next"\|"previous"}` | mediaremote-adapter (NotchBox'taki gibi, `Vendor/` alt modülü) | Hayır |
 | `volume` | `{level: 0…1}` | CoreAudio varsayılan çıkış cihazı | Hayır |
 | `mute` | `{on: bool}` | CoreAudio | Hayır |
-| `lock` | `{}` | `login.framework` `SACLockScreenImmediate` (dlopen); olmazsa `pmset displaysleepnow` | Hayır |
+| `lock` | `{}` | `login.framework` `SACLockScreenImmediate` (dlopen, dönüş değeri kullanılmaz); fonksiyon yoksa `pmset displaysleepnow` | Hayır |
 | `displaySleep` | `{}` | `pmset displaysleepnow` | Hayır |
 | `sleep` | `{}` | `pmset sleepnow` | Evet |
 
 - Onay sütunu kullanıcı kararıdır (2026-11-25): sadece geri alınamayan "Zorla kapat" ve "Uyut" onay ister.
-- `quitApp` sadece `activationPolicy == .regular` olan uygulamalarda çalışır; Finder ve PhoneBox hariçtir. Listedeki
-  `pid` 10 sn'ye kadar eski olabilir ve aynı paketin örnekleri tek satırdır: Mac uygulamayı `bundleId` ile yeniden
-  bulur (`pid` hâlâ o pakete aitse onu kullanır), bulduğu bütün örneklere uygular; o kimlikle kapatılabilir bir
-  uygulama yoksa `app-changed` döner.
+- `quitApp` sadece `activationPolicy == .regular` olan uygulamalarda çalışır; Finder ve PhoneBox hariçtir (uygulama
+  listesindeki `quittable` da aynı kuralla hesaplanır). Telefonun listesi 10 sn'ye kadar eski olabilir ve aynı paketin
+  örnekleri tek satırdır; bu yüzden telefon `pid` göndermez: Mac uygulamayı `bundleId` ile bulur ve kapatılabilir
+  bütün örneklerine uygular; yoksa `app-changed` döner.
+- `sleep`'te `ack` önce gönderilir, Mac 1 sn sonra uyur (yoksa cevap telefona ulaşmaz).
 - Ses kaydırıcısı sürüklenirken sayfa en fazla saniyede 4 `volume` gönderir, bırakınca son değeri gönderir (sınır 10/sn).
 - Ses kontrolü olmayan çıkış cihazında `volume`/`mute` `unsupported` döner ve kaydırıcı devre dışı kalır.
 - Spike 7'de uygulama kapatma, sessiz, ses seviyesi, ekranı kapatma ve kilit hiçbir izin penceresi açmadan
@@ -364,6 +365,10 @@ da `~/Library/Caches` altına gider: spike'ta yeni başlatılan uygulama `~/Docu
   ve ses kaydırıcısının hız sınırı (bölüm 8, Sayfa kodu).
 - **Görünüm kontrolü:** Mac'teki tarayıcı panelinde canlı veriyle dört iPhone ölçüsü (SE, standart, Pro Max; yatay ve
   dikey), ekran görüntüsüyle.
+- **Bağlantı yöneticisi testleri (`Tests/PhoneBoxTests`):** uygulama hedefini `@testable import` ile dener; sahte
+  bağlantı ve sahte komut çalıştırıcıyla `ready`, kablo kuralı, `ack` ve mod değişimi. Gerçek sistemi kullanan
+  testler (ses seviyesini okuyup aynı değeri yazmak, Satranç'ı açıp kapatmak) sadece `PHONEBOX_LIVE=1` ile çalışır;
+  kilitleme, uyutma ve ekranı kapatma hiçbir testte çalıştırılmaz.
 - **Elle test:** `docs/manual-testing.md`, gerçek iPhone ile adım adım kontrol listesi (eşleştirme, iki mod, her
   komut, durumlar, dikey/yatay, yeniden bağlanma).
 
@@ -399,14 +404,14 @@ NotchBox ile aynı:
 
 ```
 Package.swift  Makefile  install.sh  LICENSE  THIRD_PARTY_NOTICES.md  README.md
-scripts/                  bundle.sh, dist.sh, release.sh, make-icon.swift
+scripts/                  bundle.sh, build-adapter.sh, dist.sh, release.sh, make-icon.swift
 Sources/PhoneBoxCore/     modeller, hesaplar, protokol, HMAC, AccessPolicy
 Sources/PhoneBox/         uygulama, Collectors, Sampler, USBWatcher, Server, Pairing, CommandRunner, MenuBar
 Resources/                Info.plist, AppIcon.icns, en.lproj, tr.lproj
 Resources/web/            index.html, styles.css, sha256.js, i18n.js, format.js, history.js, chart.js,
                           connection.js, commands.js, view.js, ui.js, app.js, keepawake.mp4, apple-touch-icon.png
 Vendor/mediaremote-adapter/   (git alt modülü)
-Tests/PhoneBoxCoreTests/
+Tests/PhoneBoxCoreTests/  Tests/PhoneBoxTests/
 docs/design/2026-11-25-phonebox-design.md   docs/spike-results.md   docs/manual-testing.md
 ```
 
