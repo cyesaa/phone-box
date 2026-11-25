@@ -31,6 +31,8 @@
 <label><input type="radio" name="variant" value="v1" checked> V1: sessiz, döngülü, sadece görüntü</label>
 <label><input type="radio" name="variant" value="v2"> V2: sessiz, döngüsüz (başa sarar), ses izli</label>
 <label><input type="radio" name="variant" value="v3"> V3: sesi açık (ses izi sessiz) — telefondaki müziği durdurabilir</label>
+<label><input type="radio" name="variant" value="v4"> V4: V3 + "ambient" ses oturumu (müziği durdurmamalı)</label>
+<div class="row"><span>Audio Session API</span><b id="audiosession">—</b></div>
 <button id="start">Başlat</button>
 
 <video id="keepawake" playsinline></video>
@@ -48,6 +50,7 @@ const key = fragmentKey || storedKey;
 try { if (fragmentKey) localStorage.setItem("pb-key", fragmentKey); } catch (e) {}
 $("key").textContent = key ? `${key} (${fragmentKey ? "adresten" : "localStorage'dan"})` : "yok";
 $("standalone").textContent = navigator.standalone ? "evet" : "hayır (Safari)";
+$("audiosession").textContent = navigator.audioSession ? `var (${navigator.audioSession.type})` : "yok";
 
 // Logs go to the Mac; queued while the socket is closed.
 const queue = [];
@@ -99,8 +102,13 @@ send(`loaded: ${navigator.userAgent}`);
 const video = $("keepawake");
 $("start").onclick = async () => {
   const variant = document.querySelector("input[name=variant]:checked").value;
+  // V4: ask WebKit to mix this page's audio with other apps instead of interrupting them.
+  if (navigator.audioSession) {
+    navigator.audioSession.type = variant === "v4" ? "ambient" : "auto";
+    send(`audioSession.type=${navigator.audioSession.type}`);
+  }
   video.loop = variant === "v1";
-  video.muted = variant !== "v3";
+  video.muted = variant === "v1" || variant === "v2";
   video.src = variant === "v1" ? "keepawake-video.mp4" : "keepawake-av.mp4";
   video.ontimeupdate = variant === "v1" ? null : () => { if (video.currentTime > 0.5) video.currentTime = Math.random() * 0.4; };
   try {
