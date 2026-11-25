@@ -70,7 +70,7 @@
   const key = readKey();
   const state = {
     socket: null, retries: 0, started: false, stopped: false, nonce: null,
-    receivedAt: 0, lastMessageAt: 0, access: null, accessSetAt: 0,
+    receivedAt: 0, lastMessageAt: 0, socketOpenedAt: 0, access: null, accessSetAt: 0,
   };
 
   function setStatus(kind, text) {
@@ -108,6 +108,7 @@
   setInterval(() => {
     if (state.started && document.visibilityState === "visible" && video.paused) keepAwake().catch(() => {});
     replaceStaleSocket();
+    if (key) connect();
   }, 3000);
 
   $("start-button").textContent = t.start;
@@ -135,6 +136,7 @@
     const socket = new WebSocket(`ws://${location.host}/ws`);
     state.socket = socket;
     state.lastMessageAt = Date.now();
+    state.socketOpenedAt = Date.now();
     socket.onmessage = (event) => {
       state.lastMessageAt = Date.now();
       try {
@@ -162,14 +164,15 @@
         setTimeout(connect, 250);
         return;
       }
-      state.retries += 1;
+      // A close while the page is hidden (phone locked) is not a failure; the page reconnects on return.
+      if (document.visibilityState === "visible") state.retries += 1;
       if (state.retries >= 3) {
         setStatus("offline", t.offline);
         showMessage(t.unreachable);
       } else {
         setStatus("", t.connecting);
       }
-      setTimeout(connect, [1000, 2000, 5000][Math.min(state.retries - 1, 2)]);
+      setTimeout(connect, [1000, 2000, 5000][Math.min(Math.max(state.retries, 1) - 1, 2)]);
     };
   }
 
@@ -266,8 +269,11 @@
   for (const name of ["visibilitychange", "pageshow", "focus"]) {
     window.addEventListener(name, () => {
       if (document.visibilityState !== "visible") return;
-      if (state.access && !state.access.streaming && state.socket) replaceSocket();
-      else replaceStaleSocket();
+      // The three events often fire together; a socket opened less than 1 s ago is kept.
+      if (Date.now() - state.socketOpenedAt >= 1000) {
+        if (state.access && !state.access.streaming && state.socket) replaceSocket();
+        else replaceStaleSocket();
+      }
       connect();
     });
   }
