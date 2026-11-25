@@ -3,8 +3,9 @@ import Foundation
 import PhoneBoxCore
 import SystemConfiguration
 
-/// Download and upload speed of the primary network interface. Uses the 64-bit counters from
-/// `sysctl(NET_RT_IFLIST2)`; the 32-bit ones in `getifaddrs` wrap every 4 GB.
+/// Download and upload speed of the primary network interface. Uses the interface MIB
+/// (`net.link.generic.ifdata.<index>.general`), whose byte counters are full 64-bit values like `netstat -ib` shows;
+/// on current macOS both `getifaddrs` and `sysctl(NET_RT_IFLIST2)` return only the low 32 bits (they wrap every 4 GiB).
 final class NetworkCollector {
     static let primaryInterfaceInterval: TimeInterval = 10
     private var interface: String?
@@ -54,26 +55,10 @@ final class NetworkCollector {
     static func counters(for name: String) -> (rx: UInt64, tx: UInt64)? {
         let index = if_nametoindex(name)
         guard index != 0, index <= UInt32(Int32.max) else { return nil }
-        // The last element makes the kernel return only this interface.
-        var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST2, Int32(index)]
-        var length = 0
-        guard sysctl(&mib, 6, nil, &length, nil, 0) == 0, length > 0 else { return nil }
-        length += length / 8
-        var buffer = [UInt8](repeating: 0, count: length)
-        guard sysctl(&mib, 6, &buffer, &length, nil, 0) == 0 else { return nil }
-        return buffer.withUnsafeBytes { raw -> (rx: UInt64, tx: UInt64)? in
-            var offset = 0
-            while offset + MemoryLayout<if_msghdr>.size <= length {
-                let header = raw.loadUnaligned(fromByteOffset: offset, as: if_msghdr.self)
-                guard header.ifm_msglen > 0 else { return nil }
-                if Int32(header.ifm_type) == RTM_IFINFO2, UInt32(header.ifm_index) == index,
-                   offset + MemoryLayout<if_msghdr2>.size <= length {
-                    let message = raw.loadUnaligned(fromByteOffset: offset, as: if_msghdr2.self)
-                    return (message.ifm_data.ifi_ibytes, message.ifm_data.ifi_obytes)
-                }
-                offset += Int(header.ifm_msglen)
-            }
-            return nil
-        }
+        var mib: [Int32] = [CTL_NET, PF_LINK, NETLINK_GENERIC, IFMIB_IFDATA, Int32(index), IFDATA_GENERAL]
+        var data = ifmibdata()
+        var length = MemoryLayout<ifmibdata>.size
+        guard sysctl(&mib, 6, &data, &length, nil, 0) == 0, length == MemoryLayout<ifmibdata>.size else { return nil }
+        return (data.ifmd_data.ifi_ibytes, data.ifmd_data.ifi_obytes)
     }
 }
