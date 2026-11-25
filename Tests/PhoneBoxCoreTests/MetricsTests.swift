@@ -77,14 +77,24 @@ struct EnergyRateTests {
 struct BatteryInfoTests {
     @Test func readsADischargingBattery() {
         let description: [String: Any] = ["Type": "InternalBattery", "Current Capacity": 86, "Max Capacity": 100,
-                                          "Is Charging": false, "Time to Empty": 312, "Time to Full Charge": -1]
-        #expect(BatteryInfo.sample(from: description) == BatterySample(percent: 86, charging: false, minutesLeft: 312))
+                                          "Is Charging": false, "Power Source State": "Battery Power", "Time to Empty": 312,
+                                          "Time to Full Charge": -1]
+        #expect(BatteryInfo.sample(from: description)
+            == BatterySample(percent: 86, charging: false, plugged: false, minutesLeft: 312))
     }
 
     @Test func readsAChargingBatteryAndAnUnknownEstimate() {
         let description: [String: Any] = ["Type": "InternalBattery", "Current Capacity": 40, "Max Capacity": 100,
-                                          "Is Charging": true, "Time to Full Charge": -1]
-        #expect(BatteryInfo.sample(from: description) == BatterySample(percent: 40, charging: true, minutesLeft: nil))
+                                          "Is Charging": true, "Power Source State": "AC Power", "Time to Full Charge": -1]
+        #expect(BatteryInfo.sample(from: description)
+            == BatterySample(percent: 40, charging: true, plugged: true, minutesLeft: nil))
+    }
+
+    @Test func aBatteryHeldOnPowerIsPluggedButNotCharging() {
+        let description: [String: Any] = ["Type": "InternalBattery", "Current Capacity": 80, "Max Capacity": 100,
+                                          "Is Charging": false, "Power Source State": "AC Power"]
+        #expect(BatteryInfo.sample(from: description)
+            == BatterySample(percent: 80, charging: false, plugged: true, minutesLeft: nil))
     }
 
     @Test func ignoresUPSesAndBrokenDescriptions() {

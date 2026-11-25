@@ -3,7 +3,7 @@ import Foundation
 /// Messages from the Mac to the phone (design §5). Every message carries `"v":1`.
 public enum ServerMessage: Equatable, Sendable {
     case hello(nonce: String, app: String)
-    case ready(mode: AccessMode, host: String, access: Access)
+    case ready(mode: AccessMode, host: String, powerLimits: PowerLimits, access: Access)
     case access(Access)
     case snapshot(Snapshot)
     case ack(seq: Int, ok: Bool, error: String?)
@@ -28,7 +28,7 @@ public enum ServerMessage: Equatable, Sendable {
 
 extension ServerMessage: Encodable {
     private enum Keys: String, CodingKey {
-        case v, type, nonce, app, mode, host, access, streaming, commands, cable, reason, t, cpu, mem, gpu, temp, power, net, disk,
+        case v, type, nonce, app, mode, host, limits, access, streaming, commands, cable, reason, t, cpu, mem, gpu, temp, power, net, disk,
              battery, apps, media, audio, seq, ok, error
     }
 
@@ -40,10 +40,11 @@ extension ServerMessage: Encodable {
             try container.encode("hello", forKey: .type)
             try container.encode(nonce, forKey: .nonce)
             try container.encode(app, forKey: .app)
-        case let .ready(mode, host, access):
+        case let .ready(mode, host, powerLimits, access):
             try container.encode("ready", forKey: .type)
             try container.encode(mode, forKey: .mode)
             try container.encode(host, forKey: .host)
+            try container.encode(powerLimits, forKey: .limits)
             try container.encode(access, forKey: .access)
         case let .access(access):
             try container.encode("access", forKey: .type)

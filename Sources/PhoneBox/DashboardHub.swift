@@ -48,8 +48,10 @@ final class DashboardHub {
     }
     private var key: PairingKey
     private let appName: String
-    /// The Mac's name, shown in the page's status line.
+    /// The Mac's name, shown at the top of the page's "⋯" menu.
     private let hostName: String
+    /// Where the page's power tile turns red, for this Mac's chip.
+    private let powerLimits: PowerLimits
     private let commands: any CommandRunning
     private let usbInterfaces: () -> Set<String>
     private var clients: [ObjectIdentifier: Client] = [:]
@@ -63,12 +65,13 @@ final class DashboardHub {
     var onAuthenticated: (() -> Void)?
     var onConnectionClosed: ((any PhoneConnection) -> Void)?
 
-    init(mode: AccessMode, key: PairingKey, appName: String, hostName: String, commands: any CommandRunning,
-         usbInterfaces: @escaping () -> Set<String> = USBLinks.iPhoneInterfaceNames) {
+    init(mode: AccessMode, key: PairingKey, appName: String, hostName: String, powerLimits: PowerLimits = .standard,
+         commands: any CommandRunning, usbInterfaces: @escaping () -> Set<String> = USBLinks.iPhoneInterfaceNames) {
         self.mode = mode
         self.key = key
         self.appName = appName
         self.hostName = hostName
+        self.powerLimits = powerLimits
         self.commands = commands
         self.usbInterfaces = usbInterfaces
         let timer = Timer(timeInterval: Self.pingInterval, repeats: true) { [weak self] _ in
@@ -134,7 +137,7 @@ final class DashboardHub {
             connection.markAuthenticated()
             client.access = AccessPolicy.decide(mode: mode, clientOnUSB: client.onUSB, authenticated: true)
             clients[id] = client
-            connection.send(.ready(mode: mode, host: hostName, access: client.access))
+            connection.send(.ready(mode: mode, host: hostName, powerLimits: powerLimits, access: client.access))
             onAuthenticated?()
             changed(wasStreaming: wasStreaming)
         case let .command(seq, command):

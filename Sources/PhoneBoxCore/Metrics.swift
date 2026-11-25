@@ -59,11 +59,14 @@ public struct DiskSample: Equatable, Codable, Sendable {
 public struct BatterySample: Equatable, Codable, Sendable {
     public var percent: Int
     public var charging: Bool
+    /// On the power adapter (charging or not); the page turns a low battery red only when this is false.
+    public var plugged: Bool
     /// Minutes to empty while discharging, to full while charging; nil while macOS is still estimating.
     public var minutesLeft: Int?
-    public init(percent: Int, charging: Bool, minutesLeft: Int?) {
+    public init(percent: Int, charging: Bool, plugged: Bool, minutesLeft: Int?) {
         self.percent = percent
         self.charging = charging
+        self.plugged = plugged
         self.minutesLeft = minutesLeft
     }
 }
@@ -135,8 +138,9 @@ public enum BatteryInfo {
               let maximum = description["Max Capacity"] as? Int, maximum > 0
         else { return nil }
         let charging = description["Is Charging"] as? Bool ?? false
+        let plugged = description["Power Source State"] as? String == "AC Power"
         let minutes = (charging ? description["Time to Full Charge"] : description["Time to Empty"]) as? Int
-        return BatterySample(percent: min(100, max(0, current * 100 / maximum)), charging: charging,
+        return BatterySample(percent: min(100, max(0, current * 100 / maximum)), charging: charging, plugged: plugged,
                              minutesLeft: minutes.flatMap { $0 > 0 ? $0 : nil })
     }
 }

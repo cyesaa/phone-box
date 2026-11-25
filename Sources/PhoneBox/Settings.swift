@@ -34,9 +34,18 @@ final class Settings {
         (SCDynamicStoreCopyLocalHostName(nil) as String?) ?? "localhost"
     }
 
-    /// "Eren's MacBook Pro" from System Settings → General → Sharing; the page shows it in its status line.
+    /// "Eren's MacBook Pro" from System Settings → General → Sharing; the page shows it in its "⋯" menu.
     static func computerName() -> String {
         (SCDynamicStoreCopyComputerName(nil, nil) as String?) ?? localHostName()
+    }
+
+    /// "Apple M4 Pro" from `machdep.cpu.brand_string`; empty if it cannot be read.
+    static func chipName() -> String {
+        var size = 0
+        guard sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0) == 0, size > 0 else { return "" }
+        var bytes = [CChar](repeating: 0, count: size)
+        guard sysctlbyname("machdep.cpu.brand_string", &bytes, &size, nil, 0) == 0 else { return "" }
+        return String(cString: bytes)
     }
 
     /// The personal link in the QR code (design §5). Always with `http://`: Safari tries HTTPS first for an

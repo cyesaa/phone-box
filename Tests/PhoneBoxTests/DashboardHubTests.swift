@@ -48,10 +48,11 @@ final class FakeRunner: CommandRunning {
 struct DashboardHubTests {
     let key = PairingKey.generate()
     let runner = FakeRunner()
+    let limits = PowerLimits(start: 25, full: 60)
 
     func makeHub(mode: AccessMode) -> DashboardHub {
-        DashboardHub(mode: mode, key: key, appName: "PhoneBox test", hostName: "Test Mac", commands: runner,
-                     usbInterfaces: { ["anri1"] })
+        DashboardHub(mode: mode, key: key, appName: "PhoneBox test", hostName: "Test Mac", powerLimits: limits,
+                     commands: runner, usbInterfaces: { ["anri1"] })
     }
 
     /// A phone on the USB link (`anri1`, scoped link-local) or on Wi-Fi (`en0`), authenticated.
@@ -76,8 +77,8 @@ struct DashboardHubTests {
         let cable = connect(hub, onUSB: true)
         let wifi = connect(hub, onUSB: false)
         #expect(cable.authenticated && wifi.authenticated)
-        #expect(cable.sent.last == .ready(mode: .always, host: "Test Mac", access: .onCable))
-        #expect(wifi.sent.last == .ready(mode: .always, host: "Test Mac", access: .overWiFi))
+        #expect(cable.sent.last == .ready(mode: .always, host: "Test Mac", powerLimits: limits, access: .onCable))
+        #expect(wifi.sent.last == .ready(mode: .always, host: "Test Mac", powerLimits: limits, access: .overWiFi))
     }
 
     @Test func runsACommandFromTheCableAndAcksIt() {
@@ -102,7 +103,7 @@ struct DashboardHubTests {
         hub.opened(phone)
         let mac = MessageAuth.hmacHex(key: key.bytes, message: MessageAuth.authMessage(nonce: phone.nonce ?? ""))
         hub.received(#"{"v":1,"type":"auth","mac":"\#(mac)"}"#, from: phone)
-        #expect(phone.sent.last == .ready(mode: .always, host: "Test Mac", access: .overWiFi))
+        #expect(phone.sent.last == .ready(mode: .always, host: "Test Mac", powerLimits: limits, access: .overWiFi))
     }
 
     @Test func reportsWhyACommandFailed() {
@@ -140,7 +141,7 @@ struct DashboardHubTests {
         var streaming: [Bool] = []
         hub.onStreamingChange = { streaming.append($0) }
         let phone = connect(hub, onUSB: false)
-        #expect(phone.sent.last == .ready(mode: .cable, host: "Test Mac", access: .notOnCable))
+        #expect(phone.sent.last == .ready(mode: .cable, host: "Test Mac", powerLimits: limits, access: .notOnCable))
         hub.mode = .always
         #expect(phone.sent.last == .access(.overWiFi))
         #expect(streaming == [true])

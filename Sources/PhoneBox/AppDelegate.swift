@@ -26,8 +26,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         if loaded.created { settings.hasEverPaired = false }
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+        // A Mac with a battery reports its whole power draw; a desktop Mac only the GPU's.
+        let powerLimits = PowerLimits.forChip(Settings.chipName(), wholeMac: BatteryCollector().sample() != nil)
         hub = DashboardHub(mode: settings.mode, key: key, appName: "PhoneBox \(version)", hostName: Settings.computerName(),
-                           commands: commandRunner)
+                           powerLimits: powerLimits, commands: commandRunner)
         let webDirectory = Bundle.main.resourceURL!.appendingPathComponent("web", isDirectory: true)
         server = DashboardServer(webDirectory: webDirectory, hub: hub)
         menuBar = MenuBarController(mode: settings.mode)

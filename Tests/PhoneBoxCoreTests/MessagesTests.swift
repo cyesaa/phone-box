@@ -7,9 +7,11 @@ struct ServerMessageTests {
             == #"{"app":"PhoneBox 0.1.0","nonce":"ab","type":"hello","v":1}"#)
     }
 
-    @Test func encodesReadyWithTheAccessObject() {
-        #expect(ServerMessage.ready(mode: .cable, host: "Eren's MacBook Pro", access: .notOnCable).json()
-            == #"{"access":{"cable":false,"commands":false,"reason":"not-on-cable","streaming":false},"host":"Eren's MacBook Pro","mode":"cable","type":"ready","v":1}"#)
+    @Test func encodesReadyWithTheAccessObjectAndThePowerLimits() {
+        let ready = ServerMessage.ready(mode: .cable, host: "Eren's MacBook Pro", powerLimits: PowerLimits(start: 15, full: 35.5),
+                                        access: .notOnCable)
+        #expect(ready.json()
+            == #"{"access":{"cable":false,"commands":false,"reason":"not-on-cable","streaming":false},"host":"Eren's MacBook Pro","limits":{"power":[15,35.5]},"mode":"cable","type":"ready","v":1}"#)
     }
 
     @Test func encodesAccessFlat() {
@@ -29,11 +31,11 @@ struct ServerMessageTests {
         let snapshot = Snapshot(
             t: 5, gpu: GPUSample(util: 17), temp: TemperatureSample(avg: 52.5, max: 56), power: PowerSample(gpu: 0.2, system: nil),
             net: NetworkSample(rx: 1_200, tx: 30, iface: "en0"), disk: DiskSample(free: 10, total: 20, read: nil, write: 4),
-            battery: BatterySample(percent: 86, charging: true, minutesLeft: nil),
+            battery: BatterySample(percent: 86, charging: true, plugged: true, minutesLeft: nil),
             apps: [AppSample(pid: 9, bundleId: nil, name: "node", cpu: 1.5, mem: 64, quittable: false)])
         #expect(ServerMessage.snapshot(snapshot).json()
             == #"{"apps":[{"cpu":1.5,"mem":64,"name":"node","pid":9,"quittable":false}],"#
-            + #""battery":{"charging":true,"percent":86},"disk":{"free":10,"total":20,"write":4},"gpu":{"util":17},"#
+            + #""battery":{"charging":true,"percent":86,"plugged":true},"disk":{"free":10,"total":20,"write":4},"gpu":{"util":17},"#
             + #""net":{"iface":"en0","rx":1200,"tx":30},"power":{"gpu":0.2},"t":5,"temp":{"avg":52.5,"max":56},"#
             + #""type":"snapshot","v":1}"#)
     }
