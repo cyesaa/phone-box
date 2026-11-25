@@ -307,6 +307,7 @@ parçaları JavaScriptCore'da doğrudan çalıştırabilir. İki yön için tek 
 | `i18n.js` | TR/EN metinler | — |
 | `format.js` | sayı ve birim biçimleri | JavaScriptCore |
 | `history.js` | metrik başına 60 saniyelik geçmiş | JavaScriptCore |
+| `metrics.js` | her metriğin geçmişe yazılan değerleri, grafik çizgileri ve ölçeği, kutucuk ve başlık metinleri | JavaScriptCore |
 | `chart.js` | grafik ölçeği (saf) ve `<canvas>` çizimi | ölçek JavaScriptCore'da, çizim gözle |
 | `connection.js` | bağlantı, eşleşme, yeniden bağlanma (bugünkü `app.js`'ten) | gözle / telefonda |
 | `commands.js` | komut imzası, `seq`, ses kaydırıcısının hız sınırı | imza ve hız sınırı JavaScriptCore'da |
@@ -317,8 +318,10 @@ parçaları JavaScriptCore'da doğrudan çalıştırabilir. İki yön için tek 
 ### Uygulama sırası
 
 Plan 3B (Mac tarafı: bölüm 7'deki komutlar, `media` ve `audio` alanları, `host` ve `cable`, bölüm 5'teki protokol
-kuralları ve bağlantı yöneticisinin testlerle denenebilir hâle getirilmesi) → Plan 4 (bu arayüz; son görevi
-kullanıcıyla telefonda uçtan uca kontrol) → Plan 5 (dağıtım).
+kuralları ve bağlantı yöneticisinin testlerle denenebilir hâle getirilmesi) → Plan 4A (izleme arayüzü: yerleşimler,
+halkalar, grafik, kutucuklar, uygulama listesi, şarkı kartı, durumlar, Başlat, rehber, OLED, ana ekran simgesi) →
+Plan 4B (komut arayüzü: kontrol şeridi, uygulama paneli, "⋯" komutları, onay, bildirim; son görevi kullanıcıyla
+telefonda uçtan uca kontrol) → Plan 5 (dağıtım).
 
 ### Menü çubuğu (Mac)
 
