@@ -65,7 +65,23 @@
   </section>
 
   <section id="strip" class="strip card">
-    <span class="strip-space"></span>
+    <button id="media-previous" class="strip-button" type="button" data-media="previous" data-label="previous">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h2v12H6zM9.5 12 18 6v12z"/></svg>
+    </button>
+    <button id="media-play" class="strip-button" type="button" data-media="playPause" data-label="playPause">
+      <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+      <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+    </button>
+    <button id="media-next" class="strip-button" type="button" data-media="next" data-label="next">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
+    </button>
+    <div id="volume" class="volume" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-label="volume">
+      <span class="volume-track"><span class="volume-fill"></span><span class="volume-thumb"></span></span>
+    </div>
+    <button id="mute" class="strip-button" type="button" data-label="mute">
+      <svg class="icon-speaker" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 8.5a4.5 4.5 0 0 1 0 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <svg class="icon-muted" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9.5l5 5m0-5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
     <button id="more" class="strip-button" type="button" aria-haspopup="menu">⋯</button>
   </section>
 </main>
@@ -77,8 +93,25 @@
 <div id="menu-backdrop" class="menu-backdrop" hidden></div>
 <div id="menu" class="menu" role="menu" hidden>
   <div id="menu-host" class="menu-host"></div>
+  <button type="button" role="menuitem" data-command="lock" data-text="lock"></button>
+  <button type="button" role="menuitem" data-command="displaySleep" data-text="displaySleep"></button>
+  <button type="button" role="menuitem" data-command="sleep" data-text="sleep"></button>
+  <div class="menu-gap"></div>
   <button id="menu-guide" type="button" role="menuitem" data-text="guideItem"></button>
 </div>
+
+<div id="confirm" class="confirm">
+  <div class="confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+    <h2 id="confirm-title"></h2>
+    <p id="confirm-text"></p>
+    <div class="confirm-buttons">
+      <button id="confirm-cancel" type="button" data-text="cancel"></button>
+      <button id="confirm-ok" class="danger" type="button"></button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"><span id="toast-icon" aria-hidden="true"></span><span id="toast-text"></span></div>
 
 <div id="guide" class="overlay guide" hidden>
   <div class="guide-card">
@@ -113,8 +146,10 @@
 <script src="clock.js"></script>
 <script src="chart.js"></script>
 <script src="connection.js"></script>
+<script src="commands.js"></script>
 <script src="view.js"></script>
 <script src="ui.js"></script>
+<script src="controls.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

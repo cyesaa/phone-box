@@ -48,6 +48,14 @@
     return;
   }
 
+  // Commands go through the authenticated socket; `connection` is set below, before anything can be tapped.
+  const commands = new PB.Commands({
+    key,
+    nonce: () => (connection.ready ? connection.nonce : null),
+    send: (message) => connection.send(message),
+  });
+  const controls = new PB.Controls(t, format, commands);
+
   const connection = new PB.Connection(key, {
     onState: (kind) => {
       if (kind === "unpaired") PB.ui.hideStart();
@@ -58,13 +66,19 @@
       view.setHost(ready.host);
       view.setLimits(ready.limits && ready.limits.power);
     },
-    onAccess: (access) => view.setAccess(access),
+    onAccess: (access) => {
+      view.setAccess(access);
+      controls.setAccess(access);
+    },
     onSnapshot: (snapshot) => {
       history.push(snapshot.t, PB.metrics.values(snapshot));
       view.render(snapshot, global.performance.now());
       view.renderGraph(history);
+      controls.setSnapshot(snapshot);
     },
+    onAck: (ack) => commands.acked(ack),
   });
   connection.start();
   PB.connection = connection;
+  PB.controls = controls;
 })(window);

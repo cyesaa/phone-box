@@ -63,6 +63,9 @@
         element.textContent = this.t.metric[element.dataset.metricLabel];
       }
       $("more").setAttribute("aria-label", this.t.more);
+      for (const element of global.document.querySelectorAll("[data-label]")) {
+        element.setAttribute("aria-label", this.t[element.dataset.label]);
+      }
     }
 
     setHost(host) {
