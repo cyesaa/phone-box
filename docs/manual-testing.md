@@ -115,6 +115,13 @@ ya da `lsof -nP -iTCP:4747 -sTCP:ESTABLISHED` (`fe80:<scope>::…` adresinin sco
 - [ ] Menüden kapatınca hook'lar `settings.json`'dan siliniyor (diğer her şey duruyor); telefonda ikinci sayfa ve
   noktalar gidiyor, Claude sayfasındaysa panoya dönüyor.
 - [ ] Özellik açıkken `install.sh --uninstall` hook'ları siliyor.
+- [ ] Özellik kapalıyken zaten açık olan bir oturum, özellik açılınca bir sonraki olayında (mesaj, araç) listede
+  beliriyor mu? (Hook'lar açılmadan önceki oturumlar yeni hook'ları ancak yeniden başlayınca ya da her olayda görür.)
+- [ ] Kaldırdıktan (`install.sh --uninstall`) sonra açık kalan Claude oturumları hata vermiyor, Claude Code'da hook
+  hatası görünmüyor.
+- [ ] İki kopya: `PHONEBOX_DEST` ile `/Applications`'ın yanına deneme kopyası kur. Deneme kopyası soketi ve hook'ları
+  almamalı (`/Applications`'takinin hook'ları yerinde, oturumlar oradan geliyor). Deneme kopyasında özelliği açıp
+  kapatmak ortak ayarı ve hook'ları etkiler: yalnız bilerek yap.
 
 ## Henüz denenmemiş (spike 8)
 - [ ] Kestirmeler → Otomasyon → Şarj Aleti → "URL'yi Aç" (kişisel bağlantı) → "Hemen Çalıştır": kablo takılınca

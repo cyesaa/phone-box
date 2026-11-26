@@ -76,7 +76,7 @@ panoya döner. Parmağını yukarı ya da aşağı kaydırarak iki sayfa arasın
 sayfada olduğunu gösterir.
 
 - Açarken PhoneBox ne yapacağını sorar: `~/.claude/settings.json` dosyasına hook ekler ve dosyanın bir kopyasını
-  `settings.json.phonebox-backup` olarak saklar. Dosyadaki diğer her şey olduğu gibi kalır.
+  `settings.json.phonebox-backup` olarak saklar. Dosyadaki diğer her şey kalır; dosya anahtarları sıralı ve iki boşluk girintiyle yeniden yazılır.
 - Telefona yalnız oturum başlıkları, proje klasörlerinin adları, model ve durum gider; "Her zaman" modunda Wi-Fi'den
   de. Mesajlar, sorular, komutlar ve kod hiçbir zaman saklanmaz ve telefona gitmez.
 - Kapatınca hook'lar silinir; PhoneBox'ı kaldırmak da siler.
@@ -225,7 +225,7 @@ waiting for you, the dashboard slides up and this page comes in; if it came by i
 nothing is waiting any more. Swipe up or down to switch pages; two dots on the right edge show which page you are on.
 
 - Turning it on asks first: PhoneBox adds hooks to `~/.claude/settings.json` and keeps a copy of the file as
-  `settings.json.phonebox-backup`. Everything else in the file stays as it was.
+  `settings.json.phonebox-backup`. Everything else in the file stays; the file is rewritten with sorted keys and two-space indentation.
 - Only session titles, project folder names, the model and the state go to the phone, in "Always" mode over Wi-Fi
   too. Messages, questions, commands and code are never stored and never go to the phone.
 - Turning it off removes the hooks; so does uninstalling PhoneBox.

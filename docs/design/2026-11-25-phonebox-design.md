@@ -684,7 +684,10 @@ Sıralama: bekleyenler (en eski bekleyen önce), sonra çalışanlar, sonra haz�
   noktalar ondan sonra gider.
 - Sayfanın üstünde "Claude", oturum sayısı, bekleyen sayısı ve saat; yatayda kartlar iki sütun (5 ve üstü oturumda üç)
   ve sayfanın yüksekliğini doldurur (satır = oturum / sütun, yukarı yuvarlanır: 1 oturum solda tek uzun kart, 2 oturum
-  iki uzun kart; 2 satırdan fazlasında kartlar sıkışık), dikeyde tek sütun. Giden kart solarken yerini korur, ızgara
+  iki uzun kart; 2 satırdan fazlasında kartlar sıkışık), dikeyde tek sütun. Dikeyde sıkışık kartlar da sığmazsa (12
+  oturum, 667 pt'lik telefon: 10 kart) yalnız tam sığanlar kalır, altlarında "+N oturum daha" yazar; gizlenenler en alt
+  sıradakilerdir (Mac'in sırası korunur), kaydırma yok. Telefon dönünce (ve 350 ms sonra bir daha) yeniden ölçülür.
+  Giden kart solarken yerini korur, ızgara
   kart gidince yeniden yerleşir. Oturum yoksa "Açık Claude oturumu yok". Hareket azaltma açıksa kayma ve kart girişleri
   anlık.
 
@@ -729,6 +732,8 @@ Sıra: her hook ayrı bir işlem, iki olay birkaç ms arayla ters sırada gelebi
 sırası doğrudur: oturumun son uygulanan olayından eski `at`'li olay yok sayılır (aynı µs gelme sırasıyla uygulanır).
 `SessionEnd`'den sonra oturum `at`'iyle 60 sn hatırlanır; `at`'i ondan eski ya da eşit olaylar yok sayılır, daha yeni
 olan (`claude --resume` ile yeniden açılan oturumun `SessionStart`'ı) kabul edilir.
+`at` duvar saatidir (yardımcının başlama zamanı): Mac'in saati geri alınırsa, bilinen bir oturumun olayları saat son
+uygulanan `at`'i geçene kadar yok sayılır.
 
 Olay listesi: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`,
 `PermissionRequest`, `PermissionDenied`, `Notification` (eşleyici `permission_prompt`), `Stop`, `SessionEnd`.
@@ -750,10 +755,10 @@ zaman kipinde Wi-Fi'den de) gideceği. Onaylanınca `ClaudeHooks.install`:
   dizisine bir grup), diğer her şey korunur; dosya atomik yazılır (anahtarlar sıralı, iki boşluk girinti).
 - PhoneBox'ın girdisi: komutu `--claude-hook` ile biten ve `PhoneBox` içeren hook. Yeniden kurmak eskilerini (başka
   yoldakiler dahil) silip ekler; kaldırmak yalnız bunları siler, boşalan grupları/olayları/`hooks`'u da siler.
-- Kapatınca kaldırır. Açılışta ayar açıksa dosyaya bakılır (`ClaudeHooks.launchCheck`): okunamıyorsa dokunulmaz, ayar
-  açık kalır; PhoneBox girdisi yoksa (kullanıcı elle sildi) ayar kapanır; girdilerin çalıştırdığı uygulama artık yoksa
-  (uygulama taşındı) ya da bazı olaylarda girdi yoksa bu uygulamanın yoluyla yeniden kurulur; girdiler hâlâ duran başka
-  bir PhoneBox'ı gösteriyorsa (deneme kopyası) dosyaya dokunulmaz, girdiler onundur.
+- Kapatınca kaldırır. Açılışta ayar açıksa dosyaya bakılır (`ClaudeHooks.launchCheck`): okunamıyorsa ya da dosya hiç
+  yoksa (`~/.claude` yok) dokunulmaz, günlüğe yazılır, ayar açık kalır; PhoneBox girdisi yoksa (kullanıcı elle sildi) ayar kapanır; girdilerin çalıştırdığı uygulama artık yoksa
+  (uygulama taşındı) ya da bazı olaylarda girdi yoksa bu uygulamanın yoluyla yeniden kurulur; girdilerin hepsi hâlâ duran başka
+  PhoneBox'lara aitse, bu uygulamanınki yoksa (deneme kopyası) eksik olay olsa da dosyaya dokunulmaz, girdiler onlarındır.
 - Aynı soketi iki PhoneBox kullanabilir (`PHONEBOX_DEST` ile kurulan deneme kopyası `/Applications`'takinin yanında):
   açılırken soket dosyası varsa önce bağlanmayı dener; biri kabul ederse dosyaya dokunmaz, günlüğe yazar ve dinlemez;
   yalnız kimse dinlemiyorsa (`ECONNREFUSED`, çökmüş bir PhoneBox'tan kalmış) dosyayı silip kendisi dinler. Kapanırken
