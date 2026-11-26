@@ -52,23 +52,25 @@ alınmadığı için macOS onu engellemez.
 Dashboard'un "⋯" menüsündeki **Kurulum rehberi** bu adımları telefonda da gösterir. Kablo takılınca dashboard'un
 kendiliğinden açılması için isteğe bağlı bir Kestirmeler otomasyonu da orada anlatılır.
 
-## Menü çubuğu
+## Ayarlar ve menü çubuğu
 
-| Öğe | Ne yapar |
+Menü çubuğundaki telefon simgesine tıkla: durum satırı ("iPhone bağlı · 1 cihaz", "Telefon Wi-Fi'de: kabloyu tak"
+gibi), **Ayarlar…** (⌘,), **QR kodunu göster…**, yeni sürüm varsa **PhoneBox x.y.z sürümünü yükle…**,
+**Güncellemeleri denetle…** ve **PhoneBox'tan çık**. PhoneBox zaten açıkken onu yeniden açmak (Finder, Launchpad) da
+ayarlar penceresini getirir.
+
+Ayarlar penceresi Sistem Ayarları gibidir; solda dört bölüm var:
+
+| Bölüm | Neler var |
 |---|---|
-| Durum satırı | "iPhone bağlı · 1 cihaz", "Telefon Wi-Fi'de: kabloyu tak" gibi |
-| QR kodunu göster… | Eşleştirme bağlantısı; başka bir telefonu eklemek için |
-| Veri gönder | **Sadece kablo takılıyken** (varsayılan) ya da **Her zaman, Wi-Fi'de de** |
-| Wi-Fi'den Kilit ve Müzik | Yalnız "Her zaman" modunda: Wi-Fi'deki telefon da Mac'i kilitleyebilir ve müziği oynatıp duraklatabilir, değiştirebilir (varsayılan kapalı; açarken sorar) |
-| Claude Code Oturumları | Mac'teki Claude Code oturumlarını panonun altındaki bir sayfada gösterir (varsayılan kapalı; açarken sorar, aşağıya bak) |
-| Port: 4747… | Dashboard'un portu; değiştirince yeni QR kodu okutulur, sayfa Ana Ekrana yeniden eklenir, eski simge silinir |
-| Girişte başlat | Mac açılınca PhoneBox da açılır |
-| Eşleştirmeyi sıfırla… | Yeni anahtar: eşleşmiş bütün telefonların bağlantısı kesilir |
-| Güncellemeleri denetle… | Yeni sürüm varsa yükler (aşağıya bak) |
+| Bağlantı | Canlı durum (kaç telefon bağlı, kablodan mı Wi-Fi'den mi). **Telefona veri gönder**: **Kablo takılıyken** (varsayılan) ya da **Her zaman**. **Wi-Fi'den kilit ve müzik**: yalnız "Her zaman"da; Wi-Fi'deki telefon da Mac'i kilitleyebilir ve müziği oynatıp duraklatabilir, değiştirebilir (varsayılan kapalı; açarken sorar). **Port** (4747): değiştirince yeni QR kodu okutulur, sayfa Ana Ekrana yeniden eklenir, eski simge silinir |
+| Eşleştirme | QR kodu (başka bir telefonu eklemek için), **Bağlantıyı kopyala**, **Büyüt…**; şu an bağlı telefonlar; **Eşleştirmeyi sıfırla** (yeni anahtar: eşleşmiş bütün telefonların bağlantısı kesilir) |
+| Claude Code | **Claude Code oturumlarını telefonda göster** (varsayılan kapalı; açarken sorar, aşağıya bak), hook'ların ve oturumların durumu, `~/.claude/settings.json`'u Finder'da göster |
+| Genel | **Girişte başlat** (Mac açılınca PhoneBox da açılır), sürüm ve **Şimdi denetle** (aşağıya bak), GitHub sayfası ve lisanslar |
 
 ## Claude Code oturumları
 
-Menüden **Claude Code Oturumları**'nı açarsan telefon, panonun altındaki ikinci bir sayfada Mac'te açık Claude Code
+Ayarlar → Claude Code'da **Claude Code oturumlarını telefonda göster**'i açarsan telefon, panonun altındaki ikinci bir sayfada Mac'te açık Claude Code
 oturumlarını gösterir (masaüstü uygulaması, VS Code, terminal): her birinin başlığı, proje klasörünün adı, modeli, ne
 yaptığı ve ne zamandır. Seni bekleyen oturumlar (bir soru, bir izin ya da sıra sende) turuncu parlar. Bir oturum seni
 beklemeye başlayınca pano yukarı kayar ve bu sayfa gelir; kendiliğinden geldiyse, bekleyen kalmayınca 3 saniye sonra
@@ -86,7 +88,7 @@ sayfada olduğunu gösterir.
 - Eşleştirme anahtarı QR kodundaki bağlantının `#` sonrasında durur ve hiçbir zaman sunucuya gönderilmez. Telefon
   her bağlantıda bu anahtarla kimliğini kanıtlar; her komut da bu anahtarla imzalanır.
 - Komutlar (uygulama kapatma, medya, ses, kilitleme, uyutma) **kablodan** kabul edilir; Wi-Fi'deki bir telefon
-  sadece izler. Menüden **Wi-Fi'den Kilit ve Müzik**'i açarsan Wi-Fi'deki telefon Mac'i kilitleyebilir ve müziği
+  sadece izler. Ayarlar → Bağlantı'da **Wi-Fi'den kilit ve müzik**'i açarsan Wi-Fi'deki telefon Mac'i kilitleyebilir ve müziği
   oynatıp duraklatabilir, değiştirebilir. O zaman aynı Wi-Fi ağını ele geçiren biri de aynısını yapabilir: ekranı
   kilitler ya da şarkı atlatır. Ses, ekranı kapatma, uygulama kapatma ve uyutma yine yalnızca kablodan çalışır.
   Wi-Fi'den kilit 30 sn'de en fazla bir kez çalışır; ayarı kapatmak (ya da eşleştirmeyi sıfırlamak) kötüye kullanımı
@@ -98,8 +100,8 @@ sayfada olduğunu gösterir.
 
 ## Güncelleme
 
-PhoneBox yeni bir sürüm çıkınca menüde "PhoneBox x.y.z sürümünü yükle…" gösterir; "Güncellemeleri denetle…" ile
-elle de bakabilirsin. Yükleme PhoneBox'ı kapatır, yenisini yerine koyar ve açar; telefon kendiliğinden yeniden
+PhoneBox yeni bir sürüm çıkınca menüde "PhoneBox x.y.z sürümünü yükle…" gösterir; "Güncellemeleri denetle…" (ya da
+Ayarlar → Genel → "Şimdi denetle") ile elle de bakabilirsin. Yükleme PhoneBox'ı kapatır, yenisini yerine koyar ve açar; telefon kendiliğinden yeniden
 bağlanır, panel yenilenir ve bir kez "Başlat" ister. Kurulum komutunu yeniden çalıştırmak da günceller.
 
 ## Kaldırma
@@ -113,13 +115,13 @@ simgesini elle sil.
 
 ## Sorun giderme
 
-- **Dashboard "Kabloyu tak" diyor:** telefon Wi-Fi'den bağlı. Kabloyu tak ya da menüden "Her zaman, Wi-Fi'de de"yi
+- **Dashboard "Kabloyu tak" diyor:** telefon Wi-Fi'den bağlı. Kabloyu tak ya da Ayarlar → Bağlantı'da "Her zaman"ı
   seç.
 - **QR kodu okuttum ama sayfa açılmıyor:** iPhone ile Mac aynı ağda olmalı ya da iPhone kabloyla takılı olmalı.
   macOS PhoneBox'ın gelen bağlantıları kabul etmesini sorduysa izin ver (Sistem Ayarları → Ağ → Güvenlik Duvarı).
-- **"Port 4747 kullanımda":** menüden başka bir port seç, yeni QR kodunu okut, sayfayı Ana Ekrana yeniden ekle ve eski simgeyi sil (eski simge eski portu açar).
+- **"Port 4747 kullanımda":** Ayarlar → Bağlantı → Port'ta başka bir port seç, yeni QR kodunu okut, sayfayı Ana Ekrana yeniden ekle ve eski simgeyi sil (eski simge eski portu açar).
 - **Müzik, ses ya da uygulama komutları çalışmıyor:** komutlar kablodan çalışır; kablonun takılı olduğuna bak.
-  Wi-Fi'de yalnız kilit ve müzik çalışabilir, o da menüde "Wi-Fi'den Kilit ve Müzik" açıksa.
+  Wi-Fi'de yalnız kilit ve müzik çalışabilir, o da ayarlarda "Wi-Fi'den kilit ve müzik" açıksa.
 - **Ekran kararıyor:** dashboard'u açtıktan sonra "Başlat"a dokun. Olmazsa Ayarlar → Ekran ve Parlaklık → Otomatik
   Kilit'i "Asla" yap.
 - **Telefonu yan çevirince sayfa dönmüyor:** iPhone'da Dikey Yön Kilidi açık. Denetim Merkezi'ni aç (sağ üst köşeden
@@ -202,23 +204,25 @@ does not block it.
 **Setup guide** in the dashboard's "⋯" menu shows these steps on the phone, along with an optional Shortcuts
 automation that opens the dashboard when the cable is plugged in.
 
-## Menu bar
+## Settings and the menu bar
 
-| Item | What it does |
+Click the phone icon in the menu bar: a status line (e.g. "iPhone connected · 1", "Phone on Wi-Fi: plug in the
+cable"), **Settings…** (⌘,), **Show QR Code…**, **Install PhoneBox x.y.z…** when there is a new version, **Check for
+Updates…** and **Quit PhoneBox**. Opening PhoneBox again while it runs (Finder, Launchpad) also brings up the settings
+window.
+
+The settings window works like System Settings, with four sections on the left:
+
+| Section | What is in it |
 |---|---|
-| Status line | e.g. "iPhone connected · 1", "Phone on Wi-Fi: plug in the cable" |
-| Show QR Code… | The pairing link, to add another phone |
-| Send data | **Only While the Cable Is Plugged In** (default) or **Always, Also over Wi-Fi** |
-| Lock and Music over Wi-Fi | Only in "Always" mode: a phone on Wi-Fi can also lock the Mac and play, pause or skip music (off by default; asks first) |
-| Claude Code Sessions | Shows the Mac's Claude Code sessions on a page below the dashboard (off by default; asks first, see below) |
-| Port: 4747… | The dashboard's port; after a change scan the new QR code, add the page to the Home Screen again and delete the old icon |
-| Open at Login | PhoneBox starts with the Mac |
-| Reset Pairing… | A new key: every paired phone is disconnected |
-| Check for Updates… | Installs a newer version if there is one (see below) |
+| Connection | The live status (how many phones, over the cable or Wi-Fi). **Send data to the phone**: **While Plugged In** (default) or **Always**. **Lock and music over Wi-Fi**: only with "Always"; a phone on Wi-Fi can also lock the Mac and play, pause or skip music (off by default; asks first). **Port** (4747): after a change scan the new QR code, add the page to the Home Screen again and delete the old icon |
+| Pairing | The QR code (to add another phone), **Copy Link**, **Show Larger…**; the phones connected now; **Reset pairing** (a new key: every paired phone is disconnected) |
+| Claude Code | **Show Claude Code sessions on the phone** (off by default; asks first, see below), the state of the hooks and sessions, `~/.claude/settings.json` in Finder |
+| General | **Open at Login** (PhoneBox starts with the Mac), the version and **Check Now** (see below), the GitHub page and the licenses |
 
 ## Claude Code sessions
 
-Turn on **Claude Code Sessions** in the menu and the phone shows the Mac's open Claude Code sessions (desktop app,
+Turn on **Show Claude Code sessions on the phone** in Settings → Claude Code and the phone shows the Mac's open Claude Code sessions (desktop app,
 VS Code, terminal) on a second page below the dashboard: each one's title, project folder, model, what it is doing and
 for how long. Sessions waiting for you (a question, a permission, or your turn) glow orange. When a session starts
 waiting for you, the dashboard slides up and this page comes in; if it came by itself, it goes back 3 seconds after
@@ -235,7 +239,7 @@ nothing is waiting any more. Swipe up or down to switch pages; two dots on the r
 - The pairing key sits after the `#` of the QR code's link and is never sent to a server. The phone proves itself with
   it on every connection, and every command is signed with it.
 - Commands (quitting apps, media, volume, lock, sleep) are accepted **over the cable**; a phone on Wi-Fi only
-  watches, unless you turn on **Lock and Music over Wi-Fi** in the menu: then it can also lock the Mac and play, pause
+  watches, unless you turn on **Lock and music over Wi-Fi** in Settings → Connection: then it can also lock the Mac and play, pause
   or skip music. So could someone who takes over the same Wi-Fi network: lock the screen or skip a song. Volume,
   display off, quitting apps and sleep still work only over the cable. A lock over Wi-Fi works at most once every
   30 seconds, and turning the setting off (or resetting the pairing) stops anyone misusing it.
@@ -246,7 +250,8 @@ nothing is waiting any more. Swipe up or down to switch pages; two dots on the r
 
 ## Updating
 
-When a new version is out, the menu shows "Install PhoneBox x.y.z…"; "Check for Updates…" looks right away. Installing
+When a new version is out, the menu shows "Install PhoneBox x.y.z…"; "Check for Updates…" (or Settings → General →
+"Check Now") looks right away. Installing
 quits PhoneBox, puts the new version in place and opens it; the phone reconnects by itself, the dashboard reloads and asks for "Start" once. Running the install
 command again updates too.
 
@@ -262,12 +267,12 @@ on the phone by hand.
 ## Troubleshooting
 
 - **The dashboard says "Plug in the cable":** the phone is connected over Wi-Fi. Plug in the cable, or choose
-  "Always, Also over Wi-Fi" in the menu.
+  "Always" in Settings → Connection.
 - **The QR code opens nothing:** the iPhone has to be on the Mac's network or plugged into it. If macOS asked whether
   PhoneBox may accept incoming connections, allow it (System Settings → Network → Firewall).
-- **"Port 4747 is in use":** choose another port in the menu, scan the new QR code, add the page to the Home Screen again and delete the old icon (the old one opens the old port).
+- **"Port 4747 is in use":** choose another port in Settings → Connection → Port, scan the new QR code, add the page to the Home Screen again and delete the old icon (the old one opens the old port).
 - **Music, volume or app commands do nothing:** commands work over the cable; check that it is plugged in. On Wi-Fi
-  only lock and music can work, and only with "Lock and Music over Wi-Fi" on in the menu.
+  only lock and music can work, and only with "Lock and music over Wi-Fi" on in the settings.
 - **The screen goes dark:** tap "Start" after opening the dashboard. If it still does, set Settings → Display &
   Brightness → Auto-Lock to "Never".
 - **The page doesn't turn when you turn the phone sideways:** Portrait Orientation Lock is on. Open Control Center

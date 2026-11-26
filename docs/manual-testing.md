@@ -11,7 +11,7 @@ ya da `lsof -nP -iTCP:4747 -sTCP:ESTABLISHED` (`fe80:<scope>::…` adresinin sco
 - [ ] Kablo modunda bağlantı iPhone'un USB arayüzünden geliyor (`scoped link-local: true, USB: true`); iPhone'un
   Wi-Fi'si kapalıyken de çalışıyor.
 - [ ] Ana Ekrana Ekle simgesinden açılınca anahtar korunuyor.
-- [ ] "Eşleştirmeyi sıfırla…" → açık sayfa "Eşleşmedi" (Başlat katmanı mesajı örtmüyor); yeni QR okutulunca aynı
+- [ ] Ayarlar → Eşleştirme → "Sıfırla…" → açık sayfa "Eşleşmedi" (Başlat katmanı mesajı örtmüyor); yeni QR okutulunca aynı
   sekme kendini yenileyip bağlanıyor.
 
 ## Kablo modu
@@ -29,7 +29,7 @@ ya da `lsof -nP -iTCP:4747 -sTCP:ESTABLISHED` (`fe80:<scope>::…` adresinin sco
 
 ## Mac
 - [ ] Menü çubuğu simgesi veri akarken yeşil, değilken gri.
-- [ ] "Girişte başlat" açılıp kapanıyor (Sistem Ayarları → Genel → Giriş Öğeleri'nde görünüyor).
+- [ ] Ayarlar → Genel → "Girişte başlat" açılıp kapanıyor (Sistem Ayarları → Genel → Giriş Öğeleri'nde görünüyor).
 - [ ] Kimse bağlı değilken PhoneBox'ın CPU kullanımı ~%0.
 - [ ] Mac boştayken (ekran açık, kullanıcı yok) Etkinlik Monitörü'nde PhoneBox için "App Nap: Hayır" ve telefonda
   değerler saniyede bir değişiyor.
@@ -80,7 +80,8 @@ ya da `lsof -nP -iTCP:4747 -sTCP:ESTABLISHED` (`fe80:<scope>::…` adresinin sco
   "kablo" sayılır; o zaman bu arayüz dışlanır ya da risk §13'e yazılır).
 
 ## Wi-Fi'den kilit ve müzik (0.2.0)
-- [ ] Menüde "Wi-Fi'den Kilit ve Müzik" kablo modunda soluk (seçilemiyor), "Her zaman" modunda seçilebilir.
+- [ ] Ayarlar → Bağlantı'da "Wi-Fi'den kilit ve müzik" kablo modunda kapalı ve soluk, "Her zaman" modunda
+  kullanılabiliyor.
 - [ ] Açarken uyarı çıkıyor; "Vazgeç" ayarı kapalı bırakıyor (işaret yok), "İzin ver" açıyor (işaret var); kapatırken
   soru sormuyor.
 - [ ] Wi-Fi'deki telefonda (kablo yok, ayar açık): medya düğmeleri ve Kilitle çalışıyor.
@@ -91,7 +92,7 @@ ya da `lsof -nP -iTCP:4747 -sTCP:ESTABLISHED` (`fe80:<scope>::…` adresinin sco
 
 ## Claude Code oturumları (0.3.0)
 - [ ] Özellik kapalıyken telefonda ikinci sayfa, sağ kenarda noktalar ve dikey kaydırma yok; dashboard eskisi gibi.
-- [ ] Menüden "Claude Code Oturumları" önce soruyor; "Vazgeç" hiçbir şeye dokunmuyor. "Aç"tan sonra
+- [ ] Ayarlar → Claude Code'da "Claude Code oturumlarını telefonda göster" önce soruyor; "Vazgeç" hiçbir şeye dokunmuyor. "Aç"tan sonra
   `~/.claude/settings.json`'da on olayın her birinde PhoneBox'ın `--claude-hook` grubu var, dosyanın diğer ayarları
   duruyor, `settings.json.phonebox-backup` eski dosyayla aynı. Telefonda ikinci sayfa ve noktalar beliriyor.
 - [ ] Yeni bir oturum (terminalde `claude`, VS Code, masaüstü uygulaması) birkaç saniyede gri "Hazır" kartıyla
@@ -112,7 +113,7 @@ ya da `lsof -nP -iTCP:4747 -sTCP:ESTABLISHED` (`fe80:<scope>::…` adresinin sco
 - [ ] Yatayda 4 oturuma kadar iki sütun, 5 ve üstünde üç sütun (sıkı kartlar); dikeyde tek sütun; kesilen ya da taşan
   yok. Oturum yokken "Açık Claude oturumu yok".
 - [ ] Veri kesilince Claude sayfası da soluk ve kıpırdamıyor; Hareketi Azalt açıkken kayma ve kart girişleri anlık.
-- [ ] Menüden kapatınca hook'lar `settings.json`'dan siliniyor (diğer her şey duruyor); telefonda ikinci sayfa ve
+- [ ] Ayarlardan kapatınca hook'lar `settings.json`'dan siliniyor (diğer her şey duruyor); telefonda ikinci sayfa ve
   noktalar gidiyor, Claude sayfasındaysa panoya dönüyor.
 - [ ] Özellik açıkken `install.sh --uninstall` hook'ları siliyor.
 - [ ] Özellik kapalıyken zaten açık olan bir oturum, özellik açılınca bir sonraki olayında (mesaj, araç) listede
@@ -122,6 +123,44 @@ ya da `lsof -nP -iTCP:4747 -sTCP:ESTABLISHED` (`fe80:<scope>::…` adresinin sco
 - [ ] İki kopya: `PHONEBOX_DEST` ile `/Applications`'ın yanına deneme kopyası kur. Deneme kopyası soketi ve hook'ları
   almamalı (`/Applications`'takinin hook'ları yerinde, oturumlar oradan geliyor). Deneme kopyasında özelliği açıp
   kapatmak ortak ayarı ve hook'ları etkiler: yalnız bilerek yap.
+
+## Ayarlar penceresi (0.4.0)
+Açık ve koyu temada ayrı ayrı (Sistem Ayarları → Görünüm); iki dilde birer kez (Sistem Ayarları → Genel → Dil ve
+Bölge → Uygulamalar → PhoneBox).
+- [ ] Menü kısa: durum satırı, "Ayarlar…" (⌘, yazıyor), "QR kodunu göster…", (yeni sürüm varsa "PhoneBox x.y.z
+  sürümünü yükle…"), "Güncellemeleri denetle…", "PhoneBox'tan çık". Mod, Wi-Fi'den kilit, Claude, Port, Girişte başlat
+  ve Eşleştirmeyi sıfırla menüde yok.
+- [ ] "Ayarlar…" pencereyi başka bir uygulamanın önüne getiriyor; Finder'dan ya da `open -a PhoneBox` ile yeniden açmak
+  da getiriyor (ikinci bir PhoneBox açılmıyor). Kapatma düğmesi ve ⌘W yalnız gizliyor; yeniden açınca aynı bölüm.
+- [ ] Pencere küçültülüp büyütülebiliyor, 680×460'tan küçülmüyor; PhoneBox yeniden açılınca aynı yerde ve boyutta.
+- [ ] Kenar çubuğunda dört bölüm renkli simgeleriyle; seçili satır sistemin vurgu rengiyle; arama alanı yok.
+- [ ] Bağlantı: telefon takılıyken yeşil nokta ve "iPhone bağlı", altında "1 cihaz · kabloyla"; kablo çıkınca birkaç
+  saniyede "iPhone bekleniyor" (pencere açıkken, kapatıp açmadan). "Her zaman"da Wi-Fi'den bağlanınca "Wi-Fi'den";
+  kablo kipinde Wi-Fi'deki telefonla turuncu "Telefon Wi-Fi'de: kabloyu tak".
+- [ ] "Kablo takılıyken"e geçince "Wi-Fi'den kilit ve müzik" kapalı ve soluk; "Her zaman"a dönünce eski hâli. Telefonun
+  erişimi menüdeki gibi hemen değişiyor.
+- [ ] "Wi-Fi'den kilit ve müzik"i açarken 0.2.0'daki uyarı aynı metinle çıkıyor; "Vazgeç" anahtarı kapalı bırakıyor,
+  "İzin ver" açıyor; kapatırken sormuyor.
+- [ ] Port → "Değiştir…": port penceresi aynı; geçersiz sayıda yeniden soruyor; boş bir port seçince numara değişiyor ve
+  QR penceresi açılıyor; kullanımdaki bir portta "Port … zaten kullanımda" uyarısı, numara değişmiyor.
+- [ ] Eşleştirme: QR kodu telefonla okutulunca dashboard açılıyor. "Bağlantıyı kopyala" panoya kişisel bağlantıyı
+  koyuyor ve "Kopyalandı" oluyor; "Büyüt…" QR penceresini açıyor. "Eşleşmiş telefonlar" bağlı telefon sayısını canlı
+  gösteriyor. "Sıfırla…" uyarısı aynı; "Vazgeç" bir şey yapmıyor, "Sıfırla" sonrası penceredeki QR yeni bağlantıyı
+  gösteriyor, telefon "Eşleşmedi" görüyor.
+- [ ] Claude Code: açarken 0.3.0'daki uyarı; "Aç" sonrası durum "Hook'lar kurulu · N oturum", bir oturum soru sorunca
+  "· 1 seni bekliyor" pencere açıkken beliriyor. Kapatınca "Kapalı". `settings.json` bozukken (geçici bir kopyayla)
+  açmak uyarıyı gösteriyor, anahtar kapalı kalıyor ve sebep durumun altında kırmızı. "Finder'da göster" gerçek dosyayı
+  seçiyor (sembolik bağlantıysa hedefini); dosya yoksa soluk.
+- [ ] Genel: "Girişte başlat" açılıp kapanıyor ve Sistem Ayarları → Giriş Öğeleri ile aynı; orada kapatıp pencereye
+  dönünce anahtar kapalı. Onay gerekirse açıklama satırı ve "Giriş Öğeleri'ni aç" görünüyor.
+- [ ] Güncelleme: "PhoneBox 0.4.0", altında "Güncel · son denetim … önce"; "Şimdi denetle" sırasında "Denetleniyor…",
+  sonra menüdeki gibi "PhoneBox … güncel." uyarısı. `UpdateFeedURL` ile yeni bir sürüm gösterilince "x.y.z sürümü var" ve
+  "Yükle…" (onay uyarısı aynı). İnternet yokken "Denetlenemedi".
+- [ ] "GitHub'da aç" depo sayfasını, "Lisanslar" `LICENSE` ve `THIRD_PARTY_NOTICES.md`'yi TextEdit'te açıyor.
+- [ ] Bütün uyarılar (kilit ve müzik, Claude, port, sıfırlama, giriş öğeleri, güncelleme) 0.3.0'daki metinlerle; açıkken
+  telefonun bağlantısı kopmuyor.
+- [ ] Koyu ve açık temada metinler okunuyor, kontrol ve gruplar Sistem Ayarları gibi; tema pencere açıkken değişince
+  pencere de değişiyor.
 
 ## Henüz denenmemiş (spike 8)
 - [ ] Kestirmeler → Otomasyon → Şarj Aleti → "URL'yi Aç" (kişisel bağlantı) → "Hemen Çalıştır": kablo takılınca

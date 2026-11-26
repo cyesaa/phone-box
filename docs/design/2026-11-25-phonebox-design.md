@@ -34,7 +34,7 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 - Telefondan komutlar: uygulama kapat / zorla kapat, oynat-duraklat / önceki / sonraki, ses seviyesi ve sessiz,
   Mac'i kilitle, ekranı kapat, uyut.
 - QR kodla eşleştirme; imzalı (HMAC) kimlik doğrulama ve komutlar.
-- İki erişim modu: "kablo takılıyken" (varsayılan) ve "her zaman"; menü çubuğundan seçilir.
+- İki erişim modu: "kablo takılıyken" (varsayılan) ve "her zaman"; ayarlar penceresinden seçilir.
 - Arayüz dili İngilizce + Türkçe, telefonun / Mac'in diline göre otomatik.
 - `curl | bash` kurulum, GitHub Releases, menüden güncelleme, `--uninstall`.
 
@@ -57,7 +57,7 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 | Kablonun rolü | Veri yolu, "kabloyla bağlı" kanıtı (kablo modu) ve şarj | Mac, bir istemcinin USB arayüzünden geldiğini görebilir; `usbmuxd` takma olayını Xcode olmadan bildirir |
 | HTTP, HTTPS değil | Düz HTTP | HTTPS için ya telefona sertifika kurmak ya da dışarıda sunucu işletmek gerekir; ikisi de hedefe aykırı |
 | HTTP'nin bedeli | Wake Lock ve `crypto.subtle` yok | Ekran, sesi açık ama sessiz bir videoyla ve "ambient" ses oturumuyla açık tutulur (spike V4); SHA-256/HMAC sade JS ile yazılır |
-| Mac uygulaması | Swift 6 araç zinciri (Swift 5 dil modu), AppKit menü çubuğu, SwiftPM | NotchBox ile aynı; Xcode gerekmez |
+| Mac uygulaması | Swift 6 araç zinciri (Swift 5 dil modu), AppKit menü çubuğu, SwiftUI ayarlar penceresi (0.4.0), SwiftPM | NotchBox ile aynı; Xcode gerekmez |
 | Sunucu | Network.framework (`NWListener`, `NWProtocolWebSocket`) | Ek kütüphane yok |
 | Dashboard kodu | Sade HTML/CSS/JS, uygulamanın içine gömülü (`Resources/web`) | Derleme adımı ve npm yok (yaklaşım A) |
 | Minimum sistem | macOS 14, Apple Silicon | NotchBox ile aynı; sıcaklık/güç okuma Apple Silicon'a özgü |
@@ -96,7 +96,7 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 | Server | Tek portta dosyaları (Range destekli) ve `/ws` WebSocket'ini sunar; kimlik doğrulama; en fazla 4 istemci; her istemcinin hangi arayüzden geldiğini kaydeder | `start(port)`, `broadcast`, `onCommand` | Network.framework, CryptoKit, Core protokolü |
 | CommandRunner | Komutları çalıştırır, sonuç döner | `run(Command) -> CommandResult` | AppKit, CoreAudio, mediaremote-adapter, pmset |
 | PhoneBattery | Kabloyla takılı iPhone'un pilini okur (bölüm 6, `phone`) | `start()`, `stop()`, `latest` | `MobileDevice.framework` (resmi olmayan, `dlopen`) |
-| MenuBar | Simge, menü, QR penceresi | — | AppKit, CoreImage (QR) |
+| MenuBar | Simge, menü, QR penceresi, ayarlar penceresi (0.4.0) | — | AppKit, SwiftUI, CoreImage (QR) |
 | Web dashboard | Yatay/dikey görünüm, grafik geçmişi, komut arayüzü, rehber, ekranı açık tutma | WebSocket protokolü (bölüm 5) | iOS WebKit (Safari, Chrome) |
 
 ## 5. Bağlantı, eşleştirme ve güvenlik
@@ -143,8 +143,8 @@ Kurallar:
 
 ### AccessPolicy
 
-`AccessPolicy.decide(mode, lockAndMusicOverWiFi, clientOnUSB, authenticated)`; `lockAndMusicOverWiFi` menüdeki
-"Wi-Fi'den Kilit ve Müzik" ayarıdır (varsayılan kapalı).
+`AccessPolicy.decide(mode, lockAndMusicOverWiFi, clientOnUSB, authenticated)`; `lockAndMusicOverWiFi` ayarlar
+penceresindeki "Wi-Fi'den kilit ve müzik" ayarıdır (varsayılan kapalı).
 
 | Mod | İstemcinin bağlantısı | Veri | Komut (`commands`) |
 |---|---|---|---|
@@ -496,32 +496,59 @@ Mac tarafında `phone`, `battery.plugged`, `ready.limits`) → Plan 4B (komut ar
 
 ### Menü çubuğu (Mac)
 
-Simge telefon çizimi: gri = izinli istemci yok, yeşil = en az bir istemci veri alıyor. Ayrı ayarlar penceresi yoktur.
+Simge telefon çizimi: gri = izinli istemci yok, yeşil = en az bir istemci veri alıyor. 0.4.0'dan beri ayarlar menüde
+değil, ayrı bir pencerede (aşağıda); menü kısadır:
 
-- Durum satırı (ör. "iPhone bağlı · 1 cihaz", "Port 4747 kullanımda", "USB algılanamıyor")
-- QR kodu göster
-- Mod: ● Kablo takılıyken / ○ Her zaman
-- Wi-Fi'den Kilit ve Müzik (iki mod öğesinin hemen altında; açıkken işaretli, varsayılan kapalı): yalnız "Her zaman"
-  modunda seçilebilir, kablo modunda Wi-Fi'deki telefon hiç veri almadığı için soluktur. Açarken bir uyarı sorar
-  ("Wi-Fi'den kilit ve müzik açılsın mı?": Wi-Fi ağını ele geçiren biri de aynısını yapabilir; ses, ekranı kapatma,
-  uygulama kapatma ve uyutma yine kablo ister; "İzin ver" / "Vazgeç"); kapatırken sormaz. Değişince erişimi değişen
-  telefonlara mod değişimindeki gibi yeni `access` gider (bölüm 5).
-- Claude Code Oturumları (mod grubundan sonra kendi grubunda; açıkken işaretli, varsayılan kapalı): açarken uyarı sorar,
-  hook'ları `~/.claude/settings.json`'a kurar; kapatınca sormadan siler; dosya değiştirilemezse uyarı (bölüm 14).
-- Port: 4747…: 1024–65535 arası bir sayı sorar (`PortChoice`); geçersizse sebebini söyleyip yeniden sorar. Yeni port
-  eski port dinlenirken açılır; hazır olunca eski dinleyici durur, onun kabul ettiği bağlantılar kapanır (1001), port
-  kaydedilir ve telefonun bağlantısı portu içerdiği için QR penceresi açılır. Kullanımdaki bir port reddedilir: bir
-  uyarı bunu söyler, PhoneBox ve bağlı telefonlar eski portta kalır, kayıtlı port değişmez. Yerini başkasına bırakan
-  dinleyicinin geç gelen durumu ve bağlantısı yok sayılır. 4747 seçilince ayar silinir.
-- Girişte başlat (ServiceManagement). macOS onay isterse (`requiresApproval`) öğe yarım işaretli görünür ve bir uyarı
-  "Giriş Öğeleri'ni aç" düğmesiyle Sistem Ayarları'na götürür.
-- Eşleştirmeyi sıfırla
+- Durum satırı (ör. "iPhone bağlı · 1 cihaz", "Telefon Wi-Fi'de: kabloyu tak", "Port 4747 kullanımda", "USB aygıtları
+  görülemiyor")
+- Ayarlar… (⌘,): ayarlar penceresini öne getirir
+- QR kodunu göster…
 - "PhoneBox x.y.z sürümünü yükle…" (yalnız yeni sürüm varken) ve "Güncellemeleri denetle…" (NotchBox'taki gibi):
   açılıştan 15 sn sonra ve günde iki kez GitHub'ın "latest release" yanıtına bakılır (taslak ve ön sürüm sayılmaz).
   Yükle, kurulum komutunu PhoneBox'tan bağımsız bir kabukta çalıştırır: PhoneBox kapanır, yenisi yerine konup açılır,
   çıktısı `~/Library/Logs/PhoneBox/update.log`'a yazılır. Kurulum başarısızsa komut panoya konur ve kayıt gösterilir.
   `defaults write com.phonebox.PhoneBox CheckForUpdatesAutomatically -bool false` otomatik denetimi kapatır.
-- Çık
+- PhoneBox'tan çık
+
+PhoneBox çalışırken yeniden açılınca (Finder, Launchpad, `open`) ayarlar penceresi öne gelir. İlk eşleştirmedeki QR
+davranışı aynıdır (bölüm 5).
+
+### Ayarlar penceresi (0.4.0)
+
+Sistem Ayarları gibi: solda renkli simgeli dört bölüm, sağda seçilenin ayarları gruplu bir formda (SwiftUI
+`NavigationSplitView`, `Form` `.grouped`; AppKit penceresinde `NSHostingController`). Pencere "PhoneBox" başlıklı,
+boyutu değiştirilebilir (en az 680×460), yeri hatırlanır; kapatmak yalnız gizler, ⌘W kapatır. Açıkken her şey canlı
+güncellenir (bağlanan telefonlar, Claude oturumları, güncelleme durumu); Girişte başlat ve `~/.claude/settings.json`
+kendiliğinden haber vermediği için pencere her öne geldiğinde yeniden okunur. Görünüm `SettingsModel`'dan okur; akışlar
+(uyarılar, port penceresi, giriş öğesi, sıfırlama, Claude aç/kapa) menüdekiyle aynı metinlerle `AppDelegate`'te ve
+`SettingsDialogs`'ta. Açık ve koyu temaya uyar.
+
+- **Bağlantı:** üstte canlı durum (yeşil nokta + "iPhone bağlı", altında "1 cihaz · kabloyla" / "2 cihaz · 1 kabloyla,
+  1 Wi-Fi'den"; ya da menünün diğer durum metinleri ve ne yapılacağı). "Telefona veri gönder": "Kablo takılıyken" /
+  "Her zaman" (bölünmüş düğme). "Wi-Fi'den kilit ve müzik": yalnız "Her zaman"da kullanılır, kablo kipinde kapalı
+  görünür ve soluktur (kayıtlı ayar kalır); açarken bölüm 5'teki uyarı sorar, kapatırken sormaz. "Port": numara ve
+  "Değiştir…": 1024–65535 arası bir sayı sorar (`PortChoice`); geçersizse sebebini söyleyip yeniden sorar. Yeni port
+  eski port dinlenirken açılır; hazır olunca eski dinleyici durur, onun kabul ettiği bağlantılar kapanır (1001), port
+  kaydedilir ve telefonun bağlantısı portu içerdiği için QR penceresi açılır. Kullanımdaki bir port reddedilir: bir
+  uyarı bunu söyler, PhoneBox ve bağlı telefonlar eski portta kalır, kayıtlı port değişmez. Yerini başkasına bırakan
+  dinleyicinin geç gelen durumu ve bağlantısı yok sayılır. 4747 seçilince ayar silinir.
+- **Eşleştirme:** kişisel bağlantının QR kodu pencerenin içinde, okutma metni, "Bağlantıyı kopyala" ("Kopyalandı" olur)
+  ve "Büyüt…" (QR penceresi). "Eşleşmiş telefonlar": şu an bağlı telefonların sayısı (kablo bekleyenler dahil).
+  "Eşleştirmeyi sıfırla" → "Sıfırla…": onay uyarısı; yeni anahtar, bütün telefonlar kapanır, QR penceresi açılır ve
+  penceredeki QR yeni bağlantıyı gösterir.
+- **Claude Code:** "Claude Code oturumlarını telefonda göster" (bölüm 14; açarken uyarı, hook'ları kurar; kapatınca
+  sormadan siler). Durum: "Hook'lar kurulu · 3 oturum · 1 seni bekliyor", "Hook'lar kurulu değil" ya da "Kapalı"; son
+  kurma ya da silme başarısızsa sebebi altında kırmızı (uyarı da çıkar). "~/.claude/settings.json" → "Finder'da göster"
+  (sembolik bağlantı izlenip gerçek dosya; dosya yoksa soluk).
+- **Genel:** "Girişte başlat" (ServiceManagement). macOS onay isterse (`requiresApproval`) anahtar açık görünür, altında
+  bunu söyleyen bir satır ve "Giriş Öğeleri'ni aç" düğmesi; anahtara dokunmak isteği geri çekmez, onay uyarısını yeniden
+  gösterir. "Güncelleme": "PhoneBox x.y.z", altında "Güncel" / "x.y.z sürümü var" / "Denetleniyor…" / "Denetlenemedi" ve
+  son denetimin ne zaman olduğu; "Şimdi denetle" (menüdeki "Güncellemeleri denetle…" ile aynı) ve yeni sürüm varken
+  "Yükle…". "Hakkında": "GitHub'da aç" (depo sayfası) ve "Lisanslar" (paketteki `LICENSE` ve `THIRD_PARTY_NOTICES.md`,
+  TextEdit'te).
+
+Görünüm testte açılamadığı için `SettingsViewRenderTests` onu örnek bir modelle (`SettingsModel.sample`) her bölüm
+için açık ve koyu temada PNG'ye çizer (geçici klasörde `PhoneBoxSettings/`).
 
 Menü ve pencereler İngilizce ve Türkçe (`Resources/{en,tr}.lproj/Localizable.strings`); iki dosyanın anahtarları ve
 her metnin yer tutucuları aynı olmalı (`LocalizationTests`).
@@ -530,8 +557,8 @@ her metnin yer tutucuları aynı olmalı (`LocalizationTests`).
 
 | Durum | Davranış |
 |---|---|
-| Port dolu | Açılışta başka porta geçilmez (kayıtlı bağlantı bozulmasın): menüde uyarı ve "Port…" ile yeni port; QR güncellenir. "Port…" ile seçilen port kullanımdaysa reddedilir: uyarı çıkar, PhoneBox eski portta kalır, kayıtlı port değişmez |
-| usbmuxd yok | Takma olayıyla QR penceresi açılamaz; menüde uyarı. Kablo modu etkilenmez (USB arayüzüne bakar) |
+| Port dolu | Açılışta başka porta geçilmez (kayıtlı bağlantı bozulmasın): menüde ve ayarlar penceresinde uyarı, Ayarlar → Bağlantı → Port → "Değiştir…" ile yeni port; QR güncellenir. Seçilen port kullanımdaysa reddedilir: uyarı çıkar, PhoneBox eski portta kalır, kayıtlı port değişmez |
+| usbmuxd yok | Takma olayıyla QR penceresi açılamaz; menüde ve ayarlar penceresinde uyarı. Kablo modu etkilenmez (USB arayüzüne bakar) |
 | Tarayıcı HTTPS deniyor | İlk baytı `0x16` (TLS el sıkışması) olan bağlantı hemen kapatılır; tarayıcı HTTP'ye düşer |
 | Video byte aralığı istiyor | `Range` isteğine `206 Partial Content`, geçersize `416`; iOS aralıksız sunulan videoyu oynatmaz |
 | Collector hatası / takılma | Her `sample()` zaman sınırlı; değer `null`, aynı hata log'a bir kez yazılır |
@@ -632,7 +659,7 @@ docs/design/2026-11-25-phonebox-design.md   docs/spike-results.md   docs/manual-
 - **Ekranın açık kalması:** WebKit'in "sesi açık görüntü+ses videosu oynarken uyuma" davranışına ve Audio Session
   API'ye dayanıyor; bir iOS güncellemesi değiştirirse kullanıcı "Otomatik Kilit"i elle ayarlar.
 - **USB ağ bağlantısı:** iOS'un güvenilen bir Mac'e USB ağ bağlantısı açmasına dayanıyor; açmazsa dashboard Wi-Fi
-  üzerinden çalışır, kablo modu ise "Kabloyu tak" gösterir (menüde "Her zaman" moduna geçilebilir).
+  üzerinden çalışır, kablo modu ise "Kabloyu tak" gösterir (ayarlarda "Her zaman" moduna geçilebilir).
 - **Resmi olmayan API'ler** (sıcaklık, güç, kilitleme, medya, telefonun pili): macOS güncellemesiyle bozulabilir; her
   biri tek başına devre dışı kalacak şekilde yalıtılır (telefonun pili okunamazsa simge gizlenir).
 - **Telefonun pili kilitliyken:** iPhone kilitliyken pilin okunup okunmadığı henüz denenmedi (telefon denemesinde
@@ -741,9 +768,10 @@ Olay listesi: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `
 Elenen yollar: `http` hook'u (oturumun işlemi bilinmez, `SessionStart` desteklemez, port değişince bozulur); hook'suz
 oturum dosyalarını izlemek (izin beklemesi görünmez, biçim belgelenmemiş).
 
-### Kurulum (menü)
+### Kurulum (ayarlar penceresi)
 
-"Claude Code Oturumları" (kapalı başlar). Açarken uyarı: ne ekleneceği, dosyanın yedeği, başlıkların telefona (her
+Ayarlar → Claude Code → "Claude Code oturumlarını telefonda göster" (0.3.0'da menüdeki "Claude Code Oturumları"; kapalı
+başlar). Açarken uyarı: ne ekleneceği, dosyanın yedeği, başlıkların telefona (her
 zaman kipinde Wi-Fi'den de) gideceği. Onaylanınca `ClaudeHooks.install`:
 
 - `~/.claude/settings.json` okunur (yoksa boş nesne, `~/.claude` yoksa oluşturulur); kök nesne değilse ya da `hooks`
