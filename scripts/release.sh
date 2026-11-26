@@ -69,7 +69,7 @@ trap - EXIT
 # Until the push succeeds, the commit and the tag exist only here: say how to undo them before running this again.
 local_only() {
   echo "error: the commit \"Release $VERSION\" and the tag v$VERSION exist only locally; undo them with" \
-    "\`git tag -d v$VERSION && git reset --hard HEAD~1\` before running this again." >&2
+    "\`git tag -d v$VERSION; git reset --hard HEAD~1\` before running this again." >&2
 }
 trap local_only EXIT
 git tag -a "v$VERSION" -m "PhoneBox $VERSION"
