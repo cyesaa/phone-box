@@ -24,12 +24,16 @@ public struct ClaudeEvent: Codable, Equatable, Sendable {
     public var transcript: String?
     /// The session's `claude` process: the hook's parent.
     public var pid: Int32
-    /// `session_title` and `model` of a SessionStart, when given.
+    /// `session_title` and `model` of a SessionStart, when given; the title as short as one from the session's file.
     public var title: String?
     public var model: String?
+    /// When Claude Code ran the hook, in microseconds since 1970: the helper's own start time. Each hook runs as its own
+    /// process, so two events a few milliseconds apart can reach PhoneBox the other way round; this puts them back in
+    /// order (`ClaudeSessions.apply`).
+    public var at: Int64
 
     public init(session: String, kind: Kind, tool: String?, asks: Bool, background: Bool, subagent: Bool, cwd: String,
-                transcript: String?, pid: Int32, title: String?, model: String?) {
+                transcript: String?, pid: Int32, title: String?, model: String?, at: Int64) {
         self.session = session
         self.kind = kind
         self.tool = tool
@@ -41,6 +45,7 @@ public struct ClaudeEvent: Codable, Equatable, Sendable {
         self.pid = pid
         self.title = title
         self.model = model
+        self.at = at
     }
 
     /// The end-of-turn box of the Claude desktop app; with a non-empty `ask` it ends the turn with a question.
@@ -48,8 +53,8 @@ public struct ClaudeEvent: Codable, Equatable, Sendable {
     public static let questionTool = "AskUserQuestion"
 
     /// Nil for an event PhoneBox does not follow, a Notification other than a permission prompt, or input without a
-    /// session.
-    public static func parse(hookInput: Data, parentPID: Int32) -> ClaudeEvent? {
+    /// session. `at` is when the hook ran (µs since 1970).
+    public static func parse(hookInput: Data, parentPID: Int32, at: Int64) -> ClaudeEvent? {
         guard let object = (try? JSONSerialization.jsonObject(with: hookInput)) as? [String: Any],
               let session = object["session_id"] as? String, !session.isEmpty
         else { return nil }
@@ -82,8 +87,9 @@ public struct ClaudeEvent: Codable, Equatable, Sendable {
         let transcript = (object["transcript_path"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         return ClaudeEvent(session: session, kind: kind, tool: tool, asks: asks, background: background,
                            subagent: subagent, cwd: object["cwd"] as? String ?? "", transcript: transcript,
-                           pid: parentPID, title: kind == .sessionStart ? trimmed(object["session_title"]) : nil,
-                           model: kind == .sessionStart ? trimmed(object["model"]) : nil)
+                           pid: parentPID,
+                           title: kind == .sessionStart ? ClaudeTranscript.cleanTitle(object["session_title"]) : nil,
+                           model: kind == .sessionStart ? trimmed(object["model"]) : nil, at: at)
     }
 
     /// Compact JSON and a newline.

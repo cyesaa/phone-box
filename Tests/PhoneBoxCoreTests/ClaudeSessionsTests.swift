@@ -6,9 +6,9 @@ import Testing
 struct ClaudeSessionsTests {
     static func event(_ kind: ClaudeEvent.Kind, _ session: String = "s1", tool: String? = nil, asks: Bool = false,
                       background: Bool = false, subagent: Bool = false, cwd: String = "/Users/me/Code/PhoneBox",
-                      pid: Int32 = 100, title: String? = nil, model: String? = nil) -> ClaudeEvent {
+                      pid: Int32 = 100, title: String? = nil, model: String? = nil, at: Int64 = 0) -> ClaudeEvent {
         ClaudeEvent(session: session, kind: kind, tool: tool, asks: asks, background: background, subagent: subagent,
-                    cwd: cwd, transcript: "/t/\(session).jsonl", pid: pid, title: title, model: model)
+                    cwd: cwd, transcript: "/t/\(session).jsonl", pid: pid, title: title, model: model, at: at)
     }
 
     /// `events` applied one second apart, starting at 1000 ms; the one session that results.
@@ -146,6 +146,76 @@ struct ClaudeSessionsTests {
         #expect(session.state == .working)
         #expect(session.activity == .edit)
         #expect(session.since == 1_000)
+    }
+
+    // MARK: Order
+
+    /// Each hook runs as its own process: the PermissionRequest can come in before its PreToolUse.
+    @Test func anEventThatRanBeforeTheLastOneIsIgnored() {
+        var sessions = ClaudeSessions()
+        sessions.apply(Self.event(.prompt, at: 100), now: 1)
+        sessions.apply(Self.event(.permission, tool: "Bash", at: 300), now: 2)
+        sessions.apply(Self.event(.toolStart, tool: "Bash", at: 200), now: 3)
+        #expect(sessions.list.first?.state == .waiting)
+        #expect(sessions.list.first?.reason == .permission)
+        #expect(sessions.list.first?.since == 2)
+        // The answer comes later than both.
+        sessions.apply(Self.event(.toolEnd, tool: "Bash", at: 400), now: 4)
+        #expect(sessions.list.first?.state == .working)
+    }
+
+    /// Events of the same microsecond keep the order they came in.
+    @Test func anEventOfTheSameTimeIsApplied() {
+        var sessions = ClaudeSessions()
+        sessions.apply(Self.event(.prompt, at: 100), now: 1)
+        sessions.apply(Self.event(.toolStart, tool: "Bash", at: 100), now: 2)
+        #expect(sessions.list.first?.activity == .command)
+        sessions.apply(Self.event(.toolEnd, tool: "Bash", at: 100), now: 3)
+        #expect(sessions.list.first?.activity == .think)
+    }
+
+    @Test func theOrderIsKeptForEachSession() {
+        var sessions = ClaudeSessions()
+        sessions.apply(Self.event(.prompt, "a", at: 500), now: 1)
+        sessions.apply(Self.event(.prompt, "b", at: 100), now: 2)
+        #expect(sessions.list.map(\.id).sorted() == ["a", "b"])
+    }
+
+    /// A Stop that comes in after its SessionEnd does not bring the closed session back.
+    @Test func anEventOfAnEndedSessionIsIgnored() {
+        var sessions = ClaudeSessions()
+        sessions.apply(Self.event(.prompt, at: 100), now: 1_000)
+        sessions.apply(Self.event(.sessionEnd, at: 300), now: 1_001)
+        sessions.apply(Self.event(.stop, at: 200), now: 1_002)
+        #expect(sessions.count == 0)
+        sessions.apply(Self.event(.toolEnd, at: 300), now: 1_003)
+        #expect(sessions.count == 0)
+        // Even when the session had already been dropped or never been seen.
+        sessions.apply(Self.event(.sessionEnd, "x", at: 50), now: 1_004)
+        sessions.apply(Self.event(.stop, "x", at: 40), now: 1_005)
+        #expect(sessions.count == 0)
+    }
+
+    /// `claude --resume` opens the same session again.
+    @Test func aSessionThatStartsAgainAfterItsEndIsAccepted() {
+        var sessions = ClaudeSessions()
+        sessions.apply(Self.event(.prompt, at: 100), now: 1_000)
+        sessions.apply(Self.event(.sessionEnd, at: 300), now: 1_001)
+        sessions.apply(Self.event(.sessionStart, at: 301), now: 5_000)
+        #expect(sessions.list.first?.state == .ready)
+        #expect(sessions.list.first?.since == 5_000)
+        sessions.apply(Self.event(.prompt, at: 302), now: 5_001)
+        #expect(sessions.list.first?.state == .working)
+    }
+
+    /// An ended session is remembered for a minute.
+    @Test func anEndIsForgottenAfterAMinute() {
+        var sessions = ClaudeSessions()
+        sessions.apply(Self.event(.sessionEnd, at: 300), now: 1_000)
+        sessions.apply(Self.event(.stop, at: 200), now: 61_000)
+        #expect(sessions.count == 0)
+        sessions.apply(Self.event(.stop, at: 200), now: 61_001)
+        #expect(sessions.list.first?.state == .waiting)
     }
 
     // MARK: Time

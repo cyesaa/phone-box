@@ -22,7 +22,7 @@ struct ClaudeMonitorTests {
     static func event(_ kind: ClaudeEvent.Kind, session: String = "s1", tool: String? = nil, pid: Int32 = getpid(),
                       transcript: String? = nil) -> ClaudeEvent {
         ClaudeEvent(session: session, kind: kind, tool: tool, asks: false, background: false, subagent: false,
-                    cwd: "/Users/me/Code/PhoneBox", transcript: transcript, pid: pid, title: nil, model: nil)
+                    cwd: "/Users/me/Code/PhoneBox", transcript: transcript, pid: pid, title: nil, model: nil, at: 0)
     }
 
     /// True once `condition` holds, checked every 10 ms for up to `seconds`.
@@ -214,6 +214,34 @@ struct ClaudeMonitorTests {
             == ClaudeHookForwarder.maxInput)
         #expect(ClaudeHookForwarder.read(from: try pipe(Data(repeating: 0x41, count: ClaudeHookForwarder.maxInput + 1))) == nil)
         #expect(ClaudeHookForwarder.read(from: try pipe(Data())) == Data())
+    }
+
+    /// A Claude Code that never closes the hook's input does not keep the helper running.
+    @Test func theHelperStopsWaitingForItsInput() throws {
+        let pipe = Pipe()
+        try pipe.fileHandleForWriting.write(contentsOf: Data(#"{"session_id":"#.utf8))
+        let start = Date()
+        #expect(ClaudeHookForwarder.read(from: pipe.fileHandleForReading, timeout: 0.3) == nil)
+        let took = Date().timeIntervalSince(start)
+        #expect(took >= 0.25 && took < 2, "\(took)")
+        // Within its five seconds, together with the socket's one.
+        #expect(ClaudeHookForwarder.readTimeout + 1 <= 5)
+        // A device has no deadline but ends at once.
+        let null = try #require(FileHandle(forReadingAtPath: "/dev/null"))
+        #expect(ClaudeHookForwarder.read(from: null, timeout: 0.3) == Data())
+        withExtendedLifetime(pipe) {}
+    }
+
+    /// The hook's process starts when Claude Code runs the hook: that is the event's time.
+    @Test func theHelperKnowsWhenItStarted() throws {
+        let now = Int64(Date().timeIntervalSince1970 * 1_000_000)
+        let started = try #require(ClaudeHookForwarder.startTime())
+        #expect(started <= now)
+        #expect(started > now - 24 * 3_600 * 1_000_000)
+        // A parent starts before its child.
+        #expect(try #require(ClaudeHookForwarder.startTime(of: getppid())) <= started)
+        #expect(ClaudeHookForwarder.startTime(of: 99_999_999) == nil)
+        #expect(abs(ClaudeHookForwarder.now() - now) < 60 * 1_000_000)
     }
 
     /// A pipe's reading end with `data` already written and the writing end closed; `data` is written from another

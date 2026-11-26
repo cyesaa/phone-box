@@ -60,7 +60,9 @@ public enum ClaudeTranscript {
         digits.contains(text.count) && text.allSatisfy { $0.isASCII && $0.isNumber }
     }
 
-    private static func cleanTitle(_ value: Any?) -> String? {
+    /// A session's title as the phone shows it, wherever it comes from (the session's file, a SessionStart): trimmed,
+    /// at most `maxTitleLength` characters; nil when nothing is left.
+    public static func cleanTitle(_ value: Any?) -> String? {
         guard let text = (value as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
         return String(text.prefix(maxTitleLength)).trimmingCharacters(in: .whitespacesAndNewlines)
     }

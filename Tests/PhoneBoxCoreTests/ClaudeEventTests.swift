@@ -5,8 +5,8 @@ import Testing
 /// What a hook call tells PhoneBox (design §14 "Olaylar nasıl gelir"): the kind of event and a few flags, never the
 /// texts of the conversation.
 struct ClaudeEventTests {
-    static func parse(_ json: String, pid: Int32 = 4242) -> ClaudeEvent? {
-        ClaudeEvent.parse(hookInput: Data(json.utf8), parentPID: pid)
+    static func parse(_ json: String, pid: Int32 = 4242, at: Int64 = 1_764_000_000_000_000) -> ClaudeEvent? {
+        ClaudeEvent.parse(hookInput: Data(json.utf8), parentPID: pid, at: at)
     }
 
     static func input(_ event: String, _ extra: String = "") -> String {
@@ -25,10 +25,10 @@ struct ClaudeEventTests {
     }
 
     @Test func copiesTheSessionThePathsAndTheParentProcess() throws {
-        let event = try #require(Self.parse(Self.input("UserPromptSubmit"), pid: 777))
+        let event = try #require(Self.parse(Self.input("UserPromptSubmit"), pid: 777, at: 1_764_000_000_123_456))
         #expect(event == ClaudeEvent(session: "s1", kind: .prompt, tool: nil, asks: false, background: false, subagent: false,
                                      cwd: "/Users/me/Code/PhoneBox", transcript: "/Users/me/.claude/projects/x/s1.jsonl",
-                                     pid: 777, title: nil, model: nil))
+                                     pid: 777, title: nil, model: nil, at: 1_764_000_000_123_456))
     }
 
     @Test func otherEventsAndOtherNotificationsAreNil() {
@@ -65,6 +65,17 @@ struct ClaudeEventTests {
         let prompt = try #require(Self.parse(Self.input("UserPromptSubmit", #","session_title":"T","model":"claude-opus-5-5""#)))
         #expect(prompt.title == nil)
         #expect(prompt.model == nil)
+    }
+
+    /// The same cap as a title read from the session's file.
+    @Test func capsALongTitle() throws {
+        let long = String(repeating: "a", count: 119) + " " + String(repeating: "b", count: 80)
+        let event = try #require(Self.parse(Self.input("SessionStart", #","session_title":"\#(long)""#)))
+        #expect(event.title == String(repeating: "a", count: 119))
+        let exact = String(repeating: "ç", count: ClaudeTranscript.maxTitleLength)
+        #expect(Self.parse(Self.input("SessionStart", #","session_title":"\#(exact)""#))?.title == exact)
+        let over = String(repeating: "ç", count: ClaudeTranscript.maxTitleLength + 1)
+        #expect(Self.parse(Self.input("SessionStart", #","session_title":"\#(over)""#))?.title == exact)
     }
 
     @Test func keepsOnlyAPlainToolName() throws {

@@ -36,15 +36,27 @@ public struct ClaudeSession: Codable, Equatable, Sendable {
 /// Every open session, kept up to date from hook events (design §14 "Olay → durum").
 public struct ClaudeSessions: Sendable {
     public static let maxListed = 12
+    /// How long an ended session is remembered (ms), so that its late events do not bring it back.
+    public static let endMemory: Int64 = 60_000
 
     private struct Entry: Sendable {
         var session: ClaudeSession
         var pid: Int32
         /// The end-of-turn box asked a question: the turn's stop waits with `question`.
         var questionAtEnd = false
+        /// The `at` of the last event applied.
+        var at: Int64
+    }
+
+    private struct End: Sendable {
+        /// The SessionEnd's `at`.
+        var at: Int64
+        /// When it came in (`now`, ms).
+        var received: Int64
     }
 
     private var entries: [String: Entry] = [:]
+    private var ended: [String: End] = [:]
 
     public init() {}
 
@@ -70,15 +82,26 @@ public struct ClaudeSessions: Sendable {
     /// Every session's id, listed or not.
     public var ids: Set<String> { Set(entries.keys) }
 
+    /// Applies one event at `now` (ms). Hooks run as separate processes and can come in out of order: an event that ran
+    /// before the session's last one, or no later than its end, is old news and changes nothing (design §14).
     public mutating func apply(_ event: ClaudeEvent, now: Int64) {
+        if !ended.isEmpty { ended = ended.filter { now - $0.value.received <= Self.endMemory } }
         // A subagent's stop ends only its own work; the session goes on.
         if event.kind == .stop, event.subagent { return }
+        if let end = ended[event.session] {
+            // A session can start again after its end (`claude --resume`).
+            guard event.at > end.at else { return }
+            ended[event.session] = nil
+        }
+        if let known = entries[event.session], event.at < known.at { return }
         if event.kind == .sessionEnd {
             entries[event.session] = nil
+            ended[event.session] = End(at: event.at, received: now)
             return
         }
         var entry = entries[event.session] ?? Self.newEntry(for: event, now: now)
         entry.pid = event.pid
+        entry.at = event.at
         switch event.kind {
         case .sessionStart:
             entries[event.session] = entry
@@ -120,9 +143,7 @@ public struct ClaudeSessions: Sendable {
     /// The title and the model from the session's file. Nil (and an empty title) changes nothing.
     public mutating func setDetails(session: String, title: String?, model: String?) {
         guard var entry = entries[session] else { return }
-        if let title = title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
-            entry.session.title = String(title.prefix(ClaudeTranscript.maxTitleLength))
-        }
+        if let title = ClaudeTranscript.cleanTitle(title) { entry.session.title = title }
         if let model { entry.session.model = model }
         entries[session] = entry
     }
@@ -147,7 +168,7 @@ public struct ClaudeSessions: Sendable {
         let name = folder.isEmpty ? "Claude" : folder
         return Entry(session: ClaudeSession(id: event.session, title: name, project: name, model: nil, state: .ready,
                                             reason: nil, activity: nil, since: now),
-                     pid: event.pid)
+                     pid: event.pid, at: event.at)
     }
 
     /// `reason` only while waiting, `activity` only while working; the time restarts when the state or the reason

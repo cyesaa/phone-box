@@ -689,12 +689,15 @@ Sıralama: bekleyenler (en eski bekleyen önce), sonra çalışanlar, sonra haz�
 Claude Code'un komut hook'ları (`~/.claude/settings.json`). Her olayda Claude Code
 `"<PhoneBox.app>/Contents/MacOS/PhoneBox" --claude-hook` çalıştırır (`"async": true`: oturum beklemez):
 
-1. Yardımcı, AppKit'i hiç başlatmadan stdin'deki JSON'u okur (en çok 1 MB), `ClaudeEvent`'e çevirir: oturum kimliği,
-   olay türü, araç adı, "soru mu" bayrağı, "arka planda iş var mı" bayrağı, `cwd`, oturum dosyasının yolu, `getppid()`
-   (oturumun Claude işlemi; 2026-11-26 denendi: hook'un ebeveyni `claude`, `async` ile de). Metin alanları (`prompt`,
-   `last_assistant_message`, `tool_input`, `tool_response`) okunur ama hiçbir yere yazılmaz.
+1. Yardımcı, AppKit'i hiç başlatmadan stdin'deki JSON'u okur (en çok 1 MB, en çok 4 sn bekler), `ClaudeEvent`'e
+   çevirir: oturum kimliği, olay türü, araç adı, "soru mu" bayrağı, "arka planda iş var mı" bayrağı, `cwd`, oturum
+   dosyasının yolu, `getppid()` (oturumun Claude işlemi; 2026-11-26 denendi: hook'un ebeveyni `claude`, `async` ile
+   de), `SessionStart`'ta başlık (en çok 120 karakter, oturum dosyasındaki gibi) ve model, ve olayın zamanı `at`:
+   yardımcı işlemin çekirdekteki başlangıç zamanı (`sysctl` `p_starttime`, µs; okunamazsa şimdiki zaman). Metin
+   alanları (`prompt`, `last_assistant_message`, `tool_input`, `tool_response`) okunur ama hiçbir yere yazılmaz.
 2. Bir satır JSON olarak `~/Library/Application Support/PhoneBox/claude.sock` Unix soketine yazar (klasör 0700, soket
-   0600: yalnız bu kullanıcı). PhoneBox kapalıysa ya da özellik kapalıysa sessizce çıkar; her durumda çıkış kodu 0.
+   0600: yalnız bu kullanıcı; en çok 1 sn). PhoneBox kapalıysa ya da özellik kapalıysa sessizce çıkar; girdisi hiç
+   bitmese de 5 sn içinde çıkar; her durumda çıkış kodu 0.
 3. PhoneBox olayı `ClaudeSessions`'a uygular. Başlığı ve modeli oturum dosyasının son 256 KB'ından okur
    (`custom-title` kaydı ve son `"model":"claude-…"`; belgelenmemiş biçim, bulunamazsa başlık = klasör adı, model yok).
    5 sn'de bir oturumların işlemine bakar (`kill(pid, 0)`); işlemi biten oturum listeden düşer.
@@ -716,6 +719,12 @@ Olay → durum (`ClaudeSessions`, PhoneBoxCore, test edilir):
 
 Süre yalnız durum ya da bekleme nedeni değişince sıfırlanır (aynı turdaki araçlar değiştirmez). Alt ajan olayları
 (`agent_id`) ana oturumunkiler gibi işlenir, `Stop` hariç (alt ajanın `SubagentStop`'u kurulmaz).
+
+Sıra: her hook ayrı bir işlem, iki olay birkaç ms arayla ters sırada gelebilir (`PermissionRequest` `PreToolUse`'dan
+önce; `Stop` `SessionEnd`'den sonra). İşlemler Claude Code'un hook'ları çalıştırdığı sırayla başlar, bu yüzden `at`
+sırası doğrudur: oturumun son uygulanan olayından eski `at`'li olay yok sayılır (aynı µs gelme sırasıyla uygulanır).
+`SessionEnd`'den sonra oturum `at`'iyle 60 sn hatırlanır; `at`'i ondan eski ya da eşit olaylar yok sayılır, daha yeni
+olan (`claude --resume` ile yeniden açılan oturumun `SessionStart`'ı) kabul edilir.
 
 Olay listesi: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`,
 `PermissionRequest`, `PermissionDenied`, `Notification` (eşleyici `permission_prompt`), `Stop`, `SessionEnd`.
