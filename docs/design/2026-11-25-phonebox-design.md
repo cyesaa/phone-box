@@ -377,8 +377,9 @@ Telefon çalışırken yanda açık durur; bir metrik sınırına yaklaşınca d
   | Pil | %30 | %10 | yalnız prizde değilken (`plugged` false); azaldıkça kızarır |
   | Uygulama satırı | %60 | %200 | uygulamanın CPU'su (iki çekirdek dolu = %200) |
 
-  Güç sınırı (watt, `power.system` için; masaüstü Mac'te `power.gpu` için ikinci sütun). Değerler tahmindir, README'de
-  "topluluk testine açık" diye belirtilir; M4'te telefon denemesinde gerçek yükle kontrol edilir:
+  Güç sınırı (watt, `power.system` için; masaüstü Mac'te `power.gpu` için ikinci sütun). Dahili pili olan Mac
+  (pilin değerleri o an okunamasa da) "Mac'in tamamı" sütununu kullanır. Değerler tahmindir; M4'te telefon denemesinde
+  gerçek yükle kontrol edilir:
 
   | Çip (`machdep.cpu.brand_string`) | Mac'in tamamı | Yalnız GPU |
   |---|---|---|
@@ -426,6 +427,9 @@ Telefon çalışırken yanda açık durur; bir metrik sınırına yaklaşınca d
   gelir (bölüm 6). Pil simgesi: dolgusu seviyeye göre 1,2 sn'de kayar, şarj olurken üstünde ⚡; yanında "%76".
   Dolgu prizde değilken pil sınırlarına göre kızarır. Simge yalnız sayfa kablodaysa (`access.cable`) ve `phone`
   alanı varsa görünür; Wi-Fi'deki sayfada yerinde "Wi-Fi" yazar.
+- **Pilin okunması (Mac):** MobileDevice ilk kullanımda yüklenir. Telefon takılınca 2 sn sonra, sonra dakikada bir
+  okunur; okuma olmazsa (telefon uyanıyor ya da "Güven" soruyor) 10 sn sonra yeniden denenir, en çok 3 kez. İki
+  telefondan biri çıkarılınca kalan okunur.
 
 ### Sayfa kodu
 
@@ -469,11 +473,21 @@ Simge telefon çizimi: gri = izinli istemci yok, yeşil = en az bir istemci veri
 - Durum satırı (ör. "iPhone bağlı · 1 cihaz", "Port 4747 kullanımda", "USB algılanamıyor")
 - QR kodu göster
 - Mod: ● Kablo takılıyken / ○ Her zaman
-- Port: 4747… (Plan 5; o zamana kadar `defaults write com.phonebox.PhoneBox port -int <port>`)
-- Girişte başlat (ServiceManagement)
+- Port: 4747…: 1024–65535 arası bir sayı sorar (`PortChoice`); geçersizse sebebini söyleyip yeniden sorar. Yeni port
+  hemen dinlenir, eski dinleyicinin geç gelen durumu yok sayılır; telefonun bağlantısı portu içerdiği için QR penceresi
+  açılır. 4747 seçilince ayar silinir.
+- Girişte başlat (ServiceManagement). macOS onay isterse (`requiresApproval`) öğe yarım işaretli görünür ve bir uyarı
+  "Giriş Öğeleri'ni aç" düğmesiyle Sistem Ayarları'na götürür.
 - Eşleştirmeyi sıfırla
-- Güncelleme (NotchBox'taki gibi)
+- "PhoneBox x.y.z sürümünü yükle…" (yalnız yeni sürüm varken) ve "Güncellemeleri denetle…" (NotchBox'taki gibi):
+  açılıştan 15 sn sonra ve günde iki kez GitHub'ın "latest release" yanıtına bakılır (taslak ve ön sürüm sayılmaz).
+  Yükle, kurulum komutunu PhoneBox'tan bağımsız bir kabukta çalıştırır: PhoneBox kapanır, yenisi yerine konup açılır,
+  çıktısı `~/Library/Logs/PhoneBox/update.log`'a yazılır. Kurulum başarısızsa komut panoya konur ve kayıt gösterilir.
+  `defaults write com.phonebox.PhoneBox CheckForUpdatesAutomatically -bool false` otomatik denetimi kapatır.
 - Çık
+
+Menü ve pencereler İngilizce ve Türkçe (`Resources/{en,tr}.lproj/Localizable.strings`); iki dosyanın anahtarları ve
+her metnin yer tutucuları aynı olmalı (`LocalizationTests`).
 
 ## 9. Hata yönetimi
 
@@ -547,17 +561,25 @@ ve veri geliyor.
 NotchBox ile aynı:
 
 - Kurulum: `curl -fsSL https://raw.githubusercontent.com/cyesaa/phone-box/main/install.sh | bash`
-  (`curl` ile inen dosya karantinaya alınmaz, imzasız uygulama engellenmez); kaldırma `… | bash -s -- --uninstall`.
-- `make app` (ad-hoc imzalı `build/PhoneBox.app`), `make test`, `make release VERSION=x.y.z` (GitHub Releases'a
-  `PhoneBox.zip`).
+  (`curl` ile inen dosya karantinaya alınmaz, imzasız uygulama engellenmez). Apple Silicon ve macOS 14+ denetlenir,
+  imza doğrulanır, çalışan PhoneBox kapatılır, uygulama `/Applications`'a (yazılamıyorsa `~/Applications`) konup
+  açılır. `PHONEBOX_VERSION=x.y.z` belirli bir sürümü kurar. Denemek için `PHONEBOX_ZIP` (yerel zip), `PHONEBOX_DEST`
+  (başka klasör; başka yerden çalışan PhoneBox'a dokunulmaz) ve `PHONEBOX_NO_OPEN=1`.
+- Kaldırma `… | bash -s -- --uninstall`: uygulama, ayarlar (`defaults`), eşleştirme anahtarı
+  (`~/Library/Application Support/PhoneBox`), kayıtlar (`~/Library/Logs/PhoneBox`) ve izinler (`tccutil`) silinir.
+- `make app` (ad-hoc imzalı `build/PhoneBox.app`; simge `scripts/make-icon.swift` ile çizilir, `LICENSE` ve
+  `THIRD_PARTY_NOTICES.md` uygulamanın içine konur), `make test`, `make dist` (`dist/PhoneBox-<sürüm>.zip`, imzası
+  denetlenir), `make release VERSION=x.y.z` (temiz ve `origin/main` ile aynı `main`'den: sürüm numarası, test, zip,
+  "Release x.y.z" commit'i, `vx.y.z` etiketi, push, GitHub Releases'a `PhoneBox.zip`; `DRY_RUN=1` prova eder).
 - Gereksinim: Apple Silicon, macOS 14+. README önce Türkçe, sonra İngilizce, son kullanıcı için yazılır.
 
 ```
 Package.swift  Makefile  install.sh  LICENSE  THIRD_PARTY_NOTICES.md  README.md
-scripts/                  bundle.sh, build-adapter.sh, dist.sh, release.sh, make-icon.swift
+scripts/                  bundle.sh, build-adapter.sh, dist.sh, release.sh, make-icon.swift, make-touch-icon.swift,
+                          make-video.swift
 Sources/PhoneBoxCore/     modeller, hesaplar, protokol, HMAC, AccessPolicy
 Sources/PhoneBox/         uygulama, Collectors, Sampler, USBWatcher, Server, Pairing, CommandRunner, MenuBar
-Resources/                Info.plist, AppIcon.icns, en.lproj, tr.lproj
+Resources/                Info.plist, en.lproj, tr.lproj (AppIcon.icns `make app` sırasında çizilir)
 Resources/web/            index.html, styles.css, sha256.js, i18n.js, format.js, history.js, metrics.js, heat.js,
                           motion.js, rings.js, clock.js, chart.js, connection.js, commands.js, view.js, ui.js,
                           controls.js, app.js, keepawake.mp4, apple-touch-icon.png
