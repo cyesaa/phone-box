@@ -87,6 +87,17 @@
   </section>
 </main>
 
+<section id="claude-page" class="claude-page stale" hidden inert>
+  <header class="claude-top">
+    <div class="claude-title"><h1>Claude</h1><span class="claude-summary"><span id="claude-count"></span> <b id="claude-waiting"></b></span></div>
+    <b id="claude-clock" class="clock" aria-hidden="true"></b>
+  </header>
+  <div id="claude-list" class="claude-list"></div>
+  <p id="claude-empty" class="claude-empty" data-text="claudeEmpty" hidden></p>
+</section>
+
+<div id="page-dots" class="page-dots" aria-hidden="true" hidden><i class="on"></i><i></i></div>
+
 <div id="edge" class="edge" aria-hidden="true"></div>
 
 <div id="state" class="state" hidden><div class="state-card"><h2 id="state-title"></h2><p id="state-text"></p></div></div>
@@ -150,6 +161,7 @@
 <script src="sha256.js"></script>
 <script src="i18n.js"></script>
 <script src="format.js"></script>
+<script src="claude.js"></script>
 <script src="history.js"></script>
 <script src="metrics.js"></script>
 <script src="heat.js"></script>
@@ -160,6 +172,7 @@
 <script src="connection.js"></script>
 <script src="commands.js"></script>
 <script src="view.js"></script>
+<script src="claudeview.js"></script>
 <script src="ui.js"></script>
 <script src="controls.js"></script>
 <script src="app.js"></script>

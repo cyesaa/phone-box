@@ -89,6 +89,33 @@ ya da `lsof -nP -iTCP:4747 -sTCP:ESTABLISHED` (`fe80:<scope>::…` adresinin sco
 - [ ] Kilitle'ye 30 sn içinde ikinci kez basınca bir şey olmuyor; 30 sn sonra yine kilitliyor.
 - [ ] Kabloda her şey çalışıyor, Kilitle'ye art arda basmak da.
 
+## Claude Code oturumları (0.3.0)
+- [ ] Özellik kapalıyken telefonda ikinci sayfa, sağ kenarda noktalar ve dikey kaydırma yok; dashboard eskisi gibi.
+- [ ] Menüden "Claude Code Oturumları" önce soruyor; "Vazgeç" hiçbir şeye dokunmuyor. "Aç"tan sonra
+  `~/.claude/settings.json`'da on olayın her birinde PhoneBox'ın `--claude-hook` grubu var, dosyanın diğer ayarları
+  duruyor, `settings.json.phonebox-backup` eski dosyayla aynı. Telefonda ikinci sayfa ve noktalar beliriyor.
+- [ ] Yeni bir oturum (terminalde `claude`, VS Code, masaüstü uygulaması) birkaç saniyede gri "Hazır" kartıyla
+  görünüyor; başlık oturumun adı (yoksa klasörün adı), proje ve model çipleri doğru.
+- [ ] Bir mesaj gönderince kart mavi "Düşünüyor"; araç kullanırken ne yaptığını yazıyor ("Komut çalıştırıyor",
+  "Dosya düzenliyor"…) ve ince çizgi akıyor; aynı turdaki araçlar süreyi sıfırlamıyor.
+- [ ] Oturum seçenekli bir soru sorunca pano yukarı kayıyor, Claude sayfası geliyor; kart turuncu, parlıyor, "Soru
+  soruyor". Soru Mac'te cevaplanınca, başka bekleyen yoksa sayfa 3 sn sonra panoya dönüyor.
+- [ ] İzin isteyen bir komut: "İzin istiyor" kartı, sayfa geliyor; izin verilince 3 sn sonra dönüyor. Tur bitince
+  "Sıra sende"; arka planda iş sürüyorsa mavi "Arka planda çalışıyor".
+- [ ] Sayfa gelince parmakla aşağı kaydırıp panoya dön: aynı oturumlar beklerken sayfa yeniden gelmiyor; biri yeniden
+  beklemeye başlayınca geliyor. Parmakla Claude sayfasına geçince kimse beklemese de kendiliğinden dönmüyor.
+- [ ] Ses kaydırıcısında sürükleme sayfa değiştirmiyor; panel, onay, "⋯" menüsü ya da rehber açıkken kaydırma bir şey
+  yapmıyor; halkalar, kutucuklar, uygulama satırları ve şerit dokununca eskisi gibi çalışıyor. Chrome'da aşağı
+  kaydırma sayfayı yenilemiyor.
+- [ ] Oturumdan çıkınca (`/exit`, pencereyi kapatma) kartı birkaç saniyede gidiyor; Claude Code zorla kapatılınca en
+  geç ~5 sn'de.
+- [ ] Yatayda 4 oturuma kadar iki sütun, 5 ve üstünde üç sütun (sıkı kartlar); dikeyde tek sütun; kesilen ya da taşan
+  yok. Oturum yokken "Açık Claude oturumu yok".
+- [ ] Veri kesilince Claude sayfası da soluk ve kıpırdamıyor; Hareketi Azalt açıkken kayma ve kart girişleri anlık.
+- [ ] Menüden kapatınca hook'lar `settings.json`'dan siliniyor (diğer her şey duruyor); telefonda ikinci sayfa ve
+  noktalar gidiyor, Claude sayfasındaysa panoya dönüyor.
+- [ ] Özellik açıkken `install.sh --uninstall` hook'ları siliyor.
+
 ## Henüz denenmemiş (spike 8)
 - [ ] Kestirmeler → Otomasyon → Şarj Aleti → "URL'yi Aç" (kişisel bağlantı) → "Hemen Çalıştır": kablo takılınca
   dashboard onaysız açılıyor mu?

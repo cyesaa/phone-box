@@ -7,6 +7,9 @@
   const { t, language } = PB.i18n;
   const format = PB.format(language);
   const view = new PB.View(t, format);
+  // The Claude Code page below the dashboard (design §14); its header shows the dashboard clock's time.
+  const pager = new PB.claude.Pager();
+  const claudeView = new PB.ClaudeView(t, pager, view.clock);
   // 60 s on screen, plus 3 s that scroll out past the left edge (the graph runs a second or two behind the Mac).
   const history = new PB.History(63);
   const buildTag = global.document.querySelector('meta[name="phonebox-build"]');
@@ -42,6 +45,7 @@
   view.renderApps();
   view.renderGraph(history);
   PB.motion.onFrame((now) => view.frame(now));
+  PB.motion.onFrame(() => claudeView.frame());
 
   const key = PB.readKey();
   PB.ui.setup(t, Boolean(key));
@@ -63,7 +67,10 @@
       if (kind === "unpaired") PB.ui.hideStart();
       view.setState(kind);
     },
-    onStale: (stale) => view.setStale(stale),
+    onStale: (stale) => {
+      view.setStale(stale);
+      claudeView.setStale(stale);
+    },
     onReady: (ready) => {
       // PhoneBox was updated while this page stayed open: load its new files (the page then asks for "Start" again).
       if (builds.changed(ready.build)) {
@@ -82,6 +89,11 @@
       view.render(snapshot, global.performance.now());
       view.renderGraph(history);
       controls.setSnapshot(snapshot);
+      // `claude` comes only while the feature is on; the page moves by itself when a session starts waiting and
+      // when, having come by itself, nothing has waited for 3 s.
+      claudeView.render(snapshot.claude, snapshot.t);
+      const move = pager.update(snapshot.claude, snapshot.t);
+      if (move) claudeView.show(move === "open" ? "claude" : "dashboard");
     },
     onAck: (ack) => commands.acked(ack),
   });
