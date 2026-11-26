@@ -57,7 +57,7 @@ kendiliğinden açılması için isteğe bağlı bir Kestirmeler otomasyonu da o
 | Durum satırı | "iPhone bağlı · 1 cihaz", "Telefon Wi-Fi'de: kabloyu tak" gibi |
 | QR kodunu göster… | Eşleştirme bağlantısı; başka bir telefonu eklemek için |
 | Veri gönder | **Sadece kablo takılıyken** (varsayılan) ya da **Her zaman, Wi-Fi'de de** |
-| Port: 4747… | Dashboard'un portu; değiştirince telefonun yeni QR kodunu okutması gerekir |
+| Port: 4747… | Dashboard'un portu; değiştirince yeni QR kodu okutulur, sayfa Ana Ekrana yeniden eklenir, eski simge silinir |
 | Girişte başlat | Mac açılınca PhoneBox da açılır |
 | Eşleştirmeyi sıfırla… | Yeni anahtar: eşleşmiş bütün telefonların bağlantısı kesilir |
 | Güncellemeleri denetle… | Yeni sürüm varsa yükler (aşağıya bak) |
@@ -77,7 +77,7 @@ kendiliğinden açılması için isteğe bağlı bir Kestirmeler otomasyonu da o
 
 PhoneBox yeni bir sürüm çıkınca menüde "PhoneBox x.y.z sürümünü yükle…" gösterir; "Güncellemeleri denetle…" ile
 elle de bakabilirsin. Yükleme PhoneBox'ı kapatır, yenisini yerine koyar ve açar; telefon kendiliğinden yeniden
-bağlanır. Kurulum komutunu yeniden çalıştırmak da günceller.
+bağlanır, panel yenilenir ve bir kez "Başlat" ister. Kurulum komutunu yeniden çalıştırmak da günceller.
 
 ## Kaldırma
 
@@ -93,7 +93,7 @@ Uygulamayı, ayarlarını, eşleştirme anahtarını ve kayıtlarını siler. Te
   seç.
 - **QR kodu okuttum ama sayfa açılmıyor:** iPhone ile Mac aynı ağda olmalı ya da iPhone kabloyla takılı olmalı.
   macOS PhoneBox'ın gelen bağlantıları kabul etmesini sorduysa izin ver (Sistem Ayarları → Ağ → Güvenlik Duvarı).
-- **"Port 4747 kullanımda":** menüden başka bir port seç ve yeni QR kodunu okut.
+- **"Port 4747 kullanımda":** menüden başka bir port seç, yeni QR kodunu okut, sayfayı Ana Ekrana yeniden ekle ve eski simgeyi sil (eski simge eski portu açar).
 - **Müzik, ses ya da uygulama komutları çalışmıyor:** komutlar yalnızca kablodan çalışır; kablonun takılı olduğuna
   bak.
 - **Ekran kararıyor:** dashboard'u açtıktan sonra "Başlat"a dokun. Olmazsa Ayarlar → Ekran ve Parlaklık → Otomatik
@@ -181,7 +181,7 @@ automation that opens the dashboard when the cable is plugged in.
 | Status line | e.g. "iPhone connected · 1", "Phone on Wi-Fi: plug in the cable" |
 | Show QR Code… | The pairing link, to add another phone |
 | Send data | **Only While the Cable Is Plugged In** (default) or **Always, Also over Wi-Fi** |
-| Port: 4747… | The dashboard's port; after a change the phone scans the new QR code |
+| Port: 4747… | The dashboard's port; after a change scan the new QR code, add the page to the Home Screen again and delete the old icon |
 | Open at Login | PhoneBox starts with the Mac |
 | Reset Pairing… | A new key: every paired phone is disconnected |
 | Check for Updates… | Installs a newer version if there is one (see below) |
@@ -200,7 +200,7 @@ automation that opens the dashboard when the cable is plugged in.
 ## Updating
 
 When a new version is out, the menu shows "Install PhoneBox x.y.z…"; "Check for Updates…" looks right away. Installing
-quits PhoneBox, puts the new version in place and opens it; the phone reconnects by itself. Running the install
+quits PhoneBox, puts the new version in place and opens it; the phone reconnects by itself, the dashboard reloads and asks for "Start" once. Running the install
 command again updates too.
 
 ## Uninstall
@@ -217,7 +217,7 @@ This removes the app, its settings, the pairing key and its logs. Delete the Hom
   "Always, Also over Wi-Fi" in the menu.
 - **The QR code opens nothing:** the iPhone has to be on the Mac's network or plugged into it. If macOS asked whether
   PhoneBox may accept incoming connections, allow it (System Settings → Network → Firewall).
-- **"Port 4747 is in use":** choose another port in the menu and scan the new QR code.
+- **"Port 4747 is in use":** choose another port in the menu, scan the new QR code, add the page to the Home Screen again and delete the old icon (the old one opens the old port).
 - **Music, volume or app commands do nothing:** commands work only over the cable; check that it is plugged in.
 - **The screen goes dark:** tap "Start" after opening the dashboard. If it still does, set Settings → Display &
   Brightness → Auto-Lock to "Never".

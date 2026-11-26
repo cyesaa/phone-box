@@ -1,3 +1,5 @@
+import Foundation
+
 /// The port the dashboard listens on, as typed into the menu's "Port…" dialog (design §8 "Menü çubuğu").
 public enum PortChoice {
     /// Below 1024 needs root; 4747 is the default.

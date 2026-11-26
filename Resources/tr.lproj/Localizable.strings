@@ -16,7 +16,7 @@
 "menu.quit" = "PhoneBox'tan çık";
 
 "port.title" = "Dashboard'un portunu seç";
-"port.message" = "1024 ile 65535 arasında bir sayı. Telefondaki bağlantı da değişir: sonra yeni QR kodunu okut.";
+"port.message" = "1024 ile 65535 arasında bir sayı. Telefondaki bağlantı da değişir: sonra yeni QR kodunu okut. Ana Ekran simgesi eski portu açmaya devam eder: sayfayı Ana Ekrana yeniden ekle, eski simgeyi sil.";
 "port.invalid" = "PhoneBox bu portu kullanamaz. 1024 ile 65535 arasında bir sayı yaz.";
 "port.use" = "Kullan";
 
@@ -28,7 +28,7 @@
 "update.checkFailed" = "Güncellemeler denetlenemedi.";
 "update.checkFailedHint" = "İnternet bağlantısını kontrol edip sonra yeniden dene.";
 "update.availableTitle" = "PhoneBox %@ çıktı";
-"update.availableInfo" = "Sende %@ var. Yükleme PhoneBox'ı kapatır, yeni sürümü yerine koyar ve yeniden açar; telefon kendiliğinden yeniden bağlanır.";
+"update.availableInfo" = "Sende %@ var. Yükleme PhoneBox'ı kapatır, yeni sürümü yerine koyar ve yeniden açar; telefon kendiliğinden yeniden bağlanır, panel yenilenir ve bir kez Başlat ister.";
 "update.install" = "Yükle";
 "update.releaseNotes" = "Sürüm notları";
 "update.later" = "Sonra";

@@ -24,7 +24,8 @@ fail() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
 check_mac() {
   [ "$(uname -s)" = "Darwin" ] || fail "PhoneBox runs only on macOS."
-  [ "$(uname -m)" = "arm64" ] || fail "PhoneBox needs a Mac with Apple silicon (M1 or later)."
+  # uname -m says x86_64 in a shell running under Rosetta, even on Apple silicon.
+  [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = "1" ] || fail "PhoneBox needs a Mac with Apple silicon (M1 or later)."
   local major
   major="$(sw_vers -productVersion | cut -d. -f1)"
   [ "$major" -ge 14 ] || fail "PhoneBox needs macOS 14 or later (this Mac has $(sw_vers -productVersion))."
@@ -92,8 +93,11 @@ install() {
 
   if should_quit "$dest"; then quit_running_app; fi
   mkdir -p "$dest"
+  # Copy next to the final place first: if the copy fails (disk full) the old app is still there.
+  rm -rf "${dest:?}/.PhoneBox-installing.app"
+  ditto "$WORK/unpacked/$APP" "$dest/.PhoneBox-installing.app" || { rm -rf "${dest:?}/.PhoneBox-installing.app"; fail "Could not copy PhoneBox into $dest."; }
   rm -rf "${dest:?}/$APP"
-  ditto "$WORK/unpacked/$APP" "$dest/$APP"
+  mv "$dest/.PhoneBox-installing.app" "$dest/$APP"
   # Only browsers add this, but a zip someone passed along may carry it.
   xattr -dr com.apple.quarantine "$dest/$APP" 2>/dev/null || true
 

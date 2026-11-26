@@ -16,7 +16,7 @@
 "menu.quit" = "Quit PhoneBox";
 
 "port.title" = "Choose the dashboard's port";
-"port.message" = "A number from 1024 to 65535. The phone's link changes with it: scan the new QR code afterwards.";
+"port.message" = "A number from 1024 to 65535. The phone's link changes with it: scan the new QR code afterwards. The Home Screen icon still opens the old port: add the page to the Home Screen again and delete the old icon.";
 "port.invalid" = "That is not a port PhoneBox can use. Type a number from 1024 to 65535.";
 "port.use" = "Use";
 
@@ -28,7 +28,7 @@
 "update.checkFailed" = "Could not check for updates.";
 "update.checkFailedHint" = "Check the internet connection and try again later.";
 "update.availableTitle" = "PhoneBox %@ is available";
-"update.availableInfo" = "You have %@. Installing quits PhoneBox, puts the new version in place and opens it again; the phone reconnects by itself.";
+"update.availableInfo" = "You have %@. Installing quits PhoneBox, puts the new version in place and opens it again; the phone reconnects by itself, the dashboard reloads and asks for Start once.";
 "update.install" = "Install";
 "update.releaseNotes" = "Release Notes";
 "update.later" = "Later";

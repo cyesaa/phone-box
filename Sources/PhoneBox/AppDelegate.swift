@@ -85,15 +85,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sampler.setRunning(false)
     }
 
-    /// The name of the dashboard files in `directory` (`WebBuild`): an update changes it, and a page left open reloads.
+    /// The name of the dashboard files in `directory` (`WebBuild`), keyed by their paths relative to it: an update changes it, and a page left open reloads.
     private static func webBuild(_ directory: URL) -> String {
         var files: [String: Data] = [:]
-        let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey])
-        while let url = enumerator?.nextObject() as? URL {
-            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true,
-                  let data = try? Data(contentsOf: url)
+        // enumerator(atPath:) yields paths relative to `directory`, so a symlink in the bundle's own path
+        // (/tmp -> /private/tmp) cannot shift the keys.
+        let enumerator = FileManager.default.enumerator(atPath: directory.path)
+        while let relative = enumerator?.nextObject() as? String {
+            guard enumerator?.fileAttributes?[.type] as? FileAttributeType == .typeRegular,
+                  let data = try? Data(contentsOf: directory.appendingPathComponent(relative))
             else { continue }
-            files[String(url.path.dropFirst(directory.path.count))] = data
+            files[relative] = data
         }
         return WebBuild.fingerprint(files)
     }

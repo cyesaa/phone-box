@@ -72,6 +72,14 @@ struct DashboardHubTests {
         return #"{"v":1,"type":"cmd","seq":\#(seq),"name":"\#(name)","args":"\#(escaped)","mac":"\#(mac)"}"#
     }
 
+    @Test func readyCarriesTheWebBuild() {
+        let hub = DashboardHub(mode: .always, key: key, appName: "PhoneBox test", hostName: "Test Mac", powerLimits: limits,
+                               build: "0123456789ab", commands: runner, usbInterfaces: { ["anri1"] })
+        let phone = connect(hub, onUSB: true)
+        #expect(phone.sent.last == .ready(mode: .always, host: "Test Mac", powerLimits: limits, access: .onCable,
+                                          build: "0123456789ab"))
+    }
+
     @Test func readyCarriesTheMacsNameAndTheConnectionPath() {
         let hub = makeHub(mode: .always)
         let cable = connect(hub, onUSB: true)

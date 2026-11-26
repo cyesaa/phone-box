@@ -3,8 +3,8 @@
 #
 # From a clean main that matches origin/main, this sets the version in Resources/Info.plist, runs the
 # tests, builds dist/PhoneBox-<version>.zip, commits "Release <version>", tags v<version>, pushes both,
-# creates the GitHub release with generated notes and uploads the zip as PhoneBox.zip (the stable name
-# install.sh downloads). Works while the repository is private too; install.sh only works while it is public.
+# creates a draft GitHub release with generated notes, uploads the zip as PhoneBox.zip (the stable name
+# install.sh downloads) and only then publishes it. Works while the repository is private too; install.sh only works while it is public.
 #
 # Token: $GITHUB_TOKEN if set, otherwise the GitHub CLI's (`gh auth token`), otherwise the github.com credential git
 # already uses (Keychain).
@@ -72,7 +72,7 @@ api() {
     -H "X-GitHub-Api-Version: 2022-11-28" "$@"
 }
 
-say "Creating the GitHub release"
+say "Creating the draft GitHub release"
 BODY="$(cat <<EOF
 Install or update with one command in Terminal:
 
@@ -88,13 +88,16 @@ iPhone: the dashboard opens in Safari.
 EOF
 )"
 PAYLOAD="$(TAG="v$VERSION" NAME="PhoneBox $VERSION" BODY="$BODY" /usr/bin/python3 -c \
-  'import json, os; print(json.dumps({"tag_name": os.environ["TAG"], "name": os.environ["NAME"], "body": os.environ["BODY"], "generate_release_notes": True}))')"
+  'import json, os; print(json.dumps({"tag_name": os.environ["TAG"], "name": os.environ["NAME"], "body": os.environ["BODY"], "generate_release_notes": True, "draft": True}))')"
 RELEASE="$(api -X POST "https://api.github.com/repos/$REPO/releases" -d "$PAYLOAD")"
 RELEASE_ID="$(printf '%s' "$RELEASE" | /usr/bin/python3 -c 'import json, sys; print(json.load(sys.stdin)["id"])')"
-RELEASE_URL="$(printf '%s' "$RELEASE" | /usr/bin/python3 -c 'import json, sys; print(json.load(sys.stdin)["html_url"])')"
 
 say "Uploading PhoneBox.zip"
 api -X POST -H "Content-Type: application/zip" --data-binary "@$ZIP" \
   "https://uploads.github.com/repos/$REPO/releases/$RELEASE_ID/assets?name=PhoneBox.zip" >/dev/null
 
+# Published only now, so releases/latest/download/PhoneBox.zip never points at a release without its zip.
+say "Publishing the release"
+PUBLISHED="$(api -X PATCH "https://api.github.com/repos/$REPO/releases/$RELEASE_ID" -d '{"draft":false}')"
+RELEASE_URL="$(printf '%s' "$PUBLISHED" | /usr/bin/python3 -c 'import json, sys; print(json.load(sys.stdin)["html_url"])')"
 say "Published $RELEASE_URL"

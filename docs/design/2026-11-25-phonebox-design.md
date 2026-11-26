@@ -561,8 +561,10 @@ ve veri geliyor.
 NotchBox ile aynı:
 
 - Kurulum: `curl -fsSL https://raw.githubusercontent.com/cyesaa/phone-box/main/install.sh | bash`
-  (`curl` ile inen dosya karantinaya alınmaz, imzasız uygulama engellenmez). Apple Silicon ve macOS 14+ denetlenir,
-  imza doğrulanır, çalışan PhoneBox kapatılır, uygulama `/Applications`'a (yazılamıyorsa `~/Applications`) konup
+  (`curl` ile inen dosya karantinaya alınmaz, imzasız uygulama engellenmez). Apple Silicon (`sysctl hw.optional.arm64`; Rosetta
+  altındaki kabukta `uname -m` yanıltır) ve macOS 14+ denetlenir, imza doğrulanır, çalışan PhoneBox kapatılır, yeni
+  kopya önce aynı klasörde geçici bir adla (`.PhoneBox-installing.app`) hazırlanır, sonra eskisinin yerine taşınır
+  (kopya başarısız olursa eski uygulama kalır); uygulama `/Applications`'a (yazılamıyorsa `~/Applications`) konup
   açılır. `PHONEBOX_VERSION=x.y.z` belirli bir sürümü kurar. Denemek için `PHONEBOX_ZIP` (yerel zip), `PHONEBOX_DEST`
   (başka klasör; başka yerden çalışan PhoneBox'a dokunulmaz) ve `PHONEBOX_NO_OPEN=1`.
 - Kaldırma `… | bash -s -- --uninstall`: uygulama, ayarlar (`defaults`), eşleştirme anahtarı
@@ -570,7 +572,7 @@ NotchBox ile aynı:
 - `make app` (ad-hoc imzalı `build/PhoneBox.app`; simge `scripts/make-icon.swift` ile çizilir, `LICENSE` ve
   `THIRD_PARTY_NOTICES.md` uygulamanın içine konur), `make test`, `make dist` (`dist/PhoneBox-<sürüm>.zip`, imzası
   denetlenir), `make release VERSION=x.y.z` (temiz ve `origin/main` ile aynı `main`'den: sürüm numarası, test, zip,
-  "Release x.y.z" commit'i, `vx.y.z` etiketi, push, GitHub Releases'a `PhoneBox.zip`; `DRY_RUN=1` prova eder).
+  "Release x.y.z" commit'i, `vx.y.z` etiketi, push, GitHub Releases'a taslak olarak yayın, `PhoneBox.zip` yüklendikten SONRA yayımlanır; `DRY_RUN=1` prova eder).
 - Gereksinim: Apple Silicon, macOS 14+. README önce Türkçe, sonra İngilizce, son kullanıcı için yazılır.
 
 ```

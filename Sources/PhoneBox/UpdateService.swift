@@ -29,6 +29,8 @@ final class UpdateService {
     let currentVersion: AppVersion?
     private let session: URLSession
     private var timer: Timer?
+    /// A click on "Check for Updates…" that arrived while an automatic check was running: it gets its answer too.
+    private var answerUser = false
 
     init(bundle: Bundle = .main) {
         currentVersion = (bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
@@ -76,7 +78,11 @@ final class UpdateService {
 
     /// Asks GitHub for the latest release. A check from the menu answers in an alert.
     func check(userInitiated: Bool) {
-        guard status != .checking, status != .installing, let currentVersion else { return }
+        guard status != .installing, let currentVersion else { return }
+        if status == .checking {
+            if userInitiated { answerUser = true }
+            return
+        }
         status = .checking
         var request = URLRequest(url: feedURL)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
@@ -96,6 +102,8 @@ final class UpdateService {
 
     private func finishCheck(release: LatestRelease?, failed: Bool, code: Int, userInitiated: Bool) {
         guard let currentVersion else { return }
+        let userInitiated = userInitiated || answerUser
+        answerUser = false
         if failed {
             Log.app.notice("Update check failed (HTTP \(code, privacy: .public))")
             status = .failed
