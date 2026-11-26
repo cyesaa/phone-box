@@ -29,6 +29,8 @@ final class ClaudeMonitor {
     /// When each session's file was last read (by `clock`).
     private var detailsReadAt: [String: Int64] = [:]
     private var source: DispatchSourceRead?
+    /// The socket file this monitor made, as it was right after `bind`: `stop()` removes that file and no other.
+    private var socketFile: FileID?
     private var livenessTimer: Timer?
     /// Bumped by `stop()`: events and details still on their way from before are dropped.
     private var generation = 0
@@ -56,8 +58,12 @@ final class ClaudeMonitor {
         let descriptor: Int32
         switch Self.listen(at: socketPath) {
         case let .success(listening):
-            descriptor = listening
-        case let .failure(error):
+            descriptor = listening.descriptor
+            socketFile = listening.file
+        case .failure(.taken):
+            Log.app.notice("Another PhoneBox is listening for Claude Code at \(self.socketPath, privacy: .public); this one stays out of it")
+            return
+        case let .failure(.system(error)):
             Log.app.error("Could not listen for Claude Code at \(self.socketPath, privacy: .public): \(error.localizedDescription, privacy: .public)")
             return
         }
@@ -77,7 +83,7 @@ final class ClaudeMonitor {
         livenessTimer = timer
     }
 
-    /// Closes the socket, removes its file and forgets every session.
+    /// Closes the socket, removes its file (if it is still the one this monitor made) and forgets every session.
     func stop() {
         generation += 1
         livenessTimer?.invalidate()
@@ -85,7 +91,9 @@ final class ClaudeMonitor {
         if let source {
             source.cancel()
             self.source = nil
-            unlink(socketPath)
+            // Another PhoneBox may have its own socket at the path by now.
+            if let socketFile, Self.fileID(socketPath) == socketFile { unlink(socketPath) }
+            socketFile = nil
         }
         state = ClaudeSessions()
         detailsReadAt = [:]
@@ -161,13 +169,42 @@ final class ClaudeMonitor {
 
     // MARK: The socket, on `socketQueue`
 
-    /// A listening, non-blocking socket at `path`, readable and writable by this user only. A socket file left at the
-    /// path (by a PhoneBox that crashed) is replaced; any other file is not.
-    private nonisolated static func listen(at path: String) -> Result<Int32, POSIXError> {
-        func failure(_ code: Int32) -> Result<Int32, POSIXError> { .failure(POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)) }
+    /// A file, whatever path it is reached by.
+    struct FileID: Equatable, Sendable {
+        var device: dev_t
+        var inode: ino_t
+    }
+
+    enum ListenFailure: Error {
+        /// Another PhoneBox (a test copy next to the installed one) accepts on the socket; it keeps it.
+        case taken
+        case system(POSIXError)
+    }
+
+    /// The file at `path` itself (a link is not followed); nil when there is none.
+    nonisolated static func fileID(_ path: String) -> FileID? {
+        var info = stat()
+        guard lstat(path, &info) == 0 else { return nil }
+        return FileID(device: info.st_dev, inode: info.st_ino)
+    }
+
+    /// A listening, non-blocking socket at `path`, readable and writable by this user only, and its file. A socket
+    /// file at the path that nobody accepts on (a PhoneBox that crashed left it) is replaced; one that someone accepts
+    /// on, and any other file, is not.
+    private nonisolated static func listen(at path: String) -> Result<(descriptor: Int32, file: FileID?), ListenFailure> {
+        func failure(_ code: Int32) -> Result<(descriptor: Int32, file: FileID?), ListenFailure> {
+            .failure(.system(POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)))
+        }
         guard var address = ClaudePaths.address(path) else { return failure(ENAMETOOLONG) }
         var info = stat()
-        if lstat(path, &info) == 0, info.st_mode & S_IFMT == S_IFSOCK { unlink(path) }
+        if lstat(path, &info) == 0, info.st_mode & S_IFMT == S_IFSOCK {
+            switch connectError(to: &address) {
+            case 0: return .failure(.taken)
+            case ECONNREFUSED: unlink(path)
+            // Anything else (another user's socket, say) stays; `bind` then says what is wrong.
+            default: break
+            }
+        }
         let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
         guard descriptor >= 0 else { return failure(errno) }
         let bound = withUnsafePointer(to: &address) {
@@ -180,6 +217,7 @@ final class ClaudeMonitor {
             close(descriptor)
             return failure(code)
         }
+        let file = fileID(path)
         guard chmod(path, 0o600) == 0, Darwin.listen(descriptor, 64) == 0,
               fcntl(descriptor, F_SETFL, fcntl(descriptor, F_GETFL) | O_NONBLOCK) == 0
         else {
@@ -188,7 +226,20 @@ final class ClaudeMonitor {
             unlink(path)
             return failure(code)
         }
-        return .success(descriptor)
+        return .success((descriptor, file))
+    }
+
+    /// 0 when someone accepts a connection to `address`, else why not (`ECONNREFUSED`: nobody listens there).
+    private nonisolated static func connectError(to address: inout sockaddr_un) -> Int32 {
+        let probe = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard probe >= 0 else { return errno }
+        defer { close(probe) }
+        let connected = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                connect(probe, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) == 0
+            }
+        }
+        return connected ? 0 : errno
     }
 
     /// Accepts every waiting connection when the socket is readable; `deliver` gets the events of each batch in the

@@ -24,6 +24,59 @@ public enum ClaudeHooks {
         command.contains("PhoneBox") && command.trimmingCharacters(in: .whitespaces).hasSuffix("--claude-hook")
     }
 
+    /// The executable of a command that `command(executable:)` wrote; nil for any other command.
+    public static func executable(fromCommand command: String) -> String? {
+        let end = "' --claude-hook"
+        guard command.hasPrefix("'"), command.hasSuffix(end), command.count > end.count else { return nil }
+        let path = String(command.dropFirst().dropLast(end.count)).replacingOccurrences(of: #"'\''"#, with: "'")
+        guard !path.isEmpty, Self.command(executable: path) == command else { return nil }
+        return path
+    }
+
+    /// What PhoneBox does with the settings file at launch while the feature is on (design §14 "Kurulum").
+    public enum LaunchCheck: Equatable, Sendable {
+        /// The hooks run this app, for every event: nothing to do.
+        case current
+        /// The file cannot be read: it stays as it is, and so does the feature.
+        case unreadable
+        /// No PhoneBox hooks: the user took them out, and the feature goes off.
+        case removed
+        /// The hooks run a PhoneBox that is no longer there (the app was moved), or some events have none: this app
+        /// installs its own.
+        case reinstall
+        /// The hooks run another PhoneBox that is still there (a test copy next to the installed one): that one owns
+        /// them, and the file stays as it is.
+        case otherCopy
+    }
+
+    /// `settings` is the file's contents, nil when there is no file; `executable` is this app's; `exists` says whether
+    /// an executable is still on disk.
+    public static func launchCheck(settings: Data?, executable: String, exists: (String) -> Bool) -> LaunchCheck {
+        var byEvent: [String: Int] = [:]
+        var executables: Set<String?> = []
+        if let settings {
+            let hooks: [String: Any]?
+            do {
+                hooks = try hooksObject(of: try parse(settings))
+            } catch {
+                return .unreadable
+            }
+            for (event, groups) in hooks ?? [:] {
+                for group in groups as? [Any] ?? [] {
+                    for entry in (group as? [String: Any])?["hooks"] as? [Any] ?? [] {
+                        guard let command = phoneBoxCommand(entry) else { continue }
+                        byEvent[event, default: 0] += 1
+                        executables.insert(Self.executable(fromCommand: command))
+                    }
+                }
+            }
+        }
+        if executables.isEmpty { return .removed }
+        let gone = executables.contains { $0.map(exists) != true }
+        if gone || events.contains(where: { byEvent[$0] == nil }) { return .reinstall }
+        return executables == [executable] ? .current : .otherCopy
+    }
+
     /// `settings` with PhoneBox's hooks running `command`; earlier PhoneBox hooks (from any path) are replaced. No
     /// file, an empty one and one with only whitespace count as `{}`.
     public static func install(into settings: Data?, command: String) throws -> Data {

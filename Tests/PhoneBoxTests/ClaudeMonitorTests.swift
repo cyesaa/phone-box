@@ -92,6 +92,38 @@ struct ClaudeMonitorTests {
         #expect(try await eventually { !monitor.sessions.isEmpty })
     }
 
+    /// A test copy of PhoneBox (`PHONEBOX_DEST`) runs next to the installed one with the same socket path: the one that
+    /// listens keeps it.
+    @Test func aSecondMonitorLeavesTheListeningOneAlone() async throws {
+        let first = ClaudeMonitor(socketPath: socketPath)
+        first.start()
+        defer { first.stop() }
+        let second = ClaudeMonitor(socketPath: socketPath)
+        second.start()
+        #expect(!second.isRunning)
+        second.stop()
+        #expect(socketExists())
+        #expect(ClaudeHookForwarder.send(Self.event(.prompt).line(), to: socketPath))
+        #expect(try await eventually { !first.sessions.isEmpty })
+    }
+
+    /// `stop()` removes the socket file only while it is still the one this monitor made.
+    @Test func stopLeavesAnotherSocketFileAtThePath() async throws {
+        let first = ClaudeMonitor(socketPath: socketPath)
+        first.start()
+        #expect(first.isRunning)
+        // Another PhoneBox took the path over.
+        unlink(socketPath)
+        let second = ClaudeMonitor(socketPath: socketPath)
+        second.start()
+        defer { second.stop() }
+        #expect(second.isRunning)
+        first.stop()
+        #expect(socketExists())
+        #expect(ClaudeHookForwarder.send(Self.event(.prompt).line(), to: socketPath))
+        #expect(try await eventually { !second.sessions.isEmpty })
+    }
+
     @Test func doesNotReplaceAFileThatIsNotASocket() throws {
         let path = "/tmp/pbc-\(UUID().uuidString.prefix(8)).txt"
         #expect(FileManager.default.createFile(atPath: path, contents: Data("keep".utf8)))

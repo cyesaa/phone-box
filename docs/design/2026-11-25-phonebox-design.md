@@ -738,13 +738,22 @@ oturum dosyalarını izlemek (izin beklemesi görünmez, biçim belgelenmemiş).
 zaman kipinde Wi-Fi'den de) gideceği. Onaylanınca `ClaudeHooks.install`:
 
 - `~/.claude/settings.json` okunur (yoksa boş nesne, `~/.claude` yoksa oluşturulur); kök nesne değilse ya da `hooks`
-  nesne değilse dokunulmaz, hata gösterilir, ayar kapalı kalır.
-- Varsa önce `settings.json.phonebox-backup`'a kopyalanır; sonra yalnız PhoneBox'ın girdileri eklenir (her olayın
+  nesne değilse dokunulmaz, hata gösterilir, ayar kapalı kalır. Sembolik bağlantı (dotfiles) izlenir, bağlantılar
+  yerinde kalır; göreli hedef bağlantının gerçek klasöründen çözülür (`realpath`: `~/.claude -> dotfiles/claude` ve
+  `settings.json -> ../shared/settings.json` ise `dotfiles/shared/settings.json`).
+- Dosyada PhoneBox girdisi yoksa önce `settings.json.phonebox-backup`'a kopyalanır (yedek hep PhoneBox dokunmadan
+  önceki dosyadır; yeniden kurma ve kaldırma yedek yazmaz); sonra yalnız PhoneBox'ın girdileri eklenir (her olayın
   dizisine bir grup), diğer her şey korunur; dosya atomik yazılır (anahtarlar sıralı, iki boşluk girinti).
 - PhoneBox'ın girdisi: komutu `--claude-hook` ile biten ve `PhoneBox` içeren hook. Yeniden kurmak eskilerini (başka
   yoldakiler dahil) silip ekler; kaldırmak yalnız bunları siler, boşalan grupları/olayları/`hooks`'u da siler.
-- Kapatınca kaldırır. Açılışta ayar açıksa ve girdiler başka bir yolu gösteriyorsa (uygulama taşındı) yeniden kurar;
-  girdiler hiç yoksa (kullanıcı elle sildi) ayarı kapatır.
+- Kapatınca kaldırır. Açılışta ayar açıksa dosyaya bakılır (`ClaudeHooks.launchCheck`): okunamıyorsa dokunulmaz, ayar
+  açık kalır; PhoneBox girdisi yoksa (kullanıcı elle sildi) ayar kapanır; girdilerin çalıştırdığı uygulama artık yoksa
+  (uygulama taşındı) ya da bazı olaylarda girdi yoksa bu uygulamanın yoluyla yeniden kurulur; girdiler hâlâ duran başka
+  bir PhoneBox'ı gösteriyorsa (deneme kopyası) dosyaya dokunulmaz, girdiler onundur.
+- Aynı soketi iki PhoneBox kullanabilir (`PHONEBOX_DEST` ile kurulan deneme kopyası `/Applications`'takinin yanında):
+  açılırken soket dosyası varsa önce bağlanmayı dener; biri kabul ederse dosyaya dokunmaz, günlüğe yazar ve dinlemez;
+  yalnız kimse dinlemiyorsa (`ECONNREFUSED`, çökmüş bir PhoneBox'tan kalmış) dosyayı silip kendisi dinler. Kapanırken
+  soket dosyasını yalnız hâlâ kendi yaptığı dosyaysa (`bind` sonrası `st_dev`/`st_ino`) siler.
 - `install.sh --uninstall` uygulamayı silmeden önce `PhoneBox --remove-claude-hooks` çalıştırır.
 
 Anlık görüntü: `claude` alanı yalnız özellik açıkken gelir:

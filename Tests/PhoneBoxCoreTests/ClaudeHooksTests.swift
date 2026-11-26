@@ -152,4 +152,72 @@ struct ClaudeHooksTests {
         #expect(try Self.object(installed)["hooks"].flatMap { ($0 as? NSDictionary)?["SubagentStop"] as? String } == "custom")
         #expect(try Self.object(try ClaudeHooks.remove(from: installed)) == Self.object(Data(text.utf8)))
     }
+
+    @Test func readsTheExecutableBackFromACommand() {
+        for path in ["/Applications/PhoneBox.app/Contents/MacOS/PhoneBox",
+                     "/Users/me/My Apps/Eren's PhoneBox.app/Contents/MacOS/PhoneBox", "/tmp/'/PhoneBox"] {
+            #expect(ClaudeHooks.executable(fromCommand: ClaudeHooks.command(executable: path)) == path, "\(path)")
+        }
+        // Only what `command(executable:)` writes.
+        #expect(ClaudeHooks.executable(fromCommand: "/tmp/PhoneBox.app/Contents/MacOS/PhoneBox --claude-hook") == nil)
+        #expect(ClaudeHooks.executable(fromCommand: "'/tmp/a' '/tmp/PhoneBox' --claude-hook") == nil)
+        #expect(ClaudeHooks.executable(fromCommand: "'' --claude-hook") == nil)
+        #expect(ClaudeHooks.executable(fromCommand: "' --claude-hook") == nil)
+    }
+
+    // MARK: At launch, with the feature on (design §14 "Kurulum")
+
+    static let app = "/Applications/PhoneBox.app/Contents/MacOS/PhoneBox"
+    static let copy = "/tmp/pbtest/PhoneBox.app/Contents/MacOS/PhoneBox"
+
+    static func check(_ settings: Data?, executable: String = app, existing: Set<String> = [app, copy]) -> ClaudeHooks.LaunchCheck {
+        ClaudeHooks.launchCheck(settings: settings, executable: executable, exists: { existing.contains($0) })
+    }
+
+    static func installed(for executable: String, into text: String? = nil) throws -> Data {
+        try ClaudeHooks.install(into: text.map { Data($0.utf8) }, command: ClaudeHooks.command(executable: executable))
+    }
+
+    @Test func atLaunchHooksOfThisAppNeedNothing() throws {
+        #expect(Self.check(try Self.installed(for: Self.app)) == .current)
+        #expect(Self.check(try Self.installed(for: Self.app, into: #"{"model":"opus"}"#)) == .current)
+    }
+
+    /// The user took the hooks out by hand: the feature goes off.
+    @Test func atLaunchNoHooksTurnTheFeatureOff() {
+        for text in [nil, "", "{}", #"{"hooks":{}}"#, #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"say done"}]}]}}"#] {
+            #expect(Self.check(text.map { Data($0.utf8) }) == .removed, "\(text ?? "nil")")
+        }
+    }
+
+    /// A file PhoneBox cannot read says nothing about the hooks: it stays as it is, and so does the feature.
+    @Test func atLaunchAFilePhoneBoxCannotReadIsLeftAlone() {
+        for text in ["{ not json", "[]", #"{"hooks":[]}"#, #"{"hooks":{"Stop":{}}}"#] {
+            #expect(Self.check(Data(text.utf8)) == .unreadable, "\(text)")
+        }
+    }
+
+    /// The app was moved (or deleted and installed elsewhere): its old hooks run nothing.
+    @Test func atLaunchHooksOfAGonePhoneBoxAreInstalledAgain() throws {
+        #expect(Self.check(try Self.installed(for: "/Users/me/Downloads/PhoneBox.app/Contents/MacOS/PhoneBox")) == .reinstall)
+        // A command PhoneBox did not write: it cannot tell what it runs.
+        let handWritten = #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/Applications/PhoneBox.app/Contents/MacOS/PhoneBox --claude-hook"}]}]}}"#
+        #expect(Self.check(Data(handWritten.utf8)) == .reinstall)
+    }
+
+    @Test func atLaunchMissingEventsAreInstalledAgain() throws {
+        var root = try #require(try JSONSerialization.jsonObject(with: try Self.installed(for: Self.app)) as? [String: Any])
+        var hooks = try #require(root["hooks"] as? [String: Any])
+        hooks["Stop"] = nil
+        root["hooks"] = hooks
+        #expect(Self.check(try JSONSerialization.data(withJSONObject: root)) == .reinstall)
+    }
+
+    /// A test copy (`PHONEBOX_DEST`) that is still on disk owns the hooks it installed.
+    @Test func atLaunchHooksOfAnotherPhoneBoxThatIsThereAreLeftAlone() throws {
+        #expect(Self.check(try Self.installed(for: Self.copy)) == .otherCopy)
+        #expect(Self.check(try Self.installed(for: Self.app), executable: Self.copy) == .otherCopy)
+        // Once it is gone, they are this app's again.
+        #expect(Self.check(try Self.installed(for: Self.copy), existing: [Self.app]) == .reinstall)
+    }
 }

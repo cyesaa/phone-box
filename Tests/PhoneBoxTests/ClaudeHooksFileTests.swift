@@ -76,6 +76,62 @@ struct ClaudeHooksFileTests {
         #expect(try Self.object(FileManager.default.contents(atPath: real.path)) == Self.object(Data(Self.userFile.utf8)))
     }
 
+    /// `~/.claude` itself can be a link into a dotfiles folder, and `settings.json` a relative link from there: `..`
+    /// climbs out of the folder the link really is in.
+    @Test func followsARelativeLinkInsideALinkedFolder() throws {
+        defer { cleanUp() }
+        let dotfiles = folder.appendingPathComponent("dotfiles", isDirectory: true)
+        let shared = dotfiles.appendingPathComponent("shared/settings.json")
+        try write(Self.userFile, to: shared)
+        try FileManager.default.createDirectory(at: dotfiles.appendingPathComponent("claude"), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: claudeFolder.path, withDestinationPath: "dotfiles/claude")
+        try FileManager.default.createSymbolicLink(atPath: settings.path, withDestinationPath: "../shared/settings.json")
+        try file.install(executable: Self.executable)
+        #expect(ClaudeHooks.installedCommands(in: try #require(FileManager.default.contents(atPath: shared.path))).count
+            == ClaudeHooks.events.count)
+        #expect(FileManager.default.contents(atPath: shared.path + ClaudeHooksFile.backupSuffix) == Data(Self.userFile.utf8))
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: claudeFolder.path) == "dotfiles/claude")
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: settings.path) == "../shared/settings.json")
+        // Nothing where the links' text alone would lead.
+        #expect(!FileManager.default.fileExists(atPath: folder.appendingPathComponent("shared").path))
+        #expect(file.installedCommands().count == ClaudeHooks.events.count)
+    }
+
+    /// The copy is always the file as it was before PhoneBox touched it.
+    @Test func theBackupIsTheFileFromBeforePhoneBox() throws {
+        defer { cleanUp() }
+        try write(Self.userFile, to: settings)
+        try file.install(executable: Self.executable)
+        // Installed again for a PhoneBox that moved: the copy is still the user's own file.
+        try file.install(executable: "/Users/me/Applications/PhoneBox.app/Contents/MacOS/PhoneBox")
+        #expect(FileManager.default.contents(atPath: backup.path) == Data(Self.userFile.utf8))
+        // Removing keeps no copy.
+        try FileManager.default.removeItem(at: backup)
+        #expect(try file.remove())
+        #expect(!FileManager.default.fileExists(atPath: backup.path))
+    }
+
+    /// At launch with the feature on (design §14 "Kurulum"); the decision itself is `ClaudeHooks.launchCheck`.
+    @Test func theLaunchCheckReadsTheFile() throws {
+        defer { cleanUp() }
+        let app = folder.appendingPathComponent("A/PhoneBox.app/Contents/MacOS/PhoneBox")
+        let copy = folder.appendingPathComponent("B/PhoneBox.app/Contents/MacOS/PhoneBox")
+        for executable in [app, copy] { try write("#!/bin/sh\n", to: executable, mode: 0o755) }
+        // No file: the user took the hooks out.
+        #expect(file.launchCheck(executable: app.path) == .removed)
+        try file.install(executable: app.path)
+        #expect(file.launchCheck(executable: app.path) == .current)
+        #expect(file.launchCheck(executable: copy.path) == .otherCopy)
+        try FileManager.default.removeItem(at: folder.appendingPathComponent("A"))
+        #expect(file.launchCheck(executable: copy.path) == .reinstall)
+        // A file PhoneBox cannot read, and a folder where the file should be.
+        try write("{ not json", to: settings)
+        #expect(file.launchCheck(executable: copy.path) == .unreadable)
+        try FileManager.default.removeItem(at: settings)
+        try FileManager.default.createDirectory(at: settings, withIntermediateDirectories: true)
+        #expect(file.launchCheck(executable: copy.path) == .unreadable)
+    }
+
     @Test func removeTakesOutOnlyPhoneBoxsHooks() throws {
         defer { cleanUp() }
         try write(Self.userFile, to: settings)

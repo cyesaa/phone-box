@@ -104,22 +104,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         claudeMonitor.stop()
     }
 
-    /// At launch (design §14 "Kurulum"): hooks the user deleted turn the feature off; hooks that run another copy of
-    /// PhoneBox (the app was moved) are installed again for this one.
+    /// At launch (design §14 "Kurulum"): hooks the user deleted turn the feature off; hooks that run a PhoneBox that is
+    /// gone (the app was moved), or miss events, are installed again for this one. Hooks of another PhoneBox that is
+    /// still there (a test copy) and a file PhoneBox cannot read are left as they are.
     private func resumeClaudeSessions() {
         guard settings.claudeSessions else { return }
-        let commands = claudeHooks.installedCommands()
-        guard !commands.isEmpty else {
+        let executable = Bundle.main.executablePath!
+        switch claudeHooks.launchCheck(executable: executable) {
+        case .removed:
             settings.claudeSessions = false
             return
-        }
-        let executable = Bundle.main.executablePath!
-        if commands.contains(where: { $0 != ClaudeHooks.command(executable: executable) }) {
+        case .unreadable:
+            Log.app.error("Could not read the Claude Code settings; the hooks are left as they are")
+        case .reinstall:
             do {
                 try claudeHooks.install(executable: executable)
             } catch {
                 Log.app.error("Could not install the Claude Code hooks again: \(Self.reason(error), privacy: .public)")
             }
+        case .otherCopy:
+            Log.app.notice("The Claude Code hooks run another PhoneBox; they are left to it")
+        case .current:
+            break
         }
         claudeMonitor.start()
     }
