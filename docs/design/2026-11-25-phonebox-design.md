@@ -220,7 +220,8 @@ Okunamayan değer JSON'a hiç yazılmaz (alan yok); dashboard "—" gösterir.
   bütün örneklerine uygular; yoksa `app-changed` döner.
 - `sleep`'te `ack` önce gönderilir, Mac 1 sn sonra uyur (yoksa cevap telefona ulaşmaz).
 - Ses kaydırıcısı sürüklenirken sayfa en fazla saniyede 4 `volume` gönderir, bırakınca son değeri gönderir (sınır 10/sn).
-- Ses kontrolü olmayan çıkış cihazında `volume`/`mute` `unsupported` döner ve kaydırıcı devre dışı kalır.
+- Ses kontrolü olmayan çıkış cihazında `volume`/`mute` `unsupported` döner ve kaydırıcı devre dışı kalır; kontrol var
+  ama değeri almadıysa `failed` döner.
 - Spike 7'de uygulama kapatma, sessiz, ses seviyesi, ekranı kapatma ve kilit hiçbir izin penceresi açmadan
   çalıştı. Medya komutu NotchBox'ta çalışan adaptörle gönderilir.
 
@@ -272,16 +273,23 @@ ekran yüksekliğine göre ayarlanır, iPhone SE'den Pro Max'e kadar her şey ka
 - **Şimdi çalıyor:** şarkı, sanatçı ve uygulama (kapak resmi yok). `media` alanı yoksa gizlenir; yatayda liste bir
   satır uzar.
 - **Kontrol şeridi:** önceki, oynat/duraklat (çalma durumuna göre simge), sonraki, ses kaydırıcısı (Mac'in o anki
-  seviyesi), sessiz (🔈/🔇), "⋯". Dokunma alanları en az 44×44 pt. `audio` alanı yoksa kaydırıcı ve sessiz soluk.
+  seviyesi), sessiz, "⋯". Simgeler sayfanın içinde SVG (emoji değil). Dokunma alanları en az 44×44 pt. `audio` alanı
+  yoksa kaydırıcı ve sessiz soluk. Kaydırıcı parmakla sürüklenir: en çok saniyede 4 değer gider, bırakınca son değer
+  gider; bıraktıktan sonra 1,5 sn Mac'in eski değeri gösterilmez (düğme geri sıçramasın). Sessiz düğmesi dokunur
+  dokunmaz değişir, sonraki snapshot doğrular.
 - **Komut etkileşimleri** (görsel taslaklarla seçildi):
   - Uygulamaya dokununca alttan panel: ad, CPU ve bellek; "Kapat", "Zorla kapat", "Vazgeç". Gri satıra dokununca
     sadece "Bu süreç buradan kapatılamaz".
   - "⋯" menüsü şeridin üstünde açılır: Kilitle, Ekranı kapat, Uyut, ayraç, Kurulum rehberi.
   - Onay sadece "Zorla kapat" ve "Uyut" için (bölüm 7). "Uyut" penceresi bağlantının kesileceğini ve Mac'in
     klavyesine ya da trackpad'ine dokunarak uyandırılacağını, sonra dashboard'un kendiliğinden bağlanacağını söyler.
-  - Her komuttan sonra üstte 2 sn bildirim: başarıda yeşil tik; hatada kırmızı ve sebep (`not-allowed` → "Komutlar
-    sadece kabloyla çalışır", `app-changed` → "Uygulama değişmiş, liste yenilendi", `unsupported` → ses
-    komutlarında "Bu çıkışta ses kontrolü yok", diğerlerinde "Bu komut desteklenmiyor", `failed` → "Olmadı").
+  - Komuttan sonra üstte 2 sn bildirim. Başarıda yeşil tik yalnız uygulama ve "⋯" komutlarında ("Code kapatıldı",
+    "Mac kilitlendi"); medya, ses ve sessizde başarı zaten ekranda görünür, bildirim çıkmaz. Hatada her zaman kırmızı
+    ve sebep (`not-allowed` → "Komutlar sadece kabloyla çalışır", `app-changed` → "Uygulama değişmiş, liste
+    yenilendi", `unsupported` → ses komutlarında "Bu çıkışta ses kontrolü yok", diğerlerinde "Bu komut
+    desteklenmiyor", `failed` ya da 5 sn içinde cevap gelmemesi → "Olmadı").
+  - Komutlar numaralanır (`seq` sayfa açık kaldıkça hep artar) ve imzalanır; cevap (`ack`) numarasıyla eşlenir
+    (`commands.js`).
   - `access.commands` false iken (Wi-Fi) şerit, panel düğmeleri ve menüdeki komutlar soluk; dokununca "Komutlar
     sadece kabloyla çalışır".
 - **Bağlantı göstergesi:** saat başlığında telefonun pilinin yanında renkli nokta: yeşil kabloda, turuncu Wi-Fi'de
@@ -388,7 +396,8 @@ Telefon çalışırken yanda açık durur; bir metrik sınırına yaklaşınca d
     katman) saniyede bir nefes alır gibi atar; halka ve kutucuk aynı ritimde kırmızı ışıkla atar; grafik o metrikteyse
     çerçevesi de atar.
   - Saat başlığında tarihin yerine kırmızı "▲ CPU %100" yazar; birden fazla alarm varsa en yüksek seviyeli ikisi
-    ("▲ CPU %100 · Sıcaklık 97 °C").
+    ("▲ CPU %100 · Sıcaklık 97 °C"). RAM'in alarmında yüzde değil bellek baskısı yazar ("▲ RAM kritik"). RAM grafiği
+    kızarmaz ama alarmında çerçevesi atar, başlıktaki değeri kızarır.
   - Alarm yokken bir metrik seviye 0,7'yi geçerse kenarda soluk bir ışık belirir (seviye arttıkça güçlenir).
   - 2 dakika sonra alarm sakinleşir: kenar ışığı ve atma durur, "▲" yazısı sabit kalır, metrik değer düzelene kadar
     kırmızı kalır. Değer düzelip (3 snapshot boyunca 0,9'un altında) yeniden sınıra gelirse yeniden çalar. Bir metrik
@@ -429,7 +438,8 @@ parçaları JavaScriptCore'da doğrudan çalıştırabilir. İki yön için tek 
 | `clock.js` | saat, tarih, rakam kayması | biçim JavaScriptCore'da, kayma gözle |
 | `chart.js` | grafik ölçeği (saf) ve her karede `<canvas>` çizimi (kızarma, sınır çizgisi, nabız) | ölçek JavaScriptCore'da, çizim gözle |
 | `connection.js` | bağlantı, eşleşme, yeniden bağlanma (bugünkü `app.js`'ten) | gözle / telefonda |
-| `commands.js` | komut imzası, `seq`, ses kaydırıcısının hız sınırı | imza ve hız sınırı JavaScriptCore'da |
+| `commands.js` | komut imzası, `seq`, cevap eşleme, 5 sn zaman aşımı, ses kaydırıcısının hız sınırı | imza (Swift'in `MessageAuth`'u ile), eşleme ve hız sınırı JavaScriptCore'da |
+| `controls.js` | kontrol şeridi, uygulama paneli, "⋯" komutları, onay, bildirim | gözle |
 | `view.js` | halkalar, kutucuklar, liste (satır kayması), şarkı kartı, saat başlığı, telefonun pili, alarm ve kenar ışığı, durumlar | gözle |
 | `ui.js` | panel, menü, onay, bildirim, rehber, Başlat ekranı, OLED kayması | gözle |
 | `app.js` | parçaları birbirine bağlar | — |
@@ -541,6 +551,7 @@ Sources/PhoneBox/         uygulama, Collectors, Sampler, USBWatcher, Server, Pai
 Resources/                Info.plist, AppIcon.icns, en.lproj, tr.lproj
 Resources/web/            index.html, styles.css, sha256.js, i18n.js, format.js, history.js, metrics.js, heat.js,
                           motion.js, rings.js, clock.js, chart.js, connection.js, commands.js, view.js, ui.js,
+                          controls.js,
                           app.js, keepawake.mp4, apple-touch-icon.png
 Vendor/mediaremote-adapter/   (git alt modülü)
 Tests/PhoneBoxCoreTests/  Tests/PhoneBoxTests/

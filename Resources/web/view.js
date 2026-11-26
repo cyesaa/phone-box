@@ -44,6 +44,9 @@
       this.timeline = new motion.Timeline();
       this.graph = null;
       this.rows = new Map();
+      /// The metric the graph is fading to, and its timer: a tap during the fade replaces it.
+      this.switching = null;
+      this.switchTimer = 0;
       /// The app shown in each row, by the row's `data-id`, for a tap.
       this.rowApps = new Map();
       this.white = heat.rgb("#eaf6ff");
@@ -94,6 +97,8 @@
     /// Stale values do not ring: the alarm and the edge light go out until fresh snapshots come.
     setStale(stale) {
       this.stale = stale;
+      // The first frame after a change is drawn at once.
+      this.staleFrameAt = -Infinity;
       $("dashboard").classList.toggle("stale", stale);
       if (stale) this.alarm.clear();
       this.renderStatus();
@@ -232,8 +237,8 @@
                     this.pop("ram", now, still));
       for (const metric of tileMetrics) this.paintTile(metric, shown, levels[metric], glow(metric), this.pop(metric, now, still));
       this.renderHeader(shown, levels);
-      const graphKey = PB().metrics.graphHeat(this.selected);
-      this.drawGraph(graph, graphSize, now, still, graphKey ? glow(graphKey) : 0);
+      const alarmKey = PB().metrics.headerHeat(this.selected);
+      this.drawGraph(graph, graphSize, now, still, alarmKey ? glow(alarmKey) : 0);
       this.renderTop(shown, levels, ringing, loud, pulse, still);
       this.renderEdge(levels, loud, pulse, now, still);
     }
@@ -263,9 +268,13 @@
         put(line, "opacity", "");
         return;
       }
-      const value = (metric) => (metric === "cpu" || metric === "ram"
-        ? metrics.header(metric, shown, this.format, this.t).value
-        : metrics.tile(metric, shown, this.format));
+      // RAM rings by memory pressure, so its line names the pressure, not the percentage used.
+      const value = (metric) => {
+        if (metric === "ram" && shown.mem && this.t.pressure[shown.mem.pressure]) return this.t.pressure[shown.mem.pressure];
+        return metric === "cpu" || metric === "ram"
+          ? metrics.header(metric, shown, this.format, this.t).value
+          : metrics.tile(metric, shown, this.format);
+      };
       const name = (metric) => (metric === "disk" ? this.t.diskTile : this.t.metric[metric]);
       const hottest = Array.from(ringing).sort((a, b) => (levels[b] ?? 0) - (levels[a] ?? 0)).slice(0, 2);
       put(line, "class", "top-line alert");
@@ -337,15 +346,20 @@
 
     /// A tap on a ring or a tile: the old graph fades out, the new one fades in.
     switchTo(metric, history) {
-      if (metric === this.selected) return;
+      // During a fade the metric being faded to counts: tapping A, B, then A again ends on A.
+      if (metric === (this.switching ?? this.selected)) return;
       const canvas = $("graph");
+      global.clearTimeout(this.switchTimer);
       if (PB().motion.reduced()) {
+        this.switching = null;
         this.select(metric);
         this.renderGraph(history);
         return;
       }
+      this.switching = metric;
       canvas.classList.add("switching");
-      global.setTimeout(() => {
+      this.switchTimer = global.setTimeout(() => {
+        this.switching = null;
         this.select(metric);
         this.renderGraph(history);
         canvas.classList.remove("switching");
@@ -355,7 +369,7 @@
     renderHeader(shown, levels) {
       const { heat, metrics } = PB();
       const { value, detail } = metrics.header(this.selected, shown, this.format, this.t);
-      const key = metrics.graphHeat(this.selected);
+      const key = metrics.headerHeat(this.selected);
       const color = heat.color(metrics.colors[this.selected], key ? levels[key] ?? 0 : 0);
       put($("graph-title"), "text", `${this.t.metric[this.selected]} · ${this.t.lastMinute}`);
       put($("graph-value"), "text", value);

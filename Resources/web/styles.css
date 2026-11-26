@@ -100,6 +100,15 @@ p { margin: 0; }
       "rings strip apps";
   }
   .clock { font-size: calc(var(--side) * 0.16); }
+  /* No song: the app list takes its place instead of an empty row and its gap. */
+  .dashboard:has(#now-playing[hidden]) {
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "rings graph top"
+      "rings graph apps"
+      "rings tiles apps"
+      "rings strip apps";
+  }
   .rings { flex-direction: column; justify-content: space-around; }
 }
 
@@ -117,8 +126,14 @@ p { margin: 0; }
   .top .top-side { flex-direction: row; align-items: center; gap: 8px; }
   .np-text { flex-direction: row; gap: 6px; align-items: baseline; }
   .np-sub::before { content: "· "; }
-  .np-icon { width: 24px; height: 24px; padding: 6px 0; gap: 2px; }
-  .np-icon i { width: 3px; height: 12px; }
+  /* `.now-playing` in front: the base rules come later in this file and would win otherwise. */
+  .now-playing .np-icon { width: 24px; height: 24px; padding: 6px 0; gap: 2px; }
+  .now-playing .np-icon i { width: 3px; height: 12px; }
+  /* No song: no empty row, so no extra gap. */
+  .dashboard:has(#now-playing[hidden]) {
+    grid-template-rows: auto auto clamp(110px, 19dvh, 160px) auto minmax(0, 1fr) auto;
+    grid-template-areas: "top" "rings" "graph" "tiles" "apps" "strip";
+  }
 }
 
 /* ---- Clock header (design §8 "Saat ve telefonun pili"); its size is set per orientation above. ---- */
@@ -141,7 +156,8 @@ p { margin: 0; }
 @keyframes digit-out { to { transform: translateY(-90%); opacity: 0; } }
 @keyframes colon { 50% { opacity: 0.3; } }
 .top-side { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; min-width: 0; }
-.top-line { max-width: 100%; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The date under the clock: lighter than the other labels, so it reads at a glance on a phone beside the desk. */
+.top-line { max-width: 100%; font-size: 12px; color: #a3b8cb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .top-line.alert { color: #ff6b6b; font-weight: 600; }
 
 /* The phone's battery: the fill follows the level and glides when it changes. */
@@ -234,7 +250,8 @@ p { margin: 0; }
 /* ---- Apps ---- */
 .apps { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .apps-head { display: flex; justify-content: space-between; align-items: center; margin: 0 2px 2px; }
-.app-sort { color: var(--muted); padding: 10px 0 10px 16px; margin: -8px 0; }
+/* A wide target that does not reach into the first row (a tap there opens the app's panel). */
+.app-sort { color: var(--muted); padding: 8px 0 2px 24px; margin: -8px 0 -2px; }
 .app-list { list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; overflow: hidden; }
 .app-list li {
   position: relative;

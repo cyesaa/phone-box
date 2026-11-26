@@ -101,6 +101,7 @@ struct WebMotionTests {
         #expect(string("PhoneBox.metrics.heatValues({ battery: { percent: 12, charging: false } }).battery") == "null")
         #expect(string("[PhoneBox.metrics.graphHeat('disk'), PhoneBox.metrics.graphHeat('ram'), PhoneBox.metrics.graphHeat('net')].join(',')")
             == ",,net")
+        #expect(string("['disk', 'ram', 'cpu'].map(PhoneBox.metrics.headerHeat).join(',')") == ",ram,cpu")
     }
 
     @Test func blendsSnapshotsNumberByNumber() {

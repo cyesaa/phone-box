@@ -70,6 +70,12 @@
     return metric === "disk" || metric === "ram" ? null : metric;
   }
 
+  /// Which metric's heat and alarm the graph's header value and frame follow: the graph's own metric, RAM included
+  /// (by memory pressure), but not disk, whose header shows reading speed, not free space.
+  function headerHeat(metric) {
+    return metric === "disk" ? null : metric;
+  }
+
   /// How the graph's vertical axis is chosen (see `PhoneBox.chart.range`).
   function scale(metric) {
     if (metric === "temp") return "temperature";
@@ -149,5 +155,5 @@
   }
 
   global.PhoneBox = global.PhoneBox || {};
-  global.PhoneBox.metrics = { colors, light, order, values, heatValues, graphHeat, lines, scale, tile, header, axisLabel, GiB };
+  global.PhoneBox.metrics = { colors, light, order, values, heatValues, graphHeat, headerHeat, lines, scale, tile, header, axisLabel, GiB };
 })(typeof window !== "undefined" ? window : globalThis);
