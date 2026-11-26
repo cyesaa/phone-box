@@ -114,6 +114,21 @@ struct WebConnectionTests {
         #expect(result == "1 connecting,unpaired false")
     }
 
+    @Test func aReplacedSocketMustAuthenticateAgainBeforeCommands() {
+        let result = string("""
+            handshake(last(), { streaming: true, commands: true, cable: true, reason: "ok" });
+            var before = connection.send({ type: "cmd" });
+            connection.replace();
+            var replaced = connection.send({ type: "cmd" });
+            var s = last(); open(s);
+            receive(s, { v: 1, type: "hello", nonce: "m" });
+            var afterHello = connection.send({ type: "cmd" });
+            receive(s, { v: 1, type: "ready", mode: "cable", host: "Mac", access: { streaming: true, commands: true, cable: true, reason: "ok" } });
+            [before, replaced, afterHello, connection.send({ type: "cmd" }), connection.nonce, sockets.length].join(" ")
+            """)
+        #expect(result == "true false false true m 2")
+    }
+
     @Test func reconnectsQuicklyWhenTheMacAsks() {
         let result = string("""
             handshake(last(), { streaming: true, commands: true, cable: false, reason: "ok" });
