@@ -292,3 +292,18 @@ Mac'te:
   bulamadı). `PHONEBOX_VERSION=…` ile kuran bir kullanıcı da her güncellemede o sürümü yeniden kurardı. install.sh
   uygulamayı `PHONEBOX_*` olmadan açıyor, uygulama da kurulum betiğine bunları geçirmiyor (0.2.1). Mac, GitHub'daki
   kurulum komutuyla 0.2.0'a geçirildi.
+
+### 2026-11-26 — 0.3.0 adayı (dal `v030`, cb85409), MacBook Pro M4 / macOS 27.2, iPhone (Wi-Fi, "Her zaman")
+
+- Geçti: aday `/Applications`'a kuruldu (temiz ortam, `PHONEBOX_*` yok), imza geçerli, 4747 dinleniyor, telefon `en0`
+  üzerinden yeniden bağlandı.
+- Geçti: menüden "Claude Code Oturumları" → uyarı → "Aç": `~/.claude/settings.json`'da on olayın her birinde bir
+  PhoneBox grubu (`async`, `timeout` 10); hook dışı anahtarlar aynı; `settings.json.phonebox-backup` hook'suz eski
+  dosya; `claude.sock` 0600.
+- Geçti: yeni bir `claude -p` oturumunun hata ayıklama kaydında `SessionStart` hook'u PhoneBox yardımcısını arka
+  plana aldı (15 ms), yanıt üretmedi.
+- Geçti: özellik açılmadan önce başlamış masaüstü oturumu yeni hook'ları yeniden başlamadan aldı; seçenekli soru
+  sorulunca telefonda Claude sayfası kendiliğinden açıldı, bu oturum turuncu "Soru soruyor" kartıyla göründü.
+- Geçti: soru Mac'te cevaplanınca kart çalışıyora döndü, sayfa birkaç saniye sonra panoya döndü.
+- Denenmedi: izin kartı (oturum otomatik kipteydi), kaydırarak dönüp yeniden açılmama, oturum kapanınca kartın
+  gitmesi, kapatınca hook'ların silinmesi, kaldırıcı, iki kopya.
