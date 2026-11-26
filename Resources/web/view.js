@@ -104,8 +104,8 @@
       this.renderStatus();
     }
 
-    // The dot: green on the cable (the phone's battery shows next to it), orange and "Wi-Fi" on Wi-Fi (no commands),
-    // grey while (re)connecting, red with what is wrong. The Mac's name is at the top of the "⋯" menu.
+    // The dot: green on the cable (the phone's battery shows next to it), orange and "Wi-Fi" on Wi-Fi (at most lock and
+    // music), grey while (re)connecting, red with what is wrong. The Mac's name is at the top of the "⋯" menu.
     renderStatus() {
       const t = this.t;
       const problems = { cable: t.stateCable, offline: t.stateOffline, unpaired: t.stateUnpaired, nokey: t.stateUnpaired,

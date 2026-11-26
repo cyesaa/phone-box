@@ -329,7 +329,7 @@ p { margin: 0; }
 }
 .volume.dragging .volume-fill, .volume.dragging .volume-thumb { transition: none; }
 .volume.dragging .volume-thumb { transform: scale(1.2); }
-/* Commands that cannot go now (Wi-Fi, no volume control): dim, and a tap says why. */
+/* Commands that cannot go now (not allowed here, no volume control): dim, and a tap says why. */
 .off { opacity: 0.35; }
 
 /* ---- Menu ---- */

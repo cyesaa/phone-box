@@ -1,8 +1,9 @@
 // The command side of the page (design §7, §8 "Komut etkileşimleri"): the control strip (previous, play/pause, next,
 // the volume slider, mute), the app panel (Quit, Force quit), the "⋯" menu's Mac commands, the confirmation that
-// Sleep and Force quit ask for, and the 2-second toast. Commands go only from the cable; elsewhere the controls are
-// dim and a tap says why. A tap that comes just as an overlay opens or closes is ignored (`settleTaps`). Checked by
-// eye.
+// Sleep and Force quit ask for, and the 2-second toast. A control works only when the Mac lists its command in
+// `access.commands` (every command on the cable, at most lock and music on Wi-Fi); otherwise it is dim and a tap says
+// why. A tap that comes just as an overlay opens or closes is ignored (`settleTaps`). Which control sends what is
+// checked in JavaScriptCore (WebControlsTests), the rest by eye.
 (function (global) {
   "use strict";
 
@@ -50,9 +51,14 @@
       this.render();
     }
 
-    /// Commands may go out: the Mac allows them (cable) and the socket is authenticated.
-    allowed() {
-      return Boolean(this.access && this.access.commands) && this.commands.canSend();
+    /// The Mac lets this phone send `name` (`access.commands`).
+    permits(name) {
+      return Boolean(this.access && Array.isArray(this.access.commands) && this.access.commands.includes(name));
+    }
+
+    /// `name` may go out: the Mac lets this phone send it and the socket is authenticated.
+    allowed(name) {
+      return this.permits(name) && this.commands.canSend();
     }
 
     /// True just after the panel or the confirmation opened or closed, or the "⋯" menu closed (`settleTaps`): the
@@ -63,17 +69,20 @@
     }
 
     render() {
-      const allowed = this.allowed();
-      for (const id of ["media-previous", "media-play", "media-next"]) $(id).classList.toggle("off", !allowed);
+      const media = this.allowed("media");
+      for (const id of ["media-previous", "media-play", "media-next"]) $(id).classList.toggle("off", !media);
       $("media-play").classList.toggle("playing", Boolean(this.media && this.media.playing));
-      const audio = allowed && Boolean(this.audio);
-      $("volume").classList.toggle("off", !audio);
-      $("mute").classList.toggle("off", !audio);
+      const audio = Boolean(this.audio);
+      $("volume").classList.toggle("off", !(audio && this.allowed("volume")));
+      $("mute").classList.toggle("off", !(audio && this.allowed("mute")));
       $("mute").classList.toggle("muted", Boolean(this.audio && this.audio.muted));
       if (this.audio && !this.dragging && global.performance.now() >= this.quietUntil) this.paintVolume(this.audio.volume);
-      for (const item of global.document.querySelectorAll("#menu [data-command]")) item.classList.toggle("off", !allowed);
-      $("sheet-quit").classList.toggle("off", !allowed);
-      $("sheet-force").classList.toggle("off", !allowed);
+      for (const item of global.document.querySelectorAll("#menu [data-command]")) {
+        item.classList.toggle("off", !this.allowed(item.dataset.command));
+      }
+      const quit = this.allowed("quitApp");
+      $("sheet-quit").classList.toggle("off", !quit);
+      $("sheet-force").classList.toggle("off", !quit);
     }
 
     /// A tap on an app row: its panel with Quit, Force quit and Cancel. A row the phone cannot quit (grey) only says
@@ -126,8 +135,8 @@
 
     /// True when `name` may go out now; otherwise a red toast says why.
     possible(name) {
-      if (!this.allowed()) {
-        this.toast(this.access && this.access.commands ? this.t.errorFailed : this.t.errorNotAllowed, false);
+      if (!this.allowed(name)) {
+        this.toast(this.permits(name) ? this.t.errorFailed : this.t.errorNotAllowed, false);
         return false;
       }
       if ((name === "volume" || name === "mute") && !this.audio) {
