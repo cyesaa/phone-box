@@ -16,6 +16,7 @@ enum L10n {
     static var modeHeader: String { text("menu.mode") }
     static var modeCable: String { text("menu.mode.cable") }
     static var modeAlways: String { text("menu.mode.always") }
+    static var lockAndMusic: String { text("menu.lockAndMusic") }
     static func portItem(_ port: UInt16) -> String { String(format: text("menu.port"), Int(port)) }
     static var launchAtLogin: String { text("menu.launchAtLogin") }
     static var resetPairing: String { text("menu.resetPairing") }
@@ -32,6 +33,10 @@ enum L10n {
     static var loginApprovalTitle: String { text("login.approvalTitle") }
     static var loginApprovalMessage: String { text("login.approvalMessage") }
     static var loginOpenSettings: String { text("login.openSettings") }
+
+    static var lockAndMusicTitle: String { text("lockAndMusic.title") }
+    static var lockAndMusicMessage: String { text("lockAndMusic.message") }
+    static var lockAndMusicAllow: String { text("lockAndMusic.allow") }
 
     static func updateUpToDate(_ version: String) -> String { String(format: text("update.upToDate"), version) }
     static var updateCheckFailed: String { text("update.checkFailed") }

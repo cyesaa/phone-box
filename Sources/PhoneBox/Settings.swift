@@ -17,6 +17,12 @@ final class Settings {
         set { defaults.set(newValue.rawValue, forKey: "mode") }
     }
 
+    /// "Lock and Music over Wi-Fi" (design §5); off until the user allows it in the menu.
+    var lockAndMusicOverWiFi: Bool {
+        get { defaults.bool(forKey: "lockAndMusicOverWiFi") }
+        set { defaults.set(newValue, forKey: "lockAndMusicOverWiFi") }
+    }
+
     /// Chosen in the menu's "Port…" dialog; 4747 when nothing (or something out of range) is saved.
     var port: UInt16 {
         get {

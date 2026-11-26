@@ -46,6 +46,11 @@ final class DashboardHub {
     var mode: AccessMode {
         didSet { if mode != oldValue { refreshAccess() } }
     }
+    /// "Lock and Music over Wi-Fi" (design §5): in "always" mode, phones on Wi-Fi may also lock the Mac and control
+    /// the music.
+    var lockAndMusicOverWiFi: Bool {
+        didSet { if lockAndMusicOverWiFi != oldValue { refreshAccess() } }
+    }
     private var key: PairingKey
     private let appName: String
     /// The Mac's name, shown at the top of the page's "⋯" menu.
@@ -67,10 +72,11 @@ final class DashboardHub {
     var onAuthenticated: (() -> Void)?
     var onConnectionClosed: ((any PhoneConnection) -> Void)?
 
-    init(mode: AccessMode, key: PairingKey, appName: String, hostName: String, powerLimits: PowerLimits = .standard,
-         build: String = "", commands: any CommandRunning,
+    init(mode: AccessMode, lockAndMusicOverWiFi: Bool = false, key: PairingKey, appName: String, hostName: String,
+         powerLimits: PowerLimits = .standard, build: String = "", commands: any CommandRunning,
          usbInterfaces: @escaping () -> Set<String> = USBLinks.iPhoneInterfaceNames) {
         self.mode = mode
+        self.lockAndMusicOverWiFi = lockAndMusicOverWiFi
         self.key = key
         self.appName = appName
         self.hostName = hostName
@@ -133,13 +139,13 @@ final class DashboardHub {
     func received(_ text: String, from connection: any PhoneConnection) {
         let id = ObjectIdentifier(connection)
         guard var client = clients[id] else { return }
-        let outcome = client.session.receive(text, key: key, commandsAllowed: client.access.commands, now: Date())
+        let outcome = client.session.receive(text, key: key, allowedCommands: client.access.commands, now: Date())
         clients[id] = client
         switch outcome {
         case .authenticated:
             let wasStreaming = isStreaming
             connection.markAuthenticated()
-            client.access = AccessPolicy.decide(mode: mode, clientOnUSB: client.onUSB, authenticated: true)
+            client.access = access(onUSB: client.onUSB)
             clients[id] = client
             connection.send(.ready(mode: mode, host: hostName, powerLimits: powerLimits, access: client.access,
                                    build: build))
@@ -187,8 +193,8 @@ final class DashboardHub {
     }
 
     /// An iPhone was just plugged in. In both modes, phones that are connected over Wi-Fi are asked to reconnect so
-    /// that the plugged-in one comes back over the cable: only there does it get commands (and, in cable mode, data).
-    /// A device that is not plugged in reconnects over Wi-Fi again.
+    /// that the plugged-in one comes back over the cable: only there does it get every command (and, in cable mode,
+    /// data). A device that is not plugged in reconnects over Wi-Fi again.
     func iPhonePluggedIn() {
         guard !usbInterfaces().isEmpty else { return }
         for client in clients.values where client.session.isAuthenticated && !client.onUSB {
@@ -196,10 +202,16 @@ final class DashboardHub {
         }
     }
 
+    /// What an authenticated phone may do under the current settings.
+    private func access(onUSB: Bool) -> Access {
+        AccessPolicy.decide(mode: mode, lockAndMusicOverWiFi: lockAndMusicOverWiFi, clientOnUSB: onUSB, authenticated: true)
+    }
+
+    /// After a settings change: every authenticated phone whose access changed is told.
     private func refreshAccess() {
         let wasStreaming = isStreaming
         for (id, var client) in clients where client.session.isAuthenticated {
-            let access = AccessPolicy.decide(mode: mode, clientOnUSB: client.onUSB, authenticated: true)
+            let access = self.access(onUSB: client.onUSB)
             guard access != client.access else { continue }
             client.access = access
             clients[id] = client

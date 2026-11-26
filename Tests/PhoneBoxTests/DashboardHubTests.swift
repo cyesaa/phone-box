@@ -129,7 +129,7 @@ struct DashboardHubTests {
         hub.received(command(phone, seq: 1, name: "shutdown", args: "{}"), from: phone)
         hub.received(command(phone, seq: 2, name: "volume", args: #"{"level":"loud"}"#), from: phone)
         #expect(runner.commands.isEmpty)
-        #expect(phone.sent.suffix(2) == [.ack(seq: 1, ok: false, error: "unsupported"), .ack(seq: 2, ok: false, error: "unsupported")])
+        #expect(phone.sent.suffix(2) == [.ack(seq: 1, ok: false, error: "not-allowed"), .ack(seq: 2, ok: false, error: "unsupported")])
     }
 
     @Test func dropsTheAckWhenThePhoneLeftWhileTheCommandRan() {
@@ -153,6 +153,49 @@ struct DashboardHubTests {
         hub.mode = .always
         #expect(phone.sent.last == .access(.overWiFi))
         #expect(streaming == [true])
+    }
+
+    @Test func lockAndMusicOverWiFiOpensOnlyThoseToWiFiPhones() {
+        let hub = makeHub(mode: .always)
+        let wifi = connect(hub, onUSB: false)
+        let cable = connect(hub, onUSB: true)
+        #expect(wifi.sent.last == .ready(mode: .always, host: "Test Mac", powerLimits: limits, access: .overWiFi))
+        #expect(Access.overWiFi.commands.isEmpty)
+        let cableSent = cable.sent.count
+
+        hub.lockAndMusicOverWiFi = true
+        #expect(wifi.sent.last == .access(Access(streaming: true, commands: ["media", "lock"], cable: false, reason: "ok")))
+        hub.received(command(wifi, seq: 1, name: "lock", args: "{}"), from: wifi)
+        #expect(runner.commands == [.lock])
+        #expect(wifi.sent.last == .ack(seq: 1, ok: true, error: nil))
+        hub.received(command(wifi, seq: 2, name: "volume", args: #"{"level":0.5}"#), from: wifi)
+        #expect(runner.commands == [.lock])
+        #expect(wifi.sent.last == .ack(seq: 2, ok: false, error: "not-allowed"))
+        #expect(cable.sent.count == cableSent)
+
+        hub.lockAndMusicOverWiFi = false
+        #expect(wifi.sent.last == .access(.overWiFi))
+        #expect(cable.sent.count == cableSent)
+    }
+
+    @Test func lockAndMusicOverWiFiChangesNothingInCableMode() {
+        let hub = makeHub(mode: .cable)
+        let wifi = connect(hub, onUSB: false)
+        let sent = wifi.sent.count
+        hub.lockAndMusicOverWiFi = true
+        #expect(wifi.sent.count == sent)
+        hub.received(command(wifi, seq: 1, name: "lock", args: "{}"), from: wifi)
+        #expect(runner.commands.isEmpty)
+        #expect(wifi.sent.last == .ack(seq: 1, ok: false, error: "not-allowed"))
+    }
+
+    @Test func aWiFiPhoneThatConnectsWhileItIsOnGetsLockAndMusic() {
+        let hub = DashboardHub(mode: .always, lockAndMusicOverWiFi: true, key: key, appName: "PhoneBox test", hostName: "Test Mac",
+                               powerLimits: limits, commands: runner, usbInterfaces: { ["anri1"] })
+        let wifi = connect(hub, onUSB: false)
+        #expect(wifi.sent.last == .ready(mode: .always, host: "Test Mac", powerLimits: limits, access: .overWiFiWithLockAndMusic))
+        hub.received(command(wifi, seq: 1, name: "media", args: #"{"action":"playPause"}"#), from: wifi)
+        #expect(runner.commands == [.media(.playPause)])
     }
 
     @Test func pluggingInAnIPhoneMovesWiFiPhonesToTheCableInBothModes() {

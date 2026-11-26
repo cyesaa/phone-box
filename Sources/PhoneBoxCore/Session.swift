@@ -35,7 +35,9 @@ public struct Session: Sendable {
         case close(code: UInt16, reason: String)
     }
 
-    public mutating func receive(_ text: String, key: PairingKey, commandsAllowed: Bool, now: Date) -> Outcome {
+    /// `allowedCommands` is the phone's `Access.commands`: a signed, fresh command outside it is answered with
+    /// `not-allowed` before its arguments are looked at.
+    public mutating func receive(_ text: String, key: PairingKey, allowedCommands: [String], now: Date) -> Outcome {
         guard let message = ClientMessage.parse(text) else {
             return .close(code: Self.policyViolationCode, reason: "bad message")
         }
@@ -61,7 +63,7 @@ public struct Session: Sendable {
                 return .close(code: Self.policyViolationCode, reason: "too many commands")
             }
             recentCommands.append(now)
-            guard commandsAllowed else { return .reply(.ack(seq: seq, result: .failed(.notAllowed))) }
+            guard allowedCommands.contains(name) else { return .reply(.ack(seq: seq, result: .failed(.notAllowed))) }
             guard let command = Command.parse(name: name, args: args) else {
                 return .reply(.ack(seq: seq, result: .failed(.unsupported)))
             }

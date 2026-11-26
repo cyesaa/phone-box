@@ -5,9 +5,10 @@ import ServiceManagement
 /// The menu bar icon and its menu (design §8 "Menü çubuğu"). Gray phone: nobody is receiving data;
 /// green phone: at least one phone is.
 @MainActor
-final class MenuBarController: NSObject, NSMenuDelegate {
+final class MenuBarController: NSObject, NSMenuDelegate, NSMenuItemValidation {
     var onShowQR: (() -> Void)?
     var onModeChange: ((AccessMode) -> Void)?
+    var onLockAndMusicChange: ((Bool) -> Void)?
     var onPortChange: ((UInt16) -> Void)?
     var onResetPairing: (() -> Void)?
     /// The port shown in the "Port…" item and offered in its dialog.
@@ -17,14 +18,17 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let statusLine = NSMenuItem()
     private let cableItem = NSMenuItem()
     private let alwaysItem = NSMenuItem()
+    private let lockAndMusicItem = NSMenuItem()
     private let portItem = NSMenuItem()
     private let loginItem = NSMenuItem()
     private let installItem = NSMenuItem()
     private let updates: UpdateService
     private var mode: AccessMode
+    private var lockAndMusicOverWiFi: Bool
 
-    init(mode: AccessMode, port: UInt16, updates: UpdateService) {
+    init(mode: AccessMode, lockAndMusicOverWiFi: Bool, port: UInt16, updates: UpdateService) {
         self.mode = mode
+        self.lockAndMusicOverWiFi = lockAndMusicOverWiFi
         self.port = port
         self.updates = updates
         super.init()
@@ -38,6 +42,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         cableItem.action = #selector(chooseCable)
         alwaysItem.title = L10n.modeAlways
         alwaysItem.action = #selector(chooseAlways)
+        lockAndMusicItem.title = L10n.lockAndMusic
+        lockAndMusicItem.action = #selector(toggleLockAndMusic)
         portItem.action = #selector(choosePort)
         loginItem.title = L10n.launchAtLogin
         loginItem.action = #selector(toggleLaunchAtLogin)
@@ -47,14 +53,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let checkItem = NSMenuItem(title: L10n.checkForUpdates, action: #selector(checkForUpdates), keyEquivalent: "")
         let quitItem = NSMenuItem(title: L10n.quit, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quitItem.target = NSApp
-        for item in [qrItem, cableItem, alwaysItem, portItem, loginItem, resetItem, installItem, checkItem] {
+        for item in [qrItem, cableItem, alwaysItem, lockAndMusicItem, portItem, loginItem, resetItem, installItem, checkItem] {
             item.target = self
         }
 
         let menu = NSMenu()
         menu.delegate = self
-        for item in [statusLine, .separator(), qrItem, .separator(), modeHeader, cableItem, alwaysItem, .separator(),
-                     portItem, loginItem, resetItem, .separator(), installItem, checkItem, .separator(), quitItem] {
+        for item in [statusLine, .separator(), qrItem, .separator(), modeHeader, cableItem, alwaysItem, lockAndMusicItem,
+                     .separator(), portItem, loginItem, resetItem, .separator(), installItem, checkItem, .separator(), quitItem] {
             menu.addItem(item)
         }
         statusItem.menu = menu
@@ -70,6 +76,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         cableItem.state = mode == .cable ? .on : .off
         alwaysItem.state = mode == .always ? .on : .off
+        lockAndMusicItem.state = lockAndMusicOverWiFi ? .on : .off
         portItem.title = L10n.portItem(port)
         switch SMAppService.mainApp.status {
         case .enabled: loginItem.state = .on
@@ -91,6 +98,29 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private func setMode(_ newMode: AccessMode) {
         mode = newMode
         onModeChange?(newMode)
+    }
+
+    /// Asked for every item each time the menu opens (the menu enables its items itself, so setting `isEnabled` would
+    /// not stick). "Lock and Music over Wi-Fi" only matters in "always" mode: in cable mode a phone on Wi-Fi gets no
+    /// data at all.
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        menuItem === lockAndMusicItem ? mode == .always : true
+    }
+
+    /// Turning it on asks first (design §5): someone who takes over the Wi-Fi network could lock the Mac and skip
+    /// songs too. Turning it off asks nothing.
+    @objc private func toggleLockAndMusic() {
+        if !lockAndMusicOverWiFi {
+            let alert = NSAlert()
+            alert.messageText = L10n.lockAndMusicTitle
+            alert.informativeText = L10n.lockAndMusicMessage
+            alert.addButton(withTitle: L10n.lockAndMusicAllow)
+            alert.addButton(withTitle: L10n.cancel)
+            NSApp.activate()
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+        lockAndMusicOverWiFi.toggle()
+        onLockAndMusicChange?(lockAndMusicOverWiFi)
     }
 
     /// Asks for a port until a valid one is typed or the dialog is cancelled.

@@ -11,21 +11,31 @@ struct ServerMessageTests {
         let ready = ServerMessage.ready(mode: .cable, host: "Eren's MacBook Pro", powerLimits: PowerLimits(start: 15, full: 35.5),
                                         access: .notOnCable)
         #expect(ready.json()
-            == #"{"access":{"cable":false,"commands":false,"reason":"not-on-cable","streaming":false},"host":"Eren's MacBook Pro","limits":{"power":[15,35.5]},"mode":"cable","type":"ready","v":1}"#)
+            == #"{"access":{"cable":false,"commands":[],"reason":"not-on-cable","streaming":false},"host":"Eren's MacBook Pro","limits":{"power":[15,35.5]},"mode":"cable","type":"ready","v":1}"#)
     }
 
     @Test func readyNamesTheDashboardsFilesWhenItKnowsThem() {
         let ready = ServerMessage.ready(mode: .always, host: "Mac", powerLimits: PowerLimits(start: 15, full: 35),
                                         access: .overWiFi, build: "0123456789ab")
         #expect(ready.json()
-            == #"{"access":{"cable":false,"commands":false,"reason":"ok","streaming":true},"build":"0123456789ab","host":"Mac","limits":{"power":[15,35]},"mode":"always","type":"ready","v":1}"#)
+            == #"{"access":{"cable":false,"commands":[],"reason":"ok","streaming":true},"build":"0123456789ab","host":"Mac","limits":{"power":[15,35]},"mode":"always","type":"ready","v":1}"#)
+    }
+
+    @Test func readyListsTheCommandsThePhoneMaySend() {
+        let limits = PowerLimits(start: 15, full: 35)
+        #expect(ServerMessage.ready(mode: .always, host: "Mac", powerLimits: limits, access: .overWiFiWithLockAndMusic).json()
+            == #"{"access":{"cable":false,"commands":["media","lock"],"reason":"ok","streaming":true},"host":"Mac","limits":{"power":[15,35]},"mode":"always","type":"ready","v":1}"#)
+        #expect(ServerMessage.ready(mode: .cable, host: "Mac", powerLimits: limits, access: .onCable).json()
+            == #"{"access":{"cable":true,"commands":["quitApp","media","volume","mute","lock","displaySleep","sleep"],"reason":"ok","streaming":true},"host":"Mac","limits":{"power":[15,35]},"mode":"cable","type":"ready","v":1}"#)
     }
 
     @Test func encodesAccessFlat() {
         #expect(ServerMessage.access(.onCable).json()
-            == #"{"cable":true,"commands":true,"reason":"ok","streaming":true,"type":"access","v":1}"#)
+            == #"{"cable":true,"commands":["quitApp","media","volume","mute","lock","displaySleep","sleep"],"reason":"ok","streaming":true,"type":"access","v":1}"#)
         #expect(ServerMessage.access(.overWiFi).json()
-            == #"{"cable":false,"commands":false,"reason":"ok","streaming":true,"type":"access","v":1}"#)
+            == #"{"cable":false,"commands":[],"reason":"ok","streaming":true,"type":"access","v":1}"#)
+        #expect(ServerMessage.access(.overWiFiWithLockAndMusic).json()
+            == #"{"cable":false,"commands":["media","lock"],"reason":"ok","streaming":true,"type":"access","v":1}"#)
     }
 
     @Test func encodesSnapshotAndLeavesOutMissingMetrics() {

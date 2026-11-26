@@ -8,6 +8,7 @@
 "menu.mode" = "Veri gönder";
 "menu.mode.cable" = "Sadece kablo takılıyken";
 "menu.mode.always" = "Her zaman, Wi-Fi'de de";
+"menu.lockAndMusic" = "Wi-Fi'den Kilit ve Müzik";
 "menu.port" = "Port: %d…";
 "menu.launchAtLogin" = "Girişte başlat";
 "menu.resetPairing" = "Eşleştirmeyi sıfırla…";
@@ -24,6 +25,10 @@
 "login.approvalTitle" = "PhoneBox'ın girişte açılmasına izin ver";
 "login.approvalMessage" = "macOS, Sistem Ayarları → Genel → Giriş Öğeleri'nde onayını istiyor.";
 "login.openSettings" = "Giriş Öğeleri'ni aç";
+
+"lockAndMusic.title" = "Wi-Fi'den kilit ve müzik açılsın mı?";
+"lockAndMusic.message" = "Wi-Fi'deki telefonlar bu Mac'i kilitleyebilir ve müziği oynatıp duraklatabilir ya da değiştirebilir. Wi-Fi ağını ele geçiren biri de aynısını yapabilir. Ses, ekranı kapatma, uygulama kapatma ve uyutma yine kablo ister.";
+"lockAndMusic.allow" = "İzin ver";
 
 "update.upToDate" = "PhoneBox %@ güncel.";
 "update.checkFailed" = "Güncellemeler denetlenemedi.";

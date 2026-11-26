@@ -30,10 +30,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // A Mac with a battery reports its whole power draw; a desktop Mac only the GPU's.
         let powerLimits = PowerLimits.forChip(Settings.chipName(), wholeMac: BatteryCollector.hasInternalBattery())
         let webDirectory = Bundle.main.resourceURL!.appendingPathComponent("web", isDirectory: true)
-        hub = DashboardHub(mode: settings.mode, key: key, appName: "PhoneBox \(version)", hostName: Settings.computerName(),
-                           powerLimits: powerLimits, build: Self.webBuild(webDirectory), commands: commandRunner)
+        hub = DashboardHub(mode: settings.mode, lockAndMusicOverWiFi: settings.lockAndMusicOverWiFi, key: key,
+                           appName: "PhoneBox \(version)", hostName: Settings.computerName(), powerLimits: powerLimits,
+                           build: Self.webBuild(webDirectory), commands: commandRunner)
         server = DashboardServer(webDirectory: webDirectory, hub: hub)
-        menuBar = MenuBarController(mode: settings.mode, port: settings.port, updates: updates)
+        menuBar = MenuBarController(mode: settings.mode, lockAndMusicOverWiFi: settings.lockAndMusicOverWiFi,
+                                    port: settings.port, updates: updates)
 
         hub.onStreamingChange = { [weak self] streaming in self?.sampler.setRunning(streaming) }
         hub.onClientsChange = { [weak self] streaming, waiting in
@@ -49,6 +51,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar.onModeChange = { [weak self] mode in
             self?.settings.mode = mode
             self?.hub.mode = mode
+        }
+        menuBar.onLockAndMusicChange = { [weak self] on in
+            self?.settings.lockAndMusicOverWiFi = on
+            self?.hub.lockAndMusicOverWiFi = on
         }
         menuBar.onPortChange = { [weak self] port in
             // Saved only once the new port listens: a port in use leaves PhoneBox, and its phones, on the old one.

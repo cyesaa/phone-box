@@ -23,7 +23,7 @@ struct LocalizationTests {
         let english = try Self.strings("en")
         let turkish = try Self.strings("tr")
         #expect(Set(english.keys) == Set(turkish.keys))
-        #expect(english.count == 41)
+        #expect(english.count == 45)
         for (key, text) in english {
             #expect(Self.placeholders(text) == Self.placeholders(turkish[key] ?? ""), "\(key)")
         }

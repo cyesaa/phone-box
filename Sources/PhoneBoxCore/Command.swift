@@ -1,7 +1,7 @@
 import Foundation
 
-/// The commands the phone may send (design §7). An unknown name, or arguments of the wrong shape, is answered
-/// with `unsupported` and never run.
+/// The commands the phone may send (design §7). A name the phone may not send, unknown names among them, is answered
+/// with `not-allowed`; arguments of the wrong shape with `unsupported`. Neither is run.
 public enum Command: Equatable, Sendable {
     public enum MediaAction: String, Sendable, CaseIterable {
         case playPause, next, previous
@@ -18,7 +18,13 @@ public enum Command: Equatable, Sendable {
     case displaySleep
     case sleep
 
-    /// The protocol name, for logs.
+    /// Every command's protocol name, in the order of design §7: what a phone on the cable may send.
+    public static let allNames = ["quitApp", "media", "volume", "mute", "lock", "displaySleep", "sleep"]
+    /// What a phone on Wi-Fi may send once "Lock and Music over Wi-Fi" is on (design §5): someone who took over the
+    /// network could then lock the screen or skip a song, nothing worse.
+    public static let wifiNames = ["media", "lock"]
+
+    /// The protocol name, for logs; one of `allNames`.
     public var name: String {
         switch self {
         case .quitApp: return "quitApp"
@@ -69,11 +75,11 @@ public enum Command: Equatable, Sendable {
 
 /// Why a command was not done; the `ack` message's `error` (design §5).
 public enum CommandFailure: String, Equatable, Sendable {
-    /// The phone is not on the cable.
+    /// The phone may not send this command (`Access.commands`): it is not on the cable, or the name is unknown.
     case notAllowed = "not-allowed"
     /// No app with that bundle identifier can be quit any more.
     case appChanged = "app-changed"
-    /// Unknown command, wrong arguments, or the Mac cannot do it (e.g. an output without volume control).
+    /// Wrong arguments, or the Mac cannot do it (e.g. an output without volume control).
     case unsupported
     case failed
 }

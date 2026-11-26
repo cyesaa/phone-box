@@ -8,6 +8,7 @@
 "menu.mode" = "Send data";
 "menu.mode.cable" = "Only While the Cable Is Plugged In";
 "menu.mode.always" = "Always, Also over Wi-Fi";
+"menu.lockAndMusic" = "Lock and Music over Wi-Fi";
 "menu.port" = "Port: %d…";
 "menu.launchAtLogin" = "Open at Login";
 "menu.resetPairing" = "Reset Pairing…";
@@ -24,6 +25,10 @@
 "login.approvalTitle" = "Allow PhoneBox to open at login";
 "login.approvalMessage" = "macOS wants your approval in System Settings → General → Login Items.";
 "login.openSettings" = "Open Login Items";
+
+"lockAndMusic.title" = "Allow lock and music over Wi-Fi?";
+"lockAndMusic.message" = "Phones on Wi-Fi can then lock this Mac and play, pause or skip music. Someone who takes over your Wi-Fi network could do the same. Volume, display off, quitting apps and sleep still need the cable.";
+"lockAndMusic.allow" = "Allow";
 
 "update.upToDate" = "PhoneBox %@ is up to date.";
 "update.checkFailed" = "Could not check for updates.";

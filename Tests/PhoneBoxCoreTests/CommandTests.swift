@@ -69,4 +69,14 @@ struct CommandTests {
         #expect(Command.displaySleep.name == "displaySleep")
         #expect(Command.sleep.name == "sleep")
     }
+
+    /// `Access.commands` is made of these lists, so every command's name must be among them.
+    @Test func everyCommandsNameIsInAllNames() {
+        let oneOfEach: [Command] = [.quitApp(bundleId: "a", force: false), .media(.playPause), .volume(level: 0.5),
+                                    .mute(on: true), .lock, .displaySleep, .sleep]
+        #expect(oneOfEach.map(\.name) == Command.allNames)
+        #expect(Set(Command.allNames).count == Command.allNames.count)
+        #expect(Command.wifiNames == ["media", "lock"])
+        #expect(Set(Command.wifiNames).isSubset(of: Command.allNames))
+    }
 }
