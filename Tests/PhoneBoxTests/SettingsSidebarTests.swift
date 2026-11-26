@@ -4,8 +4,11 @@ import Testing
 @testable import PhoneBox
 
 /// The sidebar of the settings window behaves like System Settings': a section is always chosen, and it cannot be
-/// collapsed. Checked on the real AppKit views SwiftUI builds (design §8 "Ayarlar penceresi").
+/// collapsed. Checked on the real AppKit views SwiftUI builds (design §8 "Ayarlar penceresi"). The first SwiftUI window
+/// holds the main thread for seconds, which makes the timing tests that run beside it fail, so this runs only in
+/// `make test-ui`.
 @MainActor
+@Suite(.enabled(if: ProcessInfo.processInfo.environment["PHONEBOX_UI"] == "1"))
 struct SettingsSidebarTests {
     private func host(_ model: SettingsModel) -> (NSWindow, NSView) {
         _ = NSApplication.shared

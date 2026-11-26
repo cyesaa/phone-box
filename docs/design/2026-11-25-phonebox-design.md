@@ -548,7 +548,9 @@ kendiliğinden haber vermediği için pencere her öne geldiğinde yeniden okunu
   TextEdit'te).
 
 Görünüm testte açılamadığı için `SettingsViewRenderTests` onu örnek bir modelle (`SettingsModel.sample`) her bölüm
-için açık ve koyu temada PNG'ye çizer (geçici klasörde `PhoneBoxSettings/`).
+için açık ve koyu temada PNG'ye çizer (geçici klasörde `PhoneBoxSettings/`). Pencere açan bu test ve kenar çubuğu
+testi (`SettingsSidebarTests`) ana iş parçacığını saniyelerce tuttuğu için yan yana koşan zamanlama testlerini
+bozuyordu; yalnız `make test-ui` ile, tek başlarına koşarlar (oturum açık bir Mac gerekir).
 
 Menü ve pencereler İngilizce ve Türkçe (`Resources/{en,tr}.lproj/Localizable.strings`); iki dosyanın anahtarları ve
 her metnin yer tutucuları aynı olmalı (`LocalizationTests`).

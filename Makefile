@@ -4,13 +4,18 @@ ifeq ($(DEV_DIR),/Library/Developer/CommandLineTools)
 TEST_FLAGS := -Xswiftc -plugin-path -Xswiftc $(DEV_DIR)/usr/lib/swift/host/plugins/testing
 endif
 
-.PHONY: build test adapter app run dist release clean
+.PHONY: build test test-ui adapter app run dist release clean
 
 build:
 	swift build
 
 test:
 	swift test $(TEST_FLAGS) $(if $(FILTER),--filter '$(FILTER)',)
+
+# The tests that open windows (settings sidebar, settings PNGs under $TMPDIR/PhoneBoxSettings), on their own: beside the
+# timing tests they hold the main thread too long. Needs a logged-in GUI session.
+test-ui:
+	PHONEBOX_UI=1 swift test $(TEST_FLAGS) --filter 'SettingsSidebarTests|SettingsViewRenderTests'
 
 adapter:
 	scripts/build-adapter.sh

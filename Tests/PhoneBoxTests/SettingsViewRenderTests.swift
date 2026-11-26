@@ -6,8 +6,10 @@ import Testing
 
 /// The settings window cannot be opened in a test, and running PhoneBox would start its server: this draws
 /// `SettingsView` with `SettingsModel.sample` into PNG files under the temporary folder, every section in Turkish
-/// (light and dark) and in English (light), to look at.
+/// (light and dark) and in English (light), to look at. Opening windows holds the main thread for seconds, which
+/// makes the timing tests that run beside it fail, so this runs only in `make test-ui`.
 @MainActor
+@Suite(.enabled(if: ProcessInfo.processInfo.environment["PHONEBOX_UI"] == "1"))
 struct SettingsViewRenderTests {
     static let folder = FileManager.default.temporaryDirectory.appendingPathComponent("PhoneBoxSettings", isDirectory: true)
 
