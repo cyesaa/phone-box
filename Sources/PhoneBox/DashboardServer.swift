@@ -95,7 +95,8 @@ final class DashboardServer {
                     case .ready:
                         self.takeOver(listener, port: port)
                         moved(true)
-                    case let .failed(error):
+                    case let .failed(error), let .waiting(error):
+                        // `.waiting` (the port is taken, for one) would otherwise leave the move hanging.
                         Log.server.error("Cannot move to port \(port): \(error.localizedDescription, privacy: .public)")
                         listener.cancel()
                         self.pendingListener = nil

@@ -56,8 +56,15 @@ final class UpdateService {
     }
 
     var availableRelease: LatestRelease? {
-        if case let .available(release) = status { return release }
-        return nil
+        switch status {
+        case let .available(release):
+            return release
+        case .checking:
+            // Keep offering a known update while a check runs.
+            return currentVersion.flatMap { UpdateCheck.availableUpdate(current: $0, latest: lastFound) }
+        default:
+            return nil
+        }
     }
 
     func start() {
@@ -93,7 +100,8 @@ final class UpdateService {
             // A file:// feed (testing) has no HTTP status.
             let code = (response as? HTTPURLResponse)?.statusCode ?? (data == nil ? 0 : 200)
             let release = code == 200 ? data.flatMap(LatestRelease.parse) : nil
-            let failed = error != nil || code != 200
+            // An answer that does not parse into a release is a failed check, not "up to date".
+            let failed = error != nil || code != 200 || release == nil
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     self.finishCheck(release: release, failed: failed, code: code, userInitiated: userInitiated)
@@ -119,10 +127,16 @@ final class UpdateService {
             status = .upToDate
         }
         guard userInitiated else { return }
-        switch status {
-        case .available: installWithConfirmation()
-        case .upToDate: alert(L10n.updateUpToDate(currentVersion.description), info: nil)
-        default: alert(L10n.updateCheckFailed, info: L10n.updateCheckFailedHint)
+        // Shown from the run loop: this runs in a main-queue block, and a modal alert nested in one holds up every other
+        // main-queue block, the phones' connections among them, until it is closed (they drop after 45 s).
+        RunLoop.main.perform {
+            MainActor.assumeIsolated {
+                switch self.status {
+                case .available: self.installWithConfirmation()
+                case .upToDate: self.alert(L10n.updateUpToDate(currentVersion.description), info: nil)
+                default: self.alert(L10n.updateCheckFailed, info: L10n.updateCheckFailedHint)
+                }
+            }
         }
     }
 
@@ -191,8 +205,13 @@ final class UpdateService {
         status = .failed
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(UpdateCheck.installCommand, forType: .string)
-        alert(L10n.updateInstallFailed, info: L10n.updateInstallFailedHint)
-        NSWorkspace.shared.activateFileViewerSelecting([log])
+        // From the run loop, not straight from the termination handler's main-queue block (see finishCheck).
+        RunLoop.main.perform {
+            MainActor.assumeIsolated {
+                self.alert(L10n.updateInstallFailed, info: L10n.updateInstallFailedHint)
+                NSWorkspace.shared.activateFileViewerSelecting([log])
+            }
+        }
     }
 
     private func alert(_ message: String, info: String?) {

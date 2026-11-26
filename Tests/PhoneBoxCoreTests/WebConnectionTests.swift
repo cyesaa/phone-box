@@ -83,6 +83,16 @@ struct WebConnectionTests {
             """) == "false,true,false,false,false,true")
     }
 
+    @Test func anOwnBuildThatIsNotTwelveHexDigitsCountsAsNone() {
+        #expect(string("""
+            var odd = ["XYZ", "0123456789a", "0123456789abc", "0123456789AB", "0123456789ag"].map(function (own) {
+                var watch = new PhoneBox.BuildWatch(own);
+                return [watch.changed("0123456789ab"), watch.changed("ba9876543210")].join("/");
+            });
+            odd.join(",")
+            """) == "false/true,false/true,false/true,false/true,false/true")
+    }
+
     @Test func backsOffOneTwoFiveSecondsAndKeepsTheOfflineCardUp() {
         let result = string("""
             for (var i = 0; i < 5; i += 1) { var count = sockets.length; fail(last()); while (sockets.length === count) advance(100); }

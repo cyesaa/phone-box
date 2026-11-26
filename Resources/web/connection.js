@@ -264,7 +264,8 @@
   class BuildWatch {
     /// `own`: the build from index.html; empty or missing when the Mac did not stamp one.
     constructor(own) {
-      this.build = typeof own === "string" && own !== "" ? own : null;
+      // The same rule as WebBuild.stamp: twelve lowercase hex digits; anything else counts as no own build.
+      this.build = typeof own === "string" && /^[0-9a-f]{12}$/.test(own) ? own : null;
     }
 
     /// True when the page should reload. A `ready` without a build (an older Mac side) changes nothing.

@@ -34,7 +34,10 @@ check_mac() {
 # /Applications when it is writable, otherwise ~/Applications (no admin rights needed).
 destination() {
   if [ -n "${PHONEBOX_DEST:-}" ]; then
-    echo "$PHONEBOX_DEST"
+    local dest="$PHONEBOX_DEST"
+    # No trailing slashes (messages would show "…//PhoneBox.app"), but "/" stays "/".
+    while [ "${#dest}" -gt 1 ] && [ "${dest%/}" != "$dest" ]; do dest="${dest%/}"; done
+    echo "$dest"
   elif [ -w /Applications ]; then
     echo /Applications
   else
@@ -59,9 +62,16 @@ running_pids() {
     resolved="$(cd "${dir:-/}" 2>/dev/null && pwd -P || true)"
     resolved="${resolved%/}"
   fi
+  # The root folder ("/") must not match every path: only the app placed directly in it counts.
+  local root=""
+  if [ -z "$dir" ]; then root=/PhoneBox.app; fi
   for pid in $(pgrep -ax PhoneBox || true); do
     path="$(ps -o comm= -p "$pid" 2>/dev/null || true)"
-    case "$path" in "$dir"/* | "${resolved:-$dir}"/*) echo "$pid" ;; esac
+    if [ -n "$root" ]; then
+      case "$path" in "$root"/*) echo "$pid" ;; esac
+    else
+      case "$path" in "$dir"/* | "${resolved:-$dir}"/*) echo "$pid" ;; esac
+    fi
   done
   return 0
 }
@@ -140,7 +150,7 @@ uninstall() {
   local removed=0 dir dirs
   # With PHONEBOX_DEST (a test install) only that copy goes; settings, the pairing key and permissions stay.
   if [ -n "${PHONEBOX_DEST:-}" ]; then
-    dirs=("$PHONEBOX_DEST")
+    dirs=("$(destination)")
   else
     dirs=(/Applications "$HOME/Applications")
   fi

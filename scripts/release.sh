@@ -2,7 +2,7 @@
 # Publishes PhoneBox <version> on GitHub Releases: make release VERSION=0.2.0
 #
 # From a clean main that matches origin/main, this sets the version in Resources/Info.plist, runs the
-# tests, builds dist/PhoneBox-<version>.zip, commits "Release <version>", tags v<version>, pushes both,
+# tests, builds dist/PhoneBox-<version>.zip, commits "Release <version>", tags v<version>, pushes both in one atomic push,
 # creates a draft GitHub release with generated notes, uploads the zip as PhoneBox.zip (the stable name
 # install.sh downloads) and only then publishes it. Works while the repository is private too; install.sh only works while it is public.
 #
@@ -66,8 +66,15 @@ fi
 say "Committing and tagging v$VERSION"
 git commit --quiet -m "Release $VERSION" -- "$PLIST"
 trap - EXIT
+# Until the push succeeds, the commit and the tag exist only here: say how to undo them before running this again.
+local_only() {
+  echo "error: the commit \"Release $VERSION\" and the tag v$VERSION exist only locally; undo them with" \
+    "\`git tag -d v$VERSION && git reset --hard HEAD~1\` before running this again." >&2
+}
+trap local_only EXIT
 git tag -a "v$VERSION" -m "PhoneBox $VERSION"
-git push --quiet origin main "v$VERSION"
+git push --atomic --quiet origin main "v$VERSION"
+trap - EXIT
 
 # From here until the release is published, a failure leaves a tag on GitHub without a release: say how to go on.
 unpublished() {
