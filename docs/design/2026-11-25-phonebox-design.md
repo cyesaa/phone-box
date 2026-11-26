@@ -253,6 +253,9 @@ Okunamayan değer JSON'a hiç yazılmaz (alan yok); dashboard "—" gösterir.
 Yerleşimler gerçek ölçüde görsel taslaklarla seçildi (2026-11-25, standart iPhone, yatayda 852×393). Kenarlarda
 güvenli alan payları (`env(safe-area-inset-*)`) bırakılır; bu telefonda kullanılabilir alan yatayda 734×372. Ölçüler
 ekran yüksekliğine göre ayarlanır, iPhone SE'den Pro Max'e kadar her şey kaydırmadan sığar.
+Ana ekran uygulamasında telefon döndürülünce iOS görünür alanı ekrandan kısa bırakabiliyor (2026-11-26, Pro Max
+yatayda: altta dikey durum çubuğu kadar boş şerit); bu yüzden orada tam ekran katmanların yüksekliği ekranın
+yüksekliğidir (`screen.js` → `--screen-height`), tarayıcı sekmesinde CSS'in görünür alanı.
 
 - **Yatay (ana görünüm), üç sütun:**
   - Sol: CPU (altında yük) ve RAM (altında kullanılan / toplam) halkaları.
