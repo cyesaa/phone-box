@@ -79,6 +79,16 @@ ya da `lsof -nP -iTCP:4747 -sTCP:ESTABLISHED` (`fe80:<scope>::…` adresinin sco
   `curl -g "http://[fe80::<Mac'in adresi>%<arayüz>]:4747/"` bağlanamıyor (bağlanırsa erişim noktasındaki cihazlar da
   "kablo" sayılır; o zaman bu arayüz dışlanır ya da risk §13'e yazılır).
 
+## Wi-Fi'den kilit ve müzik (0.2.0)
+- [ ] Menüde "Wi-Fi'den Kilit ve Müzik" kablo modunda soluk (seçilemiyor), "Her zaman" modunda seçilebilir.
+- [ ] Açarken uyarı çıkıyor; "Vazgeç" ayarı kapalı bırakıyor (işaret yok), "İzin ver" açıyor (işaret var); kapatırken
+  soru sormuyor.
+- [ ] Wi-Fi'deki telefonda (kablo yok, ayar açık): medya düğmeleri ve Kilitle çalışıyor.
+- [ ] Aynı telefonda ses kaydırıcısı, sessiz, Ekranı kapat, Uyut ve uygulama panelinin Kapat / Zorla kapat düğmeleri
+  soluk; dokununca "Bu komut sadece kabloyla çalışır" bildirimi çıkıyor ve hiçbir şey olmuyor.
+- [ ] Kilitle'ye 30 sn içinde ikinci kez basınca bir şey olmuyor; 30 sn sonra yine kilitliyor.
+- [ ] Kabloda her şey çalışıyor, Kilitle'ye art arda basmak da.
+
 ## Henüz denenmemiş (spike 8)
 - [ ] Kestirmeler → Otomasyon → Şarj Aleti → "URL'yi Aç" (kişisel bağlantı) → "Hemen Çalıştır": kablo takılınca
   dashboard onaysız açılıyor mu?

@@ -67,6 +67,8 @@ public struct Session: Sendable {
             guard let command = Command.parse(name: name, args: args) else {
                 return .reply(.ack(seq: seq, result: .failed(.unsupported)))
             }
+            // Defence in depth: the rule must not depend on `parse` returning only the case it was asked for.
+            guard allowedCommands.contains(command.name) else { return .reply(.ack(seq: seq, result: .failed(.notAllowed))) }
             return .command(seq: seq, command: command)
         }
     }

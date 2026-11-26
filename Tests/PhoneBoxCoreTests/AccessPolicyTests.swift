@@ -11,7 +11,7 @@ struct AccessPolicyTests {
         }
     }
 
-    @Test func alwaysModeStreamsToEveryoneButTakesCommandsOnlyFromTheCable() {
+    @Test func alwaysModeStreamsToEveryoneButTakesCommandsOnlyFromTheCableWithTheSettingOff() {
         #expect(AccessPolicy.decide(mode: .always, lockAndMusicOverWiFi: false, clientOnUSB: true, authenticated: true)
             == .onCable)
         let wifi = AccessPolicy.decide(mode: .always, lockAndMusicOverWiFi: false, clientOnUSB: false, authenticated: true)

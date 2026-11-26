@@ -71,6 +71,8 @@ kendiliğinden açılması için isteğe bağlı bir Kestirmeler otomasyonu da o
   sadece izler. Menüden **Wi-Fi'den Kilit ve Müzik**'i açarsan Wi-Fi'deki telefon Mac'i kilitleyebilir ve müziği
   oynatıp duraklatabilir, değiştirebilir. O zaman aynı Wi-Fi ağını ele geçiren biri de aynısını yapabilir: ekranı
   kilitler ya da şarkı atlatır. Ses, ekranı kapatma, uygulama kapatma ve uyutma yine yalnızca kablodan çalışır.
+  Wi-Fi'den kilit 30 sn'de en fazla bir kez çalışır; ayarı kapatmak (ya da eşleştirmeyi sıfırlamak) kötüye kullanımı
+  durdurur.
 - Sayfa düz HTTP ile sunulur. "Her zaman" modunda aynı Wi-Fi'deki biri CPU değerlerini ve uygulama adlarını görebilir;
   bu yüzden varsayılan mod "sadece kablo takılıyken"dir.
 - PhoneBox internete yalnızca güncellemeleri denetlemek için çıkar (GitHub, günde iki kez). Kapatmak için:
@@ -199,7 +201,8 @@ automation that opens the dashboard when the cable is plugged in.
 - Commands (quitting apps, media, volume, lock, sleep) are accepted **over the cable**; a phone on Wi-Fi only
   watches, unless you turn on **Lock and Music over Wi-Fi** in the menu: then it can also lock the Mac and play, pause
   or skip music. So could someone who takes over the same Wi-Fi network: lock the screen or skip a song. Volume,
-  display off, quitting apps and sleep still work only over the cable.
+  display off, quitting apps and sleep still work only over the cable. A lock over Wi-Fi works at most once every
+  30 seconds, and turning the setting off (or resetting the pairing) stops anyone misusing it.
 - The page is served over plain HTTP. In "Always" mode someone on the same Wi-Fi could see the CPU figures and app
   names, which is why the default is "only while the cable is plugged in".
 - PhoneBox goes online only to check for updates (GitHub, twice a day). To turn that off:

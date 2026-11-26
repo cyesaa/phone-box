@@ -198,6 +198,32 @@ struct DashboardHubTests {
         #expect(runner.commands == [.media(.playPause)])
     }
 
+    @Test func aWiFiPhoneMayLockOnlyOnceEvery30SecondsButTheCableIsNotLimited() {
+        let hub = DashboardHub(mode: .always, lockAndMusicOverWiFi: true, key: key, appName: "PhoneBox test", hostName: "Test Mac",
+                               powerLimits: limits, commands: runner, usbInterfaces: { ["anri1"] })
+        let wifi = connect(hub, onUSB: false)
+        hub.received(command(wifi, seq: 1, name: "lock", args: "{}"), from: wifi)
+        hub.received(command(wifi, seq: 2, name: "lock", args: "{}"), from: wifi)
+        #expect(runner.commands == [.lock])
+        #expect(wifi.sent.suffix(2) == [.ack(seq: 1, ok: true, error: nil), .ack(seq: 2, ok: false, error: "failed")])
+
+        let cable = connect(hub, onUSB: true)
+        hub.received(command(cable, seq: 1, name: "lock", args: "{}"), from: cable)
+        hub.received(command(cable, seq: 2, name: "lock", args: "{}"), from: cable)
+        #expect(runner.commands == [.lock, .lock, .lock])
+        #expect(cable.sent.suffix(2) == [.ack(seq: 1, ok: true, error: nil), .ack(seq: 2, ok: true, error: nil)])
+    }
+
+    @Test func aConnectedWiFiPhoneLosesLockAndMusicInCableModeAndGetsThemBack() {
+        let hub = DashboardHub(mode: .always, lockAndMusicOverWiFi: true, key: key, appName: "PhoneBox test", hostName: "Test Mac",
+                               powerLimits: limits, commands: runner, usbInterfaces: { ["anri1"] })
+        let wifi = connect(hub, onUSB: false)
+        hub.mode = .cable
+        #expect(wifi.sent.last == .access(.notOnCable))
+        hub.mode = .always
+        #expect(wifi.sent.last == .access(Access(streaming: true, commands: ["media", "lock"], cable: false, reason: "ok")))
+    }
+
     @Test func pluggingInAnIPhoneMovesWiFiPhonesToTheCableInBothModes() {
         for mode in AccessMode.allCases {
             let hub = makeHub(mode: mode)

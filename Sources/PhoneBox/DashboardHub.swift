@@ -62,6 +62,8 @@ final class DashboardHub {
     private let commands: any CommandRunning
     private let usbInterfaces: () -> Set<String>
     private var clients: [ObjectIdentifier: Client] = [:]
+    /// Lock and music commands from phones on Wi-Fi, all of them together (design §5).
+    private var wifiLimit = WiFiCommandLimit()
     private var livenessTimer: Timer?
 
     /// True while at least one phone may receive snapshots: the sampler runs only then.
@@ -152,6 +154,11 @@ final class DashboardHub {
             onAuthenticated?()
             changed(wasStreaming: wasStreaming)
         case let .command(seq, command):
+            if !client.onUSB, !wifiLimit.allows(command, now: Date()) {
+                Log.server.notice("Refusing \(command.name, privacy: .public) from a phone on Wi-Fi: too often")
+                connection.send(.ack(seq: seq, result: .failed(.failed)))
+                return
+            }
             Log.server.info("Running \(command.name, privacy: .public) from the phone")
             commands.run(command) { [weak self, weak connection] result in
                 // The phone may have gone (or been dropped) while the command ran.

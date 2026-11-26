@@ -107,7 +107,7 @@ struct WebConnectionTests {
             var before = connection.send({ type: "cmd" });
             receive(s, { v: 1, type: "hello", nonce: "n" });
             var afterHello = connection.send({ type: "cmd" });
-            receive(s, { v: 1, type: "ready", mode: "cable", host: "Mac", access: { streaming: true, commands: true, cable: true, reason: "ok" } });
+            receive(s, { v: 1, type: "ready", mode: "cable", host: "Mac", access: { streaming: true, commands: ["quitApp", "media", "volume", "mute", "lock", "displaySleep", "sleep"], cable: true, reason: "ok" } });
             var afterReady = connection.send({ type: "cmd" });
             [before, afterHello, afterReady, s.sent.map(function (m) { return m.type; }).join("+")].join(" ")
             """)
@@ -129,7 +129,7 @@ struct WebConnectionTests {
 
     @Test func keepsThePlugInCardAcrossRechecks() {
         let result = string("""
-            var notOnCable = { streaming: false, commands: false, cable: false, reason: "not-on-cable" };
+            var notOnCable = { streaming: false, commands: [], cable: false, reason: "not-on-cable" };
             handshake(last(), notOnCable);
             advance(10500);
             var count = sockets.length;
@@ -151,14 +151,14 @@ struct WebConnectionTests {
 
     @Test func aReplacedSocketMustAuthenticateAgainBeforeCommands() {
         let result = string("""
-            handshake(last(), { streaming: true, commands: true, cable: true, reason: "ok" });
+            handshake(last(), { streaming: true, commands: ["quitApp", "media", "volume", "mute", "lock", "displaySleep", "sleep"], cable: true, reason: "ok" });
             var before = connection.send({ type: "cmd" });
             connection.replace();
             var replaced = connection.send({ type: "cmd" });
             var s = last(); open(s);
             receive(s, { v: 1, type: "hello", nonce: "m" });
             var afterHello = connection.send({ type: "cmd" });
-            receive(s, { v: 1, type: "ready", mode: "cable", host: "Mac", access: { streaming: true, commands: true, cable: true, reason: "ok" } });
+            receive(s, { v: 1, type: "ready", mode: "cable", host: "Mac", access: { streaming: true, commands: ["quitApp", "media", "volume", "mute", "lock", "displaySleep", "sleep"], cable: true, reason: "ok" } });
             [before, replaced, afterHello, connection.send({ type: "cmd" }), connection.nonce, sockets.length].join(" ")
             """)
         #expect(result == "true false false true m 2")
@@ -166,7 +166,7 @@ struct WebConnectionTests {
 
     @Test func reconnectsQuicklyWhenTheMacAsks() {
         let result = string("""
-            handshake(last(), { streaming: true, commands: true, cable: false, reason: "ok" });
+            handshake(last(), { streaming: true, commands: ["quitApp", "media", "volume", "mute", "lock", "displaySleep", "sleep"], cable: false, reason: "ok" });
             closeWith(last(), 4002);
             advance(300);
             [opened.join(","), connection.send({ type: "cmd" })].join(" ")

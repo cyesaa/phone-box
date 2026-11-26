@@ -158,8 +158,12 @@ Komutlar her iki modda da kablodan gelen istemcilere açıktır, Wi-Fi'den gelen
 geçirebilir; kablo ise sadece Mac'e takılı ve ona güvenen iPhone'dan gelebilir. Tek istisna "Wi-Fi'den Kilit ve
 Müzik" ayarıdır (kullanıcı kararı, 2026-11-26, 0.2.0): açıkken "Her zaman" modunda Wi-Fi'deki telefon Mac'i
 kilitleyebilir ve müziği oynatıp duraklatabilir, sonrakine ya da öncekine geçebilir. Risk bilerek kabul edildi: anahtarı
-ele geçiren biri en kötü ihtimalle ekranı kilitler ya da şarkı atlatır; ses, sessiz, ekranı kapatma, uygulama kapatma
-ve uyutma yine yalnız kablodan gelir. Wi-Fi'deki telefon verileri görür; izinli olmayan komutların düğmeleri soluk
+ele geçiren biri en kötü ihtimalle ekranı kilitler (özel kilit çağrısı yoksa `lock` ekranı kapatır da) ya da şarkı atlatır; ses, sessiz, ekranı kapatma, uygulama kapatma
+ve uyutma yine yalnız kablodan gelir. Bu komutlar Wi-Fi'de sınırlıdır (`WiFiCommandLimit`, bütün Wi-Fi
+telefonlar birlikte sayılır, kablo sınırlanmaz): `lock` 30 sn'de en fazla bir kez, `media` herhangi bir 1 sn'de en fazla
+3 kez; sınırı aşan komut çalıştırılmaz, `ack … failed` alır. Böylece çalınmış bir anahtarla da Mac sürekli kilitli
+tutulamaz ya da medya yardımcı süreçleri art arda başlatılamaz; kötüye kullanım ayarı kapatınca ya da "Eşleştirmeyi
+sıfırla" deyince biter. Wi-Fi'deki telefon verileri görür; izinli olmayan komutların düğmeleri soluk
 görünür.
 
 Kimlik doğrulamamış bir bağlantı hiçbir durumda veri almaz. USB bağlantısı yalnızca bu Mac'e kabloyla takılı ve
@@ -225,9 +229,11 @@ Okunamayan değer JSON'a hiç yazılmaz (alan yok); dashboard "—" gösterir.
 | `sleep` | `{}` | `pmset sleepnow` | Evet |
 
 - Onay sütunu kullanıcı kararıdır (2026-11-25): sadece geri alınamayan "Zorla kapat" ve "Uyut" onay ister.
-- Kablodan bütün komutlar gelir. Wi-Fi'den yalnız `media` ve `lock` gelebilir, o da "Her zaman" modunda "Wi-Fi'den
+- Kablodan bütün komutlar gelir. Wi-Fi'den yalnız `media` ve `lock` gelebilir, `lock` 30 sn'de bir, `media` saniyede 3
+  ile sınırlı (bütün Wi-Fi telefonlar birlikte; kablo sınırsız), o da "Her zaman" modunda "Wi-Fi'den
   Kilit ve Müzik" açıkken (kullanıcı kararı, 2026-11-26; bölüm 5): ikisi zararsızdır, sahte sayfayla anahtarı alan
-  biri ekranı kilitler ya da şarkı atlatır, o kadar. Ses ve sessiz, ekranı kapatma, uygulama kapatma (normal ve zorla)
+  biri ekranı kilitler ya da şarkı atlatır, o kadar. Not: `lock`'ın yedeği olan `pmset displaysleepnow` (özel kilit
+  çağrısı yoksa) ekranı da kapatır; Wi-Fi'den bu da `lock` ile olabilir. Ses ve sessiz, ekranı kapatma, uygulama kapatma (normal ve zorla)
   ve uyutma yine yalnız kablodan gelir. Adlar tek yerde durur (`Command.allNames`, `Command.wifiNames`).
 - `quitApp` sadece `activationPolicy == .regular` olan uygulamalarda çalışır; Finder ve PhoneBox hariçtir (uygulama
   listesindeki `quittable` da aynı kuralla hesaplanır). Telefonun listesi 10 sn'ye kadar eski olabilir ve aynı paketin
