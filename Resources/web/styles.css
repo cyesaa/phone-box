@@ -87,7 +87,7 @@ p { margin: 0; }
 
 @media (orientation: landscape) {
   .dashboard {
-    --ring: clamp(84px, calc((100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 72px) / 2.25), 128px);
+    --ring: clamp(84px, calc((var(--screen-height, 100dvh) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 72px) / 2.25), 128px);
     --row: 34px;
     --side: clamp(176px, calc((100vw - env(safe-area-inset-left) - env(safe-area-inset-right)) * 0.26), 240px);
     grid-template-columns: calc(var(--ring) + 8px) minmax(0, 1fr) var(--side);
@@ -521,4 +521,11 @@ p { margin: 0; }
   .clock-colon { animation: none; }
   .menu { animation: none; }
   .confirm, .confirm-card, .toast, .volume-fill, .volume-thumb, .strip-button, .sheet, .sheet-card { transition: none; }
+}
+
+/* ---- Full-screen layers in a Home Screen web app: after the phone turns, iOS can leave the viewport shorter than the
+   screen, so these take the screen's height that screen.js puts in --screen-height (the viewport's without it). */
+.dashboard, .menu-backdrop, .sheet, .confirm, .edge, .state, .overlay {
+  bottom: auto;
+  height: var(--screen-height, 100%);
 }
