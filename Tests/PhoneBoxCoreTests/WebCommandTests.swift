@@ -91,11 +91,44 @@ struct WebCommandTests {
             advance(100); throttle.push(0.3);  // replaces 0.2, still waiting
             advance(50);                     // 250 ms after the first: 0.3 goes
             advance(50); throttle.push(0.4);   // waits until 500
-            advance(20); throttle.flush();     // let go at 320: 0.4 goes now
-            advance(200);                    // the timer at 500 sends nothing new
+            advance(20); throttle.flush();     // let go at 320: 0.4 goes half an interval after 0.3, at 375
+            advance(55);
+            advance(145);                    // the timer at 500 sends nothing new
             throttle.flush();                // nothing left
             out.join(" ")
             """)
-        #expect(result == "0=0.1 250=0.3 320=0.4")
+        #expect(result == "0=0.1 250=0.3 375=0.4")
+    }
+
+    /// A timer set before a send must not fire early after it: the Mac closes a socket that sends more than 10
+    /// commands a second.
+    @Test func neverSendsTwoValuesCloserThanHalfAnInterval() {
+        let result = string("""
+            var out = [];
+            var throttle = new PhoneBox.Throttle(250, function (v) { out.push(now + "=" + v); },
+                                                 { now: function () { return now; }, later: later });
+            throttle.push(0.1);              // goes at once
+            advance(100); throttle.push(0.2);  // a timer for 250
+            advance(10); throttle.flush();     // let go at 110: 0.2 goes at 125
+            advance(15);
+            advance(5); throttle.push(0.3);    // touched again at 130: 250 after 125, at 375
+            advance(120);                    // the timer for 250 is void
+            advance(125);
+            out.join(" ")
+            """)
+        #expect(result == "0=0.1 125=0.2 375=0.3")
+    }
+
+    @Test func aNewDragSendsTheSameValueAgain() {
+        let result = string("""
+            var out = [];
+            var throttle = new PhoneBox.Throttle(250, function (v) { out.push(now + "=" + v); },
+                                                 { now: function () { return now; }, later: later });
+            throttle.push(0.5); throttle.flush();
+            advance(1000); throttle.push(0.5);  // same drag: already sent
+            throttle.reset(); throttle.push(0.5);  // a new drag: the Mac may have moved since
+            out.join(" ")
+            """)
+        #expect(result == "0=0.5 1000=0.5")
     }
 }

@@ -151,6 +151,7 @@
       slider.addEventListener("pointerdown", (event) => {
         if (!this.ready("volume")) return;
         this.dragging = true;
+        this.throttle.reset();
         slider.classList.add("dragging");
         // Keeps the drag on the slider when the finger slides off it; refused for a pointer that is not down.
         try {
