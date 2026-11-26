@@ -248,6 +248,8 @@ p { margin: 0; }
   transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .app-list li:last-child { border-bottom: 0; }
+.app-list li { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.app-list li:active { background: rgba(109, 138, 163, 0.15); }
 .app-list li.enter { animation: row-in 0.5s ease-out; }
 @keyframes row-in { from { opacity: 0; } }
 /* The app's share of the busiest row, under its name; it grows and shrinks with each list. */
@@ -331,6 +333,41 @@ p { margin: 0; }
 .menu button:last-child { border-bottom: 0; }
 .menu button:active { background: rgba(109, 138, 163, 0.25); }
 .menu-gap { height: 6px; background: rgba(0, 0, 0, 0.3); }
+
+/* ---- App panel: slides up from the bottom ---- */
+.sheet {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 calc(env(safe-area-inset-right) + 12px) calc(env(safe-area-inset-bottom) + 10px) calc(env(safe-area-inset-left) + 12px);
+  background: rgba(1, 6, 13, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+}
+.sheet.show { opacity: 1; pointer-events: auto; }
+.sheet-card {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 20px;
+  background: var(--raised);
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.5);
+  transform: translateY(110%);
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.sheet.show .sheet-card { transform: none; }
+.sheet-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 2px 4px 4px; }
+.sheet-head strong { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#sheet-figures { color: var(--muted); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sheet-note { color: #c9d6e2; font-size: 13.5px; padding: 0 4px 4px; }
+.sheet-button { height: 46px; border-radius: 12px; background: rgba(109, 138, 163, 0.2); font-weight: 600; text-align: center; }
+.sheet-button:active { background: rgba(109, 138, 163, 0.35); }
+.sheet-button.danger { color: #ff6b6b; }
 
 /* ---- Confirmation (Sleep, Force quit) ---- */
 .confirm {
@@ -464,5 +501,5 @@ p { margin: 0; }
   .app-list li.enter { animation: none; }
   .clock-colon { animation: none; }
   .menu { animation: none; }
-  .confirm, .confirm-card, .toast, .volume-fill, .volume-thumb, .strip-button { transition: none; }
+  .confirm, .confirm-card, .toast, .volume-fill, .volume-thumb, .strip-button, .sheet, .sheet-card { transition: none; }
 }

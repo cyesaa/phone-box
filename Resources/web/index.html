@@ -100,6 +100,16 @@
   <button id="menu-guide" type="button" role="menuitem" data-text="guideItem"></button>
 </div>
 
+<div id="sheet" class="sheet">
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheet-name">
+    <div class="sheet-head"><strong id="sheet-name"></strong><span id="sheet-figures"></span></div>
+    <p id="sheet-note" class="sheet-note" data-text="notQuittable"></p>
+    <button id="sheet-quit" class="sheet-button" type="button" data-text="quit"></button>
+    <button id="sheet-force" class="sheet-button danger" type="button" data-text="forceQuit"></button>
+    <button id="sheet-cancel" class="sheet-button" type="button" data-text="cancel"></button>
+  </div>
+</div>
+
 <div id="confirm" class="confirm">
   <div class="confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
     <h2 id="confirm-title"></h2>

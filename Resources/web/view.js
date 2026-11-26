@@ -44,6 +44,8 @@
       this.timeline = new motion.Timeline();
       this.graph = null;
       this.rows = new Map();
+      /// The app shown in each row, by the row's `data-id`, for a tap.
+      this.rowApps = new Map();
       this.white = heat.rgb("#eaf6ff");
       this.card = heat.rgb("#0b1622");
       this.ringButtons = {};
@@ -403,6 +405,11 @@
       $("np-sub").textContent = media.artist ? `${media.artist} · ${media.app}` : media.app;
     }
 
+    /// The app in the row with this `data-id`, as of the last list.
+    appAt(id) {
+      return this.rowApps.get(id) || null;
+    }
+
     toggleSort() {
       this.sortBy = this.sortBy === "cpu" ? "mem" : "cpu";
       this.renderApps();
@@ -416,6 +423,7 @@
       if (!this.apps) {
         list.replaceChildren();
         this.rows.clear();
+        this.rowApps.clear();
         return;
       }
       const { heat, metrics, motion } = PB();
@@ -431,6 +439,7 @@
       for (const [id, item] of this.rows) before.set(id, item.getBoundingClientRect().top);
 
       const rows = new Map();
+      this.rowApps.clear();
       const items = apps.map((app) => {
         const id = `${app.bundleId || app.name}#${app.pid}`;
         let item = this.rows.get(id);
@@ -458,6 +467,8 @@
         item.children[1].style.color = level > 0.02 ? heat.css(heat.mix(color, this.white, 0.15)) : "";
         item.children[2].style.backgroundColor = heat.css(color);
         item.children[2].style.width = `${Math.max(2, ((app[key] || 0) / top) * 100).toFixed(1)}%`;
+        item.dataset.id = id;
+        this.rowApps.set(id, app);
         rows.set(id, item);
         return item;
       });

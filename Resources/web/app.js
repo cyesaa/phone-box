@@ -78,6 +78,10 @@
     },
     onAck: (ack) => commands.acked(ack),
   });
+  $("app-list").addEventListener("click", (event) => {
+    const row = event.target.closest("li");
+    if (row) controls.openApp(view.appAt(row.dataset.id));
+  });
   connection.start();
   PB.connection = connection;
   PB.controls = controls;

@@ -1,6 +1,7 @@
 // The command side of the page (design §7, §8 "Komut etkileşimleri"): the control strip (previous, play/pause, next,
-// the volume slider, mute), the "⋯" menu's Mac commands, the confirmation that Sleep asks for, and the 2-second
-// toast. Commands go only from the cable; elsewhere the controls are dim and a tap says why. Checked by eye.
+// the volume slider, mute), the app panel (Quit, Force quit), the "⋯" menu's Mac commands, the confirmation that
+// Sleep and Force quit ask for, and the 2-second toast. Commands go only from the cable; elsewhere the controls are
+// dim and a tap says why. Checked by eye.
 (function (global) {
   "use strict";
 
@@ -21,7 +22,9 @@
       this.quietUntil = 0;
       this.toastTimer = null;
       this.onConfirm = null;
-      this.throttle = new global.PhoneBox.Throttle(250, (level) => this.run("volume", { level }, null));
+      /// The app whose panel is open.
+      this.app = null;
+      this.throttle =new global.PhoneBox.Throttle(250, (level) => this.run("volume", { level }, null));
       this.wire();
       this.render();
     }
@@ -53,6 +56,38 @@
       $("mute").classList.toggle("muted", Boolean(this.audio && this.audio.muted));
       if (this.audio && !this.dragging && Date.now() >= this.quietUntil) this.paintVolume(this.audio.volume);
       for (const item of global.document.querySelectorAll("#menu [data-command]")) item.classList.toggle("off", !allowed);
+      $("sheet-quit").classList.toggle("off", !allowed);
+      $("sheet-force").classList.toggle("off", !allowed);
+    }
+
+    /// A tap on an app row: its panel with Quit, Force quit and Cancel. A row the phone cannot quit (grey) only says
+    /// so: `quitApp` needs a regular app with a bundle identifier (design §7).
+    openApp(app) {
+      if (!app) return;
+      this.app = app;
+      const quittable = Boolean(app.quittable && app.bundleId);
+      $("sheet-name").textContent = app.name;
+      $("sheet-figures").textContent = `${this.format.percent(app.cpu)} · ${this.format.memory(app.mem)}`;
+      $("sheet-note").hidden = quittable;
+      $("sheet-quit").hidden = !quittable;
+      $("sheet-force").hidden = !quittable;
+      this.render();
+      $("sheet").classList.add("show");
+    }
+
+    closeApp() {
+      $("sheet").classList.remove("show");
+    }
+
+    /// Quit at once; Force quit only after a confirmation (unsaved work is lost).
+    quit(force) {
+      const app = this.app;
+      const t = this.t;
+      if (!app || !this.ready("quitApp")) return;
+      this.closeApp();
+      const go = () => this.run("quitApp", { bundleId: app.bundleId, force }, force ? t.doneForce(app.name) : t.doneQuit(app.name));
+      if (force) this.confirm(t.confirmForceTitle(app.name), t.confirmForceText, t.forceQuit, go);
+      else go();
     }
 
     paintVolume(level) {
@@ -185,6 +220,12 @@
           }
         });
       }
+      $("sheet-quit").addEventListener("click", () => this.quit(false));
+      $("sheet-force").addEventListener("click", () => this.quit(true));
+      $("sheet-cancel").addEventListener("click", () => this.closeApp());
+      $("sheet").addEventListener("click", (event) => {
+        if (event.target === $("sheet")) this.closeApp();
+      });
       $("confirm-ok").addEventListener("click", () => this.closeConfirm(true));
       $("confirm-cancel").addEventListener("click", () => this.closeConfirm(false));
       $("confirm").addEventListener("click", (event) => {
