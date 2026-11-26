@@ -14,6 +14,16 @@ final class CommandRunner: CommandRunning {
         self.nowPlaying = nowPlaying
     }
 
+    /// `unsupported` only when the output has no such control (the phone then greys the slider); a value the control
+    /// did not take is a plain failure.
+    static func result(of write: SystemAudio.Write) -> CommandResult {
+        switch write {
+        case .done: return .ok
+        case .unsupported: return .failed(.unsupported)
+        case .failed: return .failed(.failed)
+        }
+    }
+
     func run(_ command: Command, completion: @escaping @MainActor (CommandResult) -> Void) {
         switch command {
         case let .quitApp(bundleId, force):
@@ -21,9 +31,9 @@ final class CommandRunner: CommandRunning {
         case let .media(action):
             nowPlaying.send(action, completion: completion)
         case let .volume(level):
-            completion(SystemAudio.setVolume(level) ? .ok : .failed(.unsupported))
+            completion(Self.result(of: SystemAudio.setVolume(level)))
         case let .mute(on):
-            completion(SystemAudio.setMuted(on) ? .ok : .failed(.unsupported))
+            completion(Self.result(of: SystemAudio.setMuted(on)))
         case .lock:
             if let lockScreen = Self.lockScreen {
                 _ = lockScreen()

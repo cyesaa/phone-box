@@ -33,15 +33,25 @@ enum SystemAudio {
         return value
     }
 
-    private static func write<Value: BitwiseCopyable>(_ selector: AudioObjectPropertySelector, _ value: Value) -> Bool {
-        guard let device = defaultOutputDevice() else { return false }
+    /// What setting the volume or mute did.
+    enum Write: Equatable {
+        case done
+        /// The output has no such control (no output, or some HDMI and USB outputs): the phone greys the control.
+        case unsupported
+        /// The control is there but did not take the value.
+        case failed
+    }
+
+    private static func write<Value: BitwiseCopyable>(_ selector: AudioObjectPropertySelector, _ value: Value) -> Write {
+        guard let device = defaultOutputDevice() else { return .unsupported }
         var address = outputAddress(selector)
         var settable = DarwinBoolean(false)
         guard AudioObjectHasProperty(device, &address),
               AudioObjectIsPropertySettable(device, &address, &settable) == noErr, settable.boolValue
-        else { return false }
+        else { return .unsupported }
         var value = value
-        return AudioObjectSetPropertyData(device, &address, 0, nil, UInt32(MemoryLayout<Value>.size), &value) == noErr
+        let status = AudioObjectSetPropertyData(device, &address, 0, nil, UInt32(MemoryLayout<Value>.size), &value)
+        return status == noErr ? .done : .failed
     }
 
     /// 0…1; nil when the output has no volume control.
@@ -55,14 +65,12 @@ enum SystemAudio {
         read(kAudioDevicePropertyMute, as: UInt32(0)).map { $0 != 0 }
     }
 
-    /// False when the output's volume cannot be set.
-    static func setVolume(_ level: Double) -> Bool {
-        guard level.isFinite else { return false }
+    static func setVolume(_ level: Double) -> Write {
+        guard level.isFinite else { return .failed }
         return write(kAudioHardwareServiceDeviceProperty_VirtualMainVolume, Float32(min(1, max(0, level))))
     }
 
-    /// False when the output cannot be muted.
-    static func setMuted(_ on: Bool) -> Bool {
+    static func setMuted(_ on: Bool) -> Write {
         write(kAudioDevicePropertyMute, UInt32(on ? 1 : 0))
     }
 }

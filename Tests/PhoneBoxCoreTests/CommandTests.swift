@@ -30,6 +30,7 @@ struct CommandTests {
             ("quitApp", #"{"bundleId":"a"}"#),                          // force missing
             ("quitApp", #"{"bundleId":"","force":false}"#),             // empty bundle id
             ("quitApp", #"{"bundleId":"a","force":0}"#),                // 0 is not a boolean
+            ("quitApp", #"{"bundleId":"a","force":1.0}"#),              // nor is 1.0
             ("quitApp", #"{"bundleId":7,"force":false}"#),
             ("quitApp", #"{"bundleId":"a","force":false,"pid":812}"#),      // extra key: a pid is never trusted
             ("quitApp", #"{"bundleId":"a","force":false,"path":"/bin/sh"}"#),
@@ -39,6 +40,7 @@ struct CommandTests {
             ("volume", #"{"level":-0.1}"#),
             ("volume", #"{"level":true}"#),
             ("volume", #"{"level":"0.5"}"#),
+            ("volume", #"{"level":1e999}"#),                            // overflows to infinity
             ("mute", #"{"on":1}"#),
             ("lock", #"{"now":true}"#),
             ("sleep", "[]"),
