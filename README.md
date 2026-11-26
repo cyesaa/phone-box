@@ -20,6 +20,8 @@ Chrome'da) açılır. Veri iPhone takılıyken USB kablosu üzerinden gider.
 - **Şimdi çalıyor:** önceki / oynat-duraklat / sonraki, ses seviyesi, sessiz.
 - **"⋯" menüsü:** Mac'i kilitle, ekranı kapat, uyut (uyutmadan önce sorar).
 - **Saat, tarih ve telefonun pili** köşede; telefon yatayken bütün değerler bir arada, dikeyken "tek bakış" düzeni.
+- **Claude Code oturumları** (isteğe bağlı): panonun altındaki bir sayfada; bir oturum seni beklemeye başlayınca
+  sayfa kendiliğinden gelir.
 - Türkçe ve İngilizce, telefonun ve Mac'in diline göre.
 
 ## Gereksinimler
@@ -58,10 +60,26 @@ kendiliğinden açılması için isteğe bağlı bir Kestirmeler otomasyonu da o
 | QR kodunu göster… | Eşleştirme bağlantısı; başka bir telefonu eklemek için |
 | Veri gönder | **Sadece kablo takılıyken** (varsayılan) ya da **Her zaman, Wi-Fi'de de** |
 | Wi-Fi'den Kilit ve Müzik | Yalnız "Her zaman" modunda: Wi-Fi'deki telefon da Mac'i kilitleyebilir ve müziği oynatıp duraklatabilir, değiştirebilir (varsayılan kapalı; açarken sorar) |
+| Claude Code Oturumları | Mac'teki Claude Code oturumlarını panonun altındaki bir sayfada gösterir (varsayılan kapalı; açarken sorar, aşağıya bak) |
 | Port: 4747… | Dashboard'un portu; değiştirince yeni QR kodu okutulur, sayfa Ana Ekrana yeniden eklenir, eski simge silinir |
 | Girişte başlat | Mac açılınca PhoneBox da açılır |
 | Eşleştirmeyi sıfırla… | Yeni anahtar: eşleşmiş bütün telefonların bağlantısı kesilir |
 | Güncellemeleri denetle… | Yeni sürüm varsa yükler (aşağıya bak) |
+
+## Claude Code oturumları
+
+Menüden **Claude Code Oturumları**'nı açarsan telefon, panonun altındaki ikinci bir sayfada Mac'te açık Claude Code
+oturumlarını gösterir (masaüstü uygulaması, VS Code, terminal): her birinin başlığı, proje klasörünün adı, modeli, ne
+yaptığı ve ne zamandır. Seni bekleyen oturumlar (bir soru, bir izin ya da sıra sende) turuncu parlar. Bir oturum seni
+beklemeye başlayınca pano yukarı kayar ve bu sayfa gelir; kendiliğinden geldiyse, bekleyen kalmayınca 3 saniye sonra
+panoya döner. Parmağını yukarı ya da aşağı kaydırarak iki sayfa arasında geçersin; sağ kenardaki iki nokta hangi
+sayfada olduğunu gösterir.
+
+- Açarken PhoneBox ne yapacağını sorar: `~/.claude/settings.json` dosyasına hook ekler ve dosyanın bir kopyasını
+  `settings.json.phonebox-backup` olarak saklar. Dosyadaki diğer her şey olduğu gibi kalır.
+- Telefona yalnız oturum başlıkları, proje klasörlerinin adları, model ve durum gider; "Her zaman" modunda Wi-Fi'den
+  de. Mesajlar, sorular, komutlar ve kod hiçbir zaman saklanmaz ve telefona gitmez.
+- Kapatınca hook'lar silinir; PhoneBox'ı kaldırmak da siler.
 
 ## Güvenlik ve gizlilik
 
@@ -90,7 +108,8 @@ bağlanır, panel yenilenir ve bir kez "Başlat" ister. Kurulum komutunu yeniden
 curl -fsSL https://raw.githubusercontent.com/cyesaa/phone-box/main/install.sh | bash -s -- --uninstall
 ```
 
-Uygulamayı, ayarlarını, eşleştirme anahtarını ve kayıtlarını siler. Telefondaki ana ekran simgesini elle sil.
+Uygulamayı, ayarlarını, eşleştirme anahtarını, kayıtlarını ve Claude Code hook'larını siler. Telefondaki ana ekran
+simgesini elle sil.
 
 ## Sorun giderme
 
@@ -151,6 +170,8 @@ Nothing is installed on the phone: the dashboard is a web page that PhoneBox ser
 - **The "⋯" menu:** lock the Mac, turn its display off, put it to sleep (it asks first).
 - **Clock, date and the phone's own battery** in the corner; everything at once in landscape, a single-glance layout
   in portrait.
+- **Claude Code sessions** (optional): on a page below the dashboard, which comes up by itself when a session starts
+  waiting for you.
 - English and Turkish, following the phone's and the Mac's language.
 
 ## Requirements
@@ -189,10 +210,25 @@ automation that opens the dashboard when the cable is plugged in.
 | Show QR Code… | The pairing link, to add another phone |
 | Send data | **Only While the Cable Is Plugged In** (default) or **Always, Also over Wi-Fi** |
 | Lock and Music over Wi-Fi | Only in "Always" mode: a phone on Wi-Fi can also lock the Mac and play, pause or skip music (off by default; asks first) |
+| Claude Code Sessions | Shows the Mac's Claude Code sessions on a page below the dashboard (off by default; asks first, see below) |
 | Port: 4747… | The dashboard's port; after a change scan the new QR code, add the page to the Home Screen again and delete the old icon |
 | Open at Login | PhoneBox starts with the Mac |
 | Reset Pairing… | A new key: every paired phone is disconnected |
 | Check for Updates… | Installs a newer version if there is one (see below) |
+
+## Claude Code sessions
+
+Turn on **Claude Code Sessions** in the menu and the phone shows the Mac's open Claude Code sessions (desktop app,
+VS Code, terminal) on a second page below the dashboard: each one's title, project folder, model, what it is doing and
+for how long. Sessions waiting for you (a question, a permission, or your turn) glow orange. When a session starts
+waiting for you, the dashboard slides up and this page comes in; if it came by itself, it goes back 3 seconds after
+nothing is waiting any more. Swipe up or down to switch pages; two dots on the right edge show which page you are on.
+
+- Turning it on asks first: PhoneBox adds hooks to `~/.claude/settings.json` and keeps a copy of the file as
+  `settings.json.phonebox-backup`. Everything else in the file stays as it was.
+- Only session titles, project folder names, the model and the state go to the phone, in "Always" mode over Wi-Fi
+  too. Messages, questions, commands and code are never stored and never go to the phone.
+- Turning it off removes the hooks; so does uninstalling PhoneBox.
 
 ## Security and privacy
 
@@ -220,7 +256,8 @@ command again updates too.
 curl -fsSL https://raw.githubusercontent.com/cyesaa/phone-box/main/install.sh | bash -s -- --uninstall
 ```
 
-This removes the app, its settings, the pairing key and its logs. Delete the Home Screen icon on the phone by hand.
+This removes the app, its settings, the pairing key, its logs and its Claude Code hooks. Delete the Home Screen icon
+on the phone by hand.
 
 ## Troubleshooting
 
