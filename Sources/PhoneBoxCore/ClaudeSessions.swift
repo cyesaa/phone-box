@@ -88,6 +88,8 @@ public struct ClaudeSessions: Sendable {
         if !ended.isEmpty { ended = ended.filter { now - $0.value.received <= Self.endMemory } }
         // A subagent's stop ends only its own work; the session goes on.
         if event.kind == .stop, event.subagent { return }
+        // `at` is wall-clock time (the helper's start time): if the Mac's clock steps back, the events of a known session
+        // are ignored until the clock passes the last `at` applied.
         if let end = ended[event.session] {
             // A session can start again after its end (`claude --resume`).
             guard event.at > end.at else { return }
