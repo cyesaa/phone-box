@@ -180,3 +180,32 @@ iPhone ile (Chrome, ana ekran simgesi; Mac "Her zaman" modunda):
 - Denenmedi: Hareketi Azalt; SE ve Pro Max'te telefonda görünüm; telefon kilitliyken pilin okunması (sayfa kilitliyken
   görünmediği ve PhoneBox o sırada okumadığı için gerekmiyor).
 
+
+### 2026-11-26 — Plan 4B (dal `plan4b`, 2bea97a), MacBook Pro M4 / macOS 27.2, iPhone iOS 27.0.1
+
+Mac'te (deneme sayfası, komutlara `ack` veren sahte Mac; dalın `make app` paketi):
+- Geçti: şerit doğru komutları gönderdi (`media playPause`, `mute {on: true}`, kaydırıcıda `volume` 0,49 → 0,79);
+  oynat ve sessiz simgeleri değişti.
+- Geçti: uygulama satırı paneli açtı; Zorla kapat önce sordu, sonra `quitApp {force: true}` ve yeşil bildirim;
+  kapatılamayan satır (Finder) yalnız "Bu süreç buradan kapatılamaz." dedi.
+- Geçti: Uyut önce sordu; Vazgeç hiçbir şey göndermedi; bilerek basılan Uyut `sleep`'i gönderdi, bildirim tek satır.
+- Geçti: sahte Mac `unsupported` dönünce kırmızı "Bu çıkışta ses kontrolü yok"; komutlar kapalıyken şerit soluk,
+  dokununca "Komutlar sadece kabloyla çalışır", hiçbir komut gitmedi.
+- Geçti (son incelemenin bulgusu, düzeltildi): yatayda "⋯ → Uyut" satırına çift dokunuş artık onayın düğmesine
+  ulaşmıyor (hiçbir komut gitmedi); satıra 120 ms arayla iki dokunuş panelin "Kapat"ına ulaşmıyor; menü kapandıktan
+  100 ms sonra şerite dokunuş yok sayılıyor, 500 ms sonra çalışıyor; kapalı panel ve onay `inert`.
+- Geçti: `PHONEBOX_LIVE=1 make test FILTER="SystemAudioLiveTests|CommandRunnerLiveTests"` (ses okunup aynen yazıldı;
+  Satranç açılıp `quitApp` ile kapandı; Finder `app-changed`).
+
+iPhone ile (ana ekran simgesi, kablo; iPhone Yansıtma üzerinden):
+- Geçti: şerit yeni sayfada görünüyor; şarkı çalmazken uygulama listesi boş satır bırakmadan yer kaplıyor.
+- Geçti: sessiz düğmesi Mac'i sessize aldı ve geri açtı (`output muted` true → false), simge değişti.
+- Geçti: kaydırıcıya dokunuş Mac'in sesini 6'dan 16'ya, sürükleme 8'e getirdi; düğme geri sıçramadı.
+- Geçti: "⋯ → Uyut" onayı açtı, Vazgeç kapattı; Mac uyumadı. Uygulama satırı (node) paneli açtı, "Bu süreç buradan
+  kapatılamaz.", Vazgeç kapattı.
+- Denenmedi: medya düğmeleri (gece Mac'te ses çıkmasın diye; deneme sayfasında doğru komutu gönderiyor); Satranç'ı
+  telefondan kapatma (az CPU kullandığı için listenin ilk satırlarında görünmedi; Mac tarafı canlı testte geçti);
+  Wi-Fi'de soluk şerit (kablo çıkarılamadı; deneme sayfasında geçti). Kilitle ve Ekranı kapat en sonda denenecek,
+  Uyut denenmez.
+- Not: telefondaki açık sayfa yeni sürümün dosyalarını kendiliğinden almaz; uygulama değiştiriciden kapatıp ana ekran
+  simgesinden yeniden açmak gerekti (Plan 5'te sayfa, PhoneBox'ın web dosyaları değişince kendini yeniler).
