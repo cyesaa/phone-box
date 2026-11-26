@@ -645,3 +645,98 @@ docs/design/2026-11-25-phonebox-design.md   docs/spike-results.md   docs/manual-
   Müzik"i açtıysa kilit ve medya gelir (bölüm 5, AccessPolicy). Böyle bir saldırgan "Her zaman" modunda yine de
   metrikleri görebilir; ayar açıksa Mac'i kilitleyebilir ve müziği değiştirebilir.
 - **Safari depolama temizliği:** anahtar kişisel bağlantıda durduğu için etkilenmez; bozulursa QR yeniden okutulur.
+
+## 14. Claude Code oturumları (0.3.0)
+
+Telefonda, panonun altında ikinci bir sayfa: Mac'teki açık Claude Code oturumları (masaüstü uygulaması, VS Code,
+terminal) ve hangisinin kullanıcıyı beklediği. Seçim 2026-11-26'da canlı önizlemeden yapıldı ("B · Claude sayfası").
+
+### Ne gösterir
+
+Her oturum bir kart: başlık, durum, o durumun ne zamandır sürdüğü (`0:42`, `12 dk`, `2 sa`), proje klasörünün adı ve
+biliniyorsa model ("Opus 5.5"). Durumlar:
+
+| Durum | Ne zaman | Kartta |
+|---|---|---|
+| Hazır | Oturum açıldı, henüz mesaj yok | gri, "Hazır" |
+| Çalışıyor | Mesaj gönderildi; oturum bir araç kullanıyor ya da düşünüyor; ya da tur bitti ama arka planda iş sürüyor | mavi, ne yaptığı: "Düşünüyor", "Komut çalıştırıyor", "Dosya düzenliyor", "Dosya okuyor", "Web'e bakıyor", "Alt görev çalıştırıyor", "Araç kullanıyor", "Arka planda çalışıyor"; ince bir ilerleme çizgisi |
+| Seni bekliyor | Oturum durdu | turuncu, parlayan; kesin bilinen ayrıntıyla: "İzin istiyor" (izin kartı), "Soru soruyor" (seçenekli soru ya da sondaki düğmeli kutu), değilse "Sıra sende" |
+
+Mesaj, soru, komut ve dosya içerikleri hiçbir zaman okunmaz ve telefona gitmez. Telefona giden: başlık, proje
+klasörünün adı, model, durum, etkinlik türü, süre. "Her zaman" kipinde bunlar Wi-Fi'den de şifresiz gider (uygulama ve
+şarkı adları gibi, bölüm 13).
+
+Sıralama: bekleyenler (en eski bekleyen önce), sonra çalışanlar, sonra hazırlar. En çok 12 kart.
+
+### Sayfa ne zaman gelir, ne zaman gider
+
+- Bir oturum **yeni** beklemeye başlayınca (oturum + bekleme başlangıcı daha önce görülmemişse) pano yukarı kayar,
+  Claude sayfası gelir.
+- Sayfa kendiliğinden geldiyse ve artık hiçbir oturum beklemiyorsa 3 sn sonra panoya döner.
+- Kullanıcı parmakla panoya dönerse o an bekleyenlerin hepsi "görüldü" sayılır; sayfa ancak yeni bir bekleme
+  başlayınca yeniden gelir. Kullanıcı parmakla Claude sayfasına geçtiyse sayfa kendiliğinden geri dönmez.
+- Sayfa açılırken (yeniden yükleme, "Başlat") zaten bekleyen oturumlar da yeni sayılır.
+- Dikey kaydırma (parmak yukarı/aşağı, 40 px'ten uzun ve yataydan baskın) iki sayfa arasında geçirir; sağ kenarda iki
+  nokta hangi sayfada olunduğunu gösterir. Özellik kapalıyken (anlık görüntüde `claude` yok) ikinci sayfa, noktalar ve
+  kaydırma yoktur.
+- Sayfanın üstünde "Claude", oturum sayısı, bekleyen sayısı ve saat; yatayda kartlar iki sütun (5 ve üstü oturumda üç),
+  dikeyde tek sütun. Oturum yoksa "Açık Claude oturumu yok". Hareket azaltma açıksa kayma ve kart girişleri anlık.
+
+### Olaylar nasıl gelir
+
+Claude Code'un komut hook'ları (`~/.claude/settings.json`). Her olayda Claude Code
+`"<PhoneBox.app>/Contents/MacOS/PhoneBox" --claude-hook` çalıştırır (`"async": true`: oturum beklemez):
+
+1. Yardımcı, AppKit'i hiç başlatmadan stdin'deki JSON'u okur (en çok 1 MB), `ClaudeEvent`'e çevirir: oturum kimliği,
+   olay türü, araç adı, "soru mu" bayrağı, "arka planda iş var mı" bayrağı, `cwd`, oturum dosyasının yolu, `getppid()`
+   (oturumun Claude işlemi; 2026-11-26 denendi: hook'un ebeveyni `claude`, `async` ile de). Metin alanları (`prompt`,
+   `last_assistant_message`, `tool_input`, `tool_response`) okunur ama hiçbir yere yazılmaz.
+2. Bir satır JSON olarak `~/Library/Application Support/PhoneBox/claude.sock` Unix soketine yazar (klasör 0700, soket
+   0600: yalnız bu kullanıcı). PhoneBox kapalıysa ya da özellik kapalıysa sessizce çıkar; her durumda çıkış kodu 0.
+3. PhoneBox olayı `ClaudeSessions`'a uygular. Başlığı ve modeli oturum dosyasının son 256 KB'ından okur
+   (`custom-title` kaydı ve son `"model":"claude-…"`; belgelenmemiş biçim, bulunamazsa başlık = klasör adı, model yok).
+   5 sn'de bir oturumların işlemine bakar (`kill(pid, 0)`); işlemi biten oturum listeden düşer.
+
+Olay → durum (`ClaudeSessions`, PhoneBoxCore, test edilir):
+
+| Olay | Durum |
+|---|---|
+| `SessionStart` | yoksa ekle: Hazır (varsa durumu korunur; `/clear`, `compact`) |
+| `UserPromptSubmit` | Çalışıyor · Düşünüyor (süre baştan) |
+| `PreToolUse` `AskUserQuestion` | Seni bekliyor · Soru soruyor |
+| `PreToolUse` `ExitPlanMode` | Seni bekliyor · İzin istiyor |
+| `PreToolUse` `mcp__ccd_turn__wrap_up` (boş olmayan `ask` ile) | Çalışıyor, "tur sonunda soru var" işaretlenir |
+| `PreToolUse` diğer | Çalışıyor · aracın türü |
+| `PermissionRequest`, `Notification` (`permission_prompt`) | Seni bekliyor · İzin istiyor |
+| `PostToolUse`, `PostToolUseFailure`, `PermissionDenied` | Çalışıyor (bekliyorsa Düşünüyor'a döner) |
+| `Stop` | `background_tasks` doluysa Çalışıyor · Arka planda; değilse Seni bekliyor · işaret varsa Soru soruyor, yoksa Sıra sende |
+| `SessionEnd` | listeden çıkar |
+
+Süre yalnız durum ya da bekleme nedeni değişince sıfırlanır (aynı turdaki araçlar değiştirmez). Alt ajan olayları
+(`agent_id`) ana oturumunkiler gibi işlenir, `Stop` hariç (alt ajanın `SubagentStop`'u kurulmaz).
+
+Olay listesi: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`,
+`PermissionRequest`, `PermissionDenied`, `Notification` (eşleyici `permission_prompt`), `Stop`, `SessionEnd`.
+
+Elenen yollar: `http` hook'u (oturumun işlemi bilinmez, `SessionStart` desteklemez, port değişince bozulur); hook'suz
+oturum dosyalarını izlemek (izin beklemesi görünmez, biçim belgelenmemiş).
+
+### Kurulum (menü)
+
+"Claude Code Oturumları" (kapalı başlar). Açarken uyarı: ne ekleneceği, dosyanın yedeği, başlıkların telefona (her
+zaman kipinde Wi-Fi'den de) gideceği. Onaylanınca `ClaudeHooks.install`:
+
+- `~/.claude/settings.json` okunur (yoksa boş nesne, `~/.claude` yoksa oluşturulur); kök nesne değilse ya da `hooks`
+  nesne değilse dokunulmaz, hata gösterilir, ayar kapalı kalır.
+- Varsa önce `settings.json.phonebox-backup`'a kopyalanır; sonra yalnız PhoneBox'ın girdileri eklenir (her olayın
+  dizisine bir grup), diğer her şey korunur; dosya atomik yazılır (anahtarlar sıralı, iki boşluk girinti).
+- PhoneBox'ın girdisi: komutu `--claude-hook` ile biten ve `PhoneBox` içeren hook. Yeniden kurmak eskilerini (başka
+  yoldakiler dahil) silip ekler; kaldırmak yalnız bunları siler, boşalan grupları/olayları/`hooks`'u da siler.
+- Kapatınca kaldırır. Açılışta ayar açıksa ve girdiler başka bir yolu gösteriyorsa (uygulama taşındı) yeniden kurar;
+  girdiler hiç yoksa (kullanıcı elle sildi) ayarı kapatır.
+- `install.sh --uninstall` uygulamayı silmeden önce `PhoneBox --remove-claude-hooks` çalıştırır.
+
+Anlık görüntü: `claude` alanı yalnız özellik açıkken gelir:
+`"claude":[{"id":"…","title":"…","project":"PhoneBox","model":"Opus 5.5","state":"waiting","reason":"question","since":<ms>}]`
+(`state`: `ready` | `working` | `waiting`; `reason` yalnız `waiting`'de: `question` | `permission` | `turn`;
+`activity` yalnız `working`'de: `think` | `command` | `edit` | `read` | `web` | `agent` | `tool` | `background`).
