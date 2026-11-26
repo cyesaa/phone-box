@@ -74,6 +74,13 @@ public enum UpdateCheck {
         "curl -fsSL https://raw.githubusercontent.com/\(repository)/main/install.sh | bash"
     }
 
+    /// The environment the installer runs with: this app's, without the installer's own settings (`PHONEBOX_*`). `open`
+    /// passes the caller's environment to the app, so an app installed with `PHONEBOX_VERSION=…` (or a test install
+    /// with `PHONEBOX_ZIP`) would otherwise reinstall that version or zip instead of the latest release.
+    public static func installerEnvironment(_ environment: [String: String]) -> [String: String] {
+        environment.filter { !$0.key.hasPrefix("PHONEBOX_") }
+    }
+
     public static func availableUpdate(current: AppVersion, latest: LatestRelease?) -> LatestRelease? {
         guard let latest, current < latest.version else { return nil }
         return latest

@@ -249,7 +249,12 @@ Mac'te:
 - Geçti: "Wi-Fi'den Kilit ve Müzik" açıldı (ayar kaydedildi); telefon kablodan çıkınca Wi-Fi'den (en0) bağlandı ve
   müzik komutları Mac'te çalıştı (kayıtta "Running media"); kullanıcı ses, sessiz, Ekranı kapat, Uyut ve uygulama
   kapatmanın soluk kaldığını ve hepsinin beklendiği gibi çalıştığını söyledi.
-- Görülmedi: Wi-Fi'den Kilitle (kayıtta yok; kullanıcı "hepsi çalışıyor" dedi) ve 30 sn içinde ikinci Kilitle.
+- Geçti: Wi-Fi'den Kilitle (14:31, kayıtta "Running lock", telefon en0'da). Görülmedi: 30 sn içinde ikinci Kilitle.
 - Bulunan ve düzeltilen: Ana Ekran uygulamasında telefon yan çevrilince sayfa ekranın altına uzanmıyordu (altta dikey
   durum çubuğu kadar boş şerit, Pro Max). `screen.js` tam ekran katmanlara ekranın yüksekliğini verdi (19c7bc3);
   telefon birkaç kez çevrildikten sonra sayfa ekranı dolduruyor (kullanıcı).
+- Bulunan ve düzeltilen: adayı `PHONEBOX_ZIP=… ./install.sh` ile kurunca `open` bu ayarı uygulamaya geçirdi; menüden
+  0.2.0'a güncelleme kurulum betiğini aynı ayarla çalıştırdı ve "Güncelleme yüklenemedi" dedi (betik göreli zip yolunu
+  bulamadı). `PHONEBOX_VERSION=…` ile kuran bir kullanıcı da her güncellemede o sürümü yeniden kurardı. install.sh
+  uygulamayı `PHONEBOX_*` olmadan açıyor, uygulama da kurulum betiğine bunları geçirmiyor (0.2.1). Mac, GitHub'daki
+  kurulum komutuyla 0.2.0'a geçirildi.

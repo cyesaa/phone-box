@@ -168,6 +168,7 @@ final class UpdateService {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = ["-c", "set -o pipefail; \(installCommand)"]
+        process.environment = UpdateCheck.installerEnvironment(ProcessInfo.processInfo.environment)
         let handle = try? FileHandle(forWritingTo: logFile)
         if let handle {
             process.standardOutput = handle

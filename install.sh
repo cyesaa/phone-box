@@ -139,7 +139,8 @@ install() {
   version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$dest/$APP/Contents/Info.plist" 2>/dev/null || echo "?")"
   say "Installed PhoneBox $version in $dest"
   if [ -z "${PHONEBOX_NO_OPEN:-}" ]; then
-    open "$dest/$APP"
+    # `open` hands this shell's environment to the app; without these the app's own updates download the latest release.
+    env -u PHONEBOX_ZIP -u PHONEBOX_DEST -u PHONEBOX_VERSION -u PHONEBOX_NO_OPEN open "$dest/$APP"
     say "PhoneBox is running: look for the phone icon in the menu bar."
   fi
   echo "    Plug in your iPhone with its cable; the QR code opens the first time. Scan it with the iPhone's camera."

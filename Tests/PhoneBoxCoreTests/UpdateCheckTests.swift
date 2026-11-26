@@ -79,4 +79,12 @@ struct UpdateCheckTests {
         #expect(UpdateCheck.latestReleaseURL.absoluteString == "https://api.github.com/repos/cyesaa/phone-box/releases/latest")
         #expect(UpdateCheck.installCommand == "curl -fsSL https://raw.githubusercontent.com/cyesaa/phone-box/main/install.sh | bash")
     }
+
+    /// An app opened by `PHONEBOX_VERSION=0.1.0 … | bash` or a test install inherits those settings; the update must not
+    /// reinstall that version or zip.
+    @Test func theInstallerDoesNotInheritTheInstallersOwnSettings() {
+        let inherited = ["PATH": "/usr/bin:/bin", "HOME": "/Users/someone", "PHONEBOX_VERSION": "0.1.0",
+                         "PHONEBOX_ZIP": "dist/PhoneBox.zip", "PHONEBOX_DEST": "/tmp/x", "PHONEBOX_NO_OPEN": "1"]
+        #expect(UpdateCheck.installerEnvironment(inherited) == ["PATH": "/usr/bin:/bin", "HOME": "/Users/someone"])
+    }
 }
