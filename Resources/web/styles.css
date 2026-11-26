@@ -19,6 +19,9 @@
   --warn: #ff9f0a;
   --bad: #ff453a;
   --accent: #0a84ff;
+  --claude: #ffa15c;
+  --claude-rgb: 255, 161, 92;
+  --work: #4fd2ff;
   color-scheme: dark;
 }
 
@@ -36,6 +39,8 @@ html, body {
   -webkit-user-select: none;
   user-select: none;
   touch-action: manipulation;
+  /* A swipe between the pages must not pull the whole page (rubber band, pull to refresh). */
+  overscroll-behavior: none;
 }
 
 button {
@@ -513,6 +518,175 @@ p { margin: 0; }
 
 #keepawake { position: fixed; right: 0; bottom: 0; width: 2px; height: 2px; opacity: 0.01; pointer-events: none; }
 
+/* ---- Claude Code page (design §14): below the dashboard. When it shows, the dashboard slides up out of view and the
+   page in from below; both keep the OLED shift. Waiting cards glow orange, working ones run a thin line. ---- */
+.dashboard.paged { transition: transform 0.8s cubic-bezier(0.65, 0, 0.35, 1), opacity 0.3s, filter 0.3s; }
+.dashboard.away { transform: translate(var(--dx, 0px), calc(var(--dy, 0px) - 104%)); }
+.claude-page {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  overflow: hidden;
+  padding: calc(env(safe-area-inset-top) + 8px) calc(env(safe-area-inset-right) + 20px)
+           calc(env(safe-area-inset-bottom) + 10px) calc(env(safe-area-inset-left) + 12px);
+  background: radial-gradient(120% 80% at 0% 0%, rgba(var(--claude-rgb), 0.09), transparent 60%), var(--bg);
+  transform: translate(var(--dx, 0px), calc(var(--dy, 0px) + 104%));
+  transition: transform 0.8s cubic-bezier(0.65, 0, 0.35, 1), opacity 0.3s, filter 0.3s;
+}
+.claude-page.on { transform: translate(var(--dx, 0px), var(--dy, 0px)); }
+.claude-page.stale { opacity: 0.4; filter: grayscale(0.5); }
+
+.claude-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.claude-title { display: flex; align-items: baseline; gap: 12px; min-width: 0; white-space: nowrap; }
+.claude-title h1 { margin: 0; font-size: 24px; letter-spacing: -0.01em; }
+.claude-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 13px; color: var(--muted); }
+#claude-waiting { color: var(--claude); }
+.claude-page .clock { font-size: 30px; }
+
+/* The cards fill the height in landscape (at least two rows); in portrait they stack under the header. The Mac's order
+   is set with `order`, so a card that moves keeps its animations. */
+.claude-list { grid-row: 2; grid-column: 1; display: grid; grid-template-columns: repeat(var(--columns, 1), minmax(0, 1fr)); gap: 10px; min-height: 0; }
+.claude-empty { grid-row: 2; grid-column: 1; align-self: center; justify-self: center; color: var(--muted); font-size: 15px; text-align: center; }
+@media (orientation: landscape) {
+  .claude-list { grid-template-rows: repeat(var(--rows, 2), minmax(0, 1fr)); }
+  .claude-list.compact { gap: 8px; }
+}
+@media (orientation: portrait) {
+  .claude-page .clock { font-size: clamp(22px, 4dvh, 30px); }
+  .claude-list { align-content: start; }
+  .claude-list.compact { gap: 6px; }
+}
+
+.claude-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas: "icon state time" "name name name" "bar bar bar" "chips chips chips";
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+  min-height: 0;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--card);
+}
+.claude-card.waiting {
+  background: linear-gradient(140deg, rgba(var(--claude-rgb), 0.2), rgba(var(--claude-rgb), 0.05) 70%);
+  box-shadow: inset 0 0 0 1px rgba(var(--claude-rgb), 0.5);
+}
+/* The glow: a brighter frame that fades in and out (opacity only, so the phone does not repaint the card). */
+.claude-card.waiting::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(var(--claude-rgb), 0.95), 0 0 18px rgba(var(--claude-rgb), 0.3);
+  opacity: 0;
+  pointer-events: none;
+  animation: claude-glow 2.6s ease-in-out infinite;
+}
+.claude-icon {
+  grid-area: icon;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: var(--muted);
+  background: rgba(109, 138, 163, 0.18);
+}
+.claude-icon svg { width: 60%; height: 60%; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.claude-card.waiting .claude-icon { color: #1a0d03; background: radial-gradient(circle at 35% 30%, #ffd2a8, var(--claude) 60%, #ff7a2e); }
+.claude-card.waiting .claude-icon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(var(--claude-rgb), 0.7);
+  animation: claude-ripple 2.4s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
+.claude-card.working .claude-icon { color: var(--work); background: rgba(79, 210, 255, 0.14); }
+.claude-card.working .claude-icon svg { animation: claude-spin 1.6s linear infinite; }
+.claude-state { grid-area: state; min-width: 0; font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.claude-card.waiting .claude-state { color: var(--claude); }
+.claude-card.working .claude-state { color: var(--work); }
+.claude-card.working .claude-state::after { content: "…"; display: inline-block; width: 1em; overflow: hidden; vertical-align: bottom; animation: claude-dots 1.4s steps(4) infinite; }
+.claude-time { grid-area: time; font-size: 13px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.claude-card.waiting .claude-time { color: #ffd2a8; }
+.claude-name {
+  grid-area: name;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.25;
+  color: #eef7ff;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* Kept on every card (hidden unless working), so a card's height does not change with its state. */
+.claude-bar { grid-area: bar; align-self: start; height: 3px; border-radius: 2px; background: rgba(79, 210, 255, 0.12); overflow: hidden; visibility: hidden; }
+.claude-card.working .claude-bar { visibility: visible; }
+.claude-bar::after { content: ""; display: block; width: 35%; height: 100%; border-radius: 2px; background: var(--work); }
+.claude-card.working .claude-bar::after { animation: claude-run 1.6s ease-in-out infinite; }
+.claude-chips { grid-area: chips; display: flex; gap: 8px; min-width: 0; font-size: 12px; color: var(--muted); }
+.claude-chips i { min-width: 0; padding: 1px 7px; border-radius: 7px; background: rgba(109, 138, 163, 0.14); font-style: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.claude-chips i + i { flex: none; }
+
+/* Compact (many sessions): the title on one line beside the icon, the state and the folder under it. */
+.claude-list.compact .claude-card {
+  grid-template-rows: auto auto;
+  grid-template-areas: "icon name time" "icon state chips";
+  align-content: center;
+  gap: 2px 9px;
+  padding: 8px 12px;
+  border-radius: 14px;
+}
+.claude-list.compact .claude-name { font-size: 14px; -webkit-line-clamp: 1; }
+.claude-list.compact .claude-state { font-size: 12px; }
+.claude-list.compact .claude-chips { justify-content: flex-end; max-width: 120px; font-size: 11px; }
+.claude-list.compact .claude-chips i + i { display: none; }
+.claude-list.compact .claude-bar { grid-area: auto; position: absolute; left: 12px; right: 12px; bottom: 4px; height: 2px; }
+
+/* Cards come in one after another as the page slides in, a card that turns up later on its own; a gone one fades. */
+.claude-page.arriving .claude-card { animation: claude-card-in 0.6s cubic-bezier(0.2, 1.2, 0.35, 1) calc(0.3s + var(--i, 0) * 0.07s) both; }
+.claude-card.enter { animation: claude-card-in 0.6s cubic-bezier(0.2, 1.2, 0.35, 1) both; }
+.claude-page .claude-card.leaving { animation: claude-card-out 0.35s ease both; pointer-events: none; }
+@keyframes claude-card-in { from { opacity: 0; transform: translateY(24px) scale(0.97); } }
+@keyframes claude-card-out { to { opacity: 0; transform: scale(0.97); } }
+@keyframes claude-glow { 50% { opacity: 1; } }
+@keyframes claude-ripple { from { transform: scale(1); opacity: 0.9; } to { transform: scale(1.9); opacity: 0; } }
+@keyframes claude-spin { to { transform: rotate(360deg); } }
+@keyframes claude-dots { from { width: 0; } to { width: 1em; } }
+@keyframes claude-run { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+/* Off screen the endless animations wait, so they go on where they were; stale data does not look live. */
+.claude-page:not(.on) .claude-card::after, .claude-page:not(.on) .claude-icon::after, .claude-page:not(.on) .claude-icon svg,
+.claude-page:not(.on) .claude-state::after, .claude-page:not(.on) .claude-bar::after { animation-play-state: paused; }
+.claude-page.stale .claude-card::after, .claude-page.stale .claude-icon::after, .claude-page.stale .claude-icon svg,
+.claude-page.stale .claude-state::after, .claude-page.stale .claude-bar::after { animation: none; }
+
+/* Which page shows: two dots on the right edge, the current one long. */
+.page-dots {
+  position: fixed;
+  top: calc(var(--screen-height, 100%) / 2);
+  right: calc(env(safe-area-inset-right) + 5px);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  pointer-events: none;
+  transform: translate(var(--dx, 0px), calc(var(--dy, 0px) - 50%));
+  transition: transform 2s ease;
+}
+.page-dots i { width: 6px; height: 6px; border-radius: 3px; background: rgba(109, 138, 163, 0.45); transition: height 0.4s, background-color 0.4s; }
+.page-dots i.on { height: 16px; background: var(--text); }
+.page-dots i.on:last-child { background: var(--claude); }
+
 /* "Reduce Motion": nothing slides or bounces; colours still change. */
 @media (prefers-reduced-motion: reduce) {
   .now-playing.playing .np-icon i { animation: none; transform: scaleY(0.6); }
@@ -521,11 +695,17 @@ p { margin: 0; }
   .clock-colon { animation: none; }
   .menu { animation: none; }
   .confirm, .confirm-card, .toast, .volume-fill, .volume-thumb, .strip-button, .sheet, .sheet-card { transition: none; }
+  .dashboard.paged, .claude-page { transition: opacity 0.3s, filter 0.3s; }
+  .page-dots i { transition: none; }
+  .claude-page .claude-card, .claude-page.arriving .claude-card, .claude-page .claude-card.leaving,
+  .claude-page .claude-card .claude-icon::after, .claude-page .claude-card .claude-icon svg,
+  .claude-page .claude-card .claude-state::after, .claude-page .claude-card .claude-bar::after { animation: none; }
+  .claude-page .claude-card.waiting::after { animation: none; opacity: 0.6; }
 }
 
 /* ---- Full-screen layers in a Home Screen web app: after the phone turns, iOS can leave the viewport shorter than the
    screen, so these take the screen's height that screen.js puts in --screen-height (the viewport's without it). */
-.dashboard, .menu-backdrop, .sheet, .confirm, .edge, .state, .overlay {
+.dashboard, .claude-page, .menu-backdrop, .sheet, .confirm, .edge, .state, .overlay {
   bottom: auto;
   height: var(--screen-height, 100%);
 }
