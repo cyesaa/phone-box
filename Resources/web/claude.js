@@ -106,6 +106,13 @@
     return count <= 4 ? 2 : 3;
   }
 
+  /// The cards' grid: `columns()` columns and as many rows as the cards fill (at least one). In landscape the rows share
+  /// the page's height, so one session is one tall card in the left column and two are two tall cards.
+  function grid(count, landscape) {
+    const across = columns(count, landscape);
+    return { columns: across, rows: Math.max(1, Math.ceil(count / across)) };
+  }
+
   /// The page a finger's move (px; up is negative) goes to: the Claude page lies below the dashboard. Null for a move
   /// that is short or mostly sideways.
   function swipe(dx, dy) {
@@ -114,5 +121,5 @@
   }
 
   global.PhoneBox = global.PhoneBox || {};
-  global.PhoneBox.claude = { Pager, elapsed, stateText, columns, swipe };
+  global.PhoneBox.claude = { Pager, elapsed, stateText, columns, grid, swipe };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -199,6 +199,15 @@ struct WebClaudeTests {
         #expect(string("[0, 1, 5, 12].map(function (n) { return C.columns(n, false); }).join(',')") == "1,1,1,1")
     }
 
+    /// In landscape the cards fill the page's height: one session is one tall card in the left column, two are two
+    /// tall cards side by side (like the approved prototype).
+    @Test func laysTheCardsOutInAsManyRowsAsTheyFill() {
+        #expect(string("[0, 1, 2, 3, 4, 5, 6, 7, 12].map(function (n) { var g = C.grid(n, true); return g.columns + 'x' + g.rows; }).join(',')")
+            == "2x1,2x1,2x1,2x2,2x2,3x2,3x2,3x3,3x4")
+        #expect(string("[1, 3, 12].map(function (n) { var g = C.grid(n, false); return g.columns + 'x' + g.rows; }).join(',')")
+            == "1x1,1x3,1x12")
+    }
+
     @Test func aSwipeGoesUpOrDownWhenItIsLongAndMostlyVertical() {
         #expect(string("JSON.stringify([C.swipe(0, -41), C.swipe(5, 41), C.swipe(0, 40), C.swipe(0, -40), C.swipe(-45, -45), C.swipe(50, -45), C.swipe(-30, -45)])")
             == #"["claude","dashboard",null,null,null,null,"claude"]"#)

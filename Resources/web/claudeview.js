@@ -13,6 +13,8 @@
   const arrival = 1800;
   /// How long a card that turns up on the page takes to come in (ms; styles.css).
   const entry = 600;
+  /// How long the pages slide (ms; styles.css).
+  const slide = 800;
 
   // State icons, drawn in the card's state colour. Fixed markup, never data.
   const icons = {
@@ -24,9 +26,11 @@
   };
   const states = ["waiting", "working", "ready"];
 
-  // Written only when it changed: most seconds change nothing but the times.
+  // Written only when it changed: most seconds change nothing but the times. True when it changed.
   function setText(element, text) {
-    if (element.textContent !== text) element.textContent = text;
+    if (element.textContent === text) return false;
+    element.textContent = text;
+    return true;
   }
 
   function setHidden(element, hidden) {
@@ -48,11 +52,20 @@
       this.stale = true;
       /// Each session's card, by id.
       this.cards = new Map();
+      /// Cards of gone sessions that are still fading out: they keep their place in the grid until they are removed.
+      this.leaving = new Set();
       /// The list's columns and rows as last written, so an unchanged layout is not written again.
       this.layout = "";
+      /// The cards have to be measured again (portrait): the set of cards, a title or the screen changed.
+      this.measure = true;
+      /// Hides the page once the dashboard has slid back after the feature was turned off.
+      this.closeTimer = 0;
       this.arrivalTimer = 0;
       this.wireSwipe();
-      global.addEventListener("resize", () => this.fit());
+      global.addEventListener("resize", () => {
+        this.measure = true;
+        this.fit();
+      });
     }
 
     /// Each snapshot's `claude` list (null or undefined while the feature is off) and the snapshot's time `now` (the
@@ -61,18 +74,24 @@
       const enabled = Array.isArray(sessions);
       if (enabled !== this.enabled) {
         this.enabled = enabled;
-        if (!enabled) this.show("dashboard");
-        this.page.hidden = !enabled;
-        $("page-dots").hidden = !enabled;
-        // The dashboard's own slide (its transition) while there are two pages.
-        $("dashboard").classList.toggle("paged", enabled);
         this.layout = "";
+        global.clearTimeout(this.closeTimer);
+        if (enabled) {
+          this.setPaged(true);
+        } else if (this.showing === "claude" && !PB().motion.reduced()) {
+          // Turned off while the page shows: the dashboard slides back down as after a swipe (`.paged` gives it the
+          // swipe's transition), and the page goes once the slide is over.
+          this.show("dashboard");
+          this.closeTimer = global.setTimeout(() => this.setPaged(false), slide + 50);
+        } else {
+          this.show("dashboard");
+          // With "Reduce Motion" the dashboard is back at once: its place is settled under `.paged`, before the class
+          // and its transition go.
+          void $("dashboard").offsetWidth;
+          this.setPaged(false);
+        }
       }
-      if (!enabled) {
-        this.list.replaceChildren();
-        this.cards.clear();
-        return;
-      }
+      if (!enabled) return;
       const t = this.t;
       const still = PB().motion.reduced();
       const waiting = sessions.filter((session) => session && session.state === "waiting").length;
@@ -90,6 +109,7 @@
           card = this.makeCard();
           this.cards.set(id, card);
           this.list.appendChild(card.element);
+          this.measure = true;
           // A card that turns up while the page shows comes in by itself; the others come in with the page.
           if (!still && this.showing === "claude" && !this.page.classList.contains("arriving")) {
             const element = card.element;
@@ -99,11 +119,13 @@
         }
         this.fill(card, session, index, now);
       });
+      const gone = [];
       for (const [id, card] of this.cards) {
         if (current.has(id)) continue;
         this.cards.delete(id);
-        this.drop(card.element, still);
+        gone.push(card.element);
       }
+      if (gone.length) this.drop(gone, still);
       this.fit();
     }
 
@@ -128,7 +150,8 @@
       }
       setText(card.parts.state, claude.stateText(this.t, session));
       setText(card.parts.time, claude.elapsed(this.t, now - session.since));
-      setText(card.parts.name, String(session.title || session.project || "Claude"));
+      // A title can take one line or two.
+      if (setText(card.parts.name, String(session.title || session.project || "Claude"))) this.measure = true;
       const project = session.project ? String(session.project) : "";
       const model = session.model ? String(session.model) : "";
       setText(card.parts.project, project);
@@ -144,36 +167,65 @@
       }
     }
 
-    /// A gone session's card fades out where it can be seen, else it goes at once.
-    drop(element, still) {
+    /// The cards of gone sessions fade out where they can be seen, else they go at once. While they fade they keep their
+    /// places in the grid; once they are gone the grid is fitted again, once for all of them.
+    drop(elements, still) {
+      this.measure = true;
       if (still || this.stale || this.showing !== "claude") {
-        element.remove();
+        for (const element of elements) element.remove();
         return;
       }
-      element.classList.add("leaving");
-      global.setTimeout(() => element.remove(), fadeOut);
+      for (const element of elements) {
+        element.classList.add("leaving");
+        this.leaving.add(element);
+      }
+      global.setTimeout(() => {
+        let removed = false;
+        for (const element of elements) {
+          if (!this.leaving.delete(element)) continue;
+          element.remove();
+          removed = true;
+        }
+        if (!removed) return;
+        this.measure = true;
+        this.fit();
+      }, fadeOut);
     }
 
-    /// The columns (`columns()`), and compact cards when the normal ones would not fit: in landscape when there are
-    /// more than two rows, in portrait when they would run past the bottom.
+    /// Two pages (the feature is on), or only the dashboard; without the second page its cards go.
+    setPaged(paged) {
+      this.page.hidden = !paged;
+      $("page-dots").hidden = !paged;
+      // The dashboard's own slide (its transition) while there are two pages.
+      $("dashboard").classList.toggle("paged", paged);
+      if (paged) return;
+      this.list.replaceChildren();
+      this.cards.clear();
+      this.leaving.clear();
+    }
+
+    /// The grid (`grid()`, counting the cards still fading out), and compact cards when the normal ones would not
+    /// fit: in landscape when there are more than two rows, in portrait when they would run past the bottom. Portrait
+    /// cards are measured only when that can have changed: measuring right after `render`'s writes would make the
+    /// browser lay the page out again every second.
     fit() {
       if (!this.enabled) return;
       const list = this.list;
-      const count = this.cards.size;
       const landscape = global.matchMedia("(orientation: landscape)").matches;
-      const columns = PB().claude.columns(count, landscape);
-      const rows = Math.ceil(count / columns);
-      // At least two rows: one or two sessions get cards the size of four, not cards the height of the screen.
-      const layout = `${columns} ${Math.max(2, rows)}`;
+      const { columns, rows } = PB().claude.grid(this.cards.size + this.leaving.size, landscape);
+      const layout = `${columns} ${rows} ${landscape}`;
       if (layout !== this.layout) {
         this.layout = layout;
+        this.measure = true;
         list.style.setProperty("--columns", String(columns));
-        list.style.setProperty("--rows", String(Math.max(2, rows)));
+        list.style.setProperty("--rows", String(rows));
       }
       if (landscape) {
         list.classList.toggle("compact", rows > 2);
         return;
       }
+      if (!this.measure) return;
+      this.measure = false;
       list.classList.remove("compact");
       list.classList.toggle("compact", list.scrollHeight > list.clientHeight + 1);
     }

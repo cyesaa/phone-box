@@ -680,9 +680,13 @@ Sıralama: bekleyenler (en eski bekleyen önce), sonra çalışanlar, sonra haz�
 - Sayfa açılırken (yeniden yükleme, "Başlat") zaten bekleyen oturumlar da yeni sayılır.
 - Dikey kaydırma (parmak yukarı/aşağı, 40 px'ten uzun ve yataydan baskın) iki sayfa arasında geçirir; sağ kenarda iki
   nokta hangi sayfada olunduğunu gösterir. Özellik kapalıyken (anlık görüntüde `claude` yok) ikinci sayfa, noktalar ve
-  kaydırma yoktur.
-- Sayfanın üstünde "Claude", oturum sayısı, bekleyen sayısı ve saat; yatayda kartlar iki sütun (5 ve üstü oturumda üç),
-  dikeyde tek sütun. Oturum yoksa "Açık Claude oturumu yok". Hareket azaltma açıksa kayma ve kart girişleri anlık.
+  kaydırma yoktur. Özellik Claude sayfası açıkken kapanırsa pano kaydırmadaki gibi 0,8 sn'de aşağı iner; sayfa ve
+  noktalar ondan sonra gider.
+- Sayfanın üstünde "Claude", oturum sayısı, bekleyen sayısı ve saat; yatayda kartlar iki sütun (5 ve üstü oturumda üç)
+  ve sayfanın yüksekliğini doldurur (satır = oturum / sütun, yukarı yuvarlanır: 1 oturum solda tek uzun kart, 2 oturum
+  iki uzun kart; 2 satırdan fazlasında kartlar sıkışık), dikeyde tek sütun. Giden kart solarken yerini korur, ızgara
+  kart gidince yeniden yerleşir. Oturum yoksa "Açık Claude oturumu yok". Hareket azaltma açıksa kayma ve kart girişleri
+  anlık.
 
 ### Olaylar nasıl gelir
 
