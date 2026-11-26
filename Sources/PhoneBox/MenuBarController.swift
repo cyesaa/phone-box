@@ -122,14 +122,18 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func toggleLaunchAtLogin() {
         let service = SMAppService.mainApp
-        do {
-            if service.status == .enabled || service.status == .requiresApproval {
-                try service.unregister()
-            } else {
-                try service.register()
+        // Waiting for approval (the mixed item): a click shows the alert below again instead of withdrawing the
+        // request the user is to approve.
+        if service.status != .requiresApproval {
+            do {
+                if service.status == .enabled {
+                    try service.unregister()
+                } else {
+                    try service.register()
+                }
+            } catch {
+                Log.app.error("Open at Login failed: \(error.localizedDescription, privacy: .public)")
             }
-        } catch {
-            Log.app.error("Open at Login failed: \(error.localizedDescription, privacy: .public)")
         }
         // macOS may want the user to allow it in System Settings first (design §8 "Menü çubuğu").
         guard service.status == .requiresApproval else { return }

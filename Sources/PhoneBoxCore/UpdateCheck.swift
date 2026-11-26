@@ -1,13 +1,14 @@
 import Foundation
 
-/// A release version: up to three numbers ("0.4.0", "v1.2"); missing parts count as 0.
+/// A release version: up to three numbers ("0.4.0", "v1.2"); missing parts count as 0. Spaces and line breaks around
+/// it are ignored ("0.1.1\n" from a file or a command's output).
 public struct AppVersion: Comparable, CustomStringConvertible, Sendable {
     public let major: Int
     public let minor: Int
     public let patch: Int
 
     public init?(_ string: String) {
-        var text = string.trimmingCharacters(in: .whitespaces)
+        var text = string.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.first == "v" || text.first == "V" { text.removeFirst() }
         let parts = text.split(separator: ".", omittingEmptySubsequences: false)
         guard (1...3).contains(parts.count) else { return nil }
@@ -38,7 +39,8 @@ public struct LatestRelease: Equatable, Sendable {
         self.pageURL = pageURL
     }
 
-    /// Reads GitHub's "latest release" answer; nil for drafts, pre-releases and anything unexpected.
+    /// Reads GitHub's "latest release" answer; nil for drafts, pre-releases and anything unexpected. The page is opened
+    /// from the update dialog, so it has to be an https page on github.com.
     public static func parse(_ data: Data) -> LatestRelease? {
         struct Response: Decodable {
             let tag_name: String
@@ -49,7 +51,8 @@ public struct LatestRelease: Equatable, Sendable {
         guard let response = try? JSONDecoder().decode(Response.self, from: data),
               response.draft != true, response.prerelease != true,
               let version = AppVersion(response.tag_name),
-              let url = URL(string: response.html_url), url.scheme == "https"
+              let url = URL(string: response.html_url),
+              url.scheme == "https", url.host(percentEncoded: false) == "github.com"
         else { return nil }
         return LatestRelease(version: version, pageURL: url)
     }

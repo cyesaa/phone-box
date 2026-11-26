@@ -101,6 +101,9 @@ final class PhoneBatteryReader {
     private var retries = 0
     /// True while `subscribe` runs: phones already plugged in may be reported before it returns.
     private var subscribing = false
+    /// Changes on every plug-in, unplug and `stop()`: a delayed read from before then does nothing, so a retry left
+    /// over from the last phone cannot use up the next one's retries or read during its settle delay.
+    private var generation = 0
 
     /// The last good reading of the one iPhone on USB, at most 5 minutes old.
     var latest: PhoneBatterySample? { memory.current(at: Date()) }
@@ -133,6 +136,9 @@ final class PhoneBatteryReader {
         defer { subscribing = false }
         guard api.subscribe(callback, 0, 0, context, &subscription) == 0 else {
             Log.app.notice("Cannot watch iPhones for their battery")
+            // Phones reported before `subscribe` failed were kept; nothing will report them unplugged.
+            for device in devices { api.release(device.pointer) }
+            devices.removeAll()
             return
         }
         self.subscription = subscription
@@ -147,6 +153,7 @@ final class PhoneBatteryReader {
     func stop() {
         timer?.invalidate()
         timer = nil
+        generation += 1
         guard let api, let subscription else { return }
         _ = api.unsubscribe(subscription)
         self.subscription = nil
@@ -162,12 +169,14 @@ final class PhoneBatteryReader {
             guard !devices.contains(device) else { return }
             _ = api.retain(device.pointer)
             devices.append(device)
+            generation += 1
             memory.forget()
             retries = 0
             read(after: Self.settleDelay)
         case MobileDeviceAPI.disconnected:
             guard let index = devices.firstIndex(of: device) else { return }
             api.release(devices.remove(at: index).pointer)
+            generation += 1
             memory.forget()
             // Two phones were plugged in and one is left: it is "the" phone now.
             if devices.count == 1 {
@@ -180,8 +189,12 @@ final class PhoneBatteryReader {
     }
 
     private func read(after delay: TimeInterval) {
+        let scheduled = generation
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            MainActor.assumeIsolated { self?.read() }
+            MainActor.assumeIsolated {
+                guard let self, self.generation == scheduled else { return }
+                self.read()
+            }
         }
     }
 

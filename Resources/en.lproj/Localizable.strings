@@ -19,6 +19,7 @@
 "port.message" = "A number from 1024 to 65535. The phone's link changes with it: scan the new QR code afterwards. The Home Screen icon still opens the old port: add the page to the Home Screen again and delete the old icon.";
 "port.invalid" = "That is not a port PhoneBox can use. Type a number from 1024 to 65535.";
 "port.use" = "Use";
+"port.inUse" = "Port %d is already in use. PhoneBox stays on its current port.";
 
 "login.approvalTitle" = "Allow PhoneBox to open at login";
 "login.approvalMessage" = "macOS wants your approval in System Settings → General → Login Items.";

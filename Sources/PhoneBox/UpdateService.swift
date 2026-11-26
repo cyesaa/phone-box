@@ -31,6 +31,8 @@ final class UpdateService {
     private var timer: Timer?
     /// A click on "Check for Updates…" that arrived while an automatic check was running: it gets its answer too.
     private var answerUser = false
+    /// What the last check that got an answer found: a failed check falls back to it, so a known update stays offered.
+    private var lastFound: LatestRelease?
 
     init(bundle: Bundle = .main) {
         currentVersion = (bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
@@ -104,9 +106,12 @@ final class UpdateService {
         guard let currentVersion else { return }
         let userInitiated = userInitiated || answerUser
         answerUser = false
+        if !failed { lastFound = release }
         if failed {
             Log.app.notice("Update check failed (HTTP \(code, privacy: .public))")
-            status = .failed
+            // An update found before is still there: keep offering it, also to a click on "Check for Updates…".
+            let known = UpdateCheck.availableUpdate(current: currentVersion, latest: lastFound)
+            status = known.map(Status.available) ?? .failed
         } else if let update = UpdateCheck.availableUpdate(current: currentVersion, latest: release) {
             Log.app.notice("Update available: \(update.version.description, privacy: .public)")
             status = .available(update)
@@ -149,16 +154,18 @@ final class UpdateService {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = ["-c", "set -o pipefail; \(installCommand)"]
-        if let handle = try? FileHandle(forWritingTo: logFile) {
+        let handle = try? FileHandle(forWritingTo: logFile)
+        if let handle {
             process.standardOutput = handle
             process.standardError = handle
         }
         process.terminationHandler = { process in
-            // A successful install quits PhoneBox first, so this runs only when the installer failed.
+            try? handle?.close()
             let code = process.terminationStatus
-            guard code != 0 else { return }
             DispatchQueue.main.async {
-                MainActor.assumeIsolated { self.installFailed(code: code, log: logFile) }
+                MainActor.assumeIsolated {
+                    if code == 0 { self.installFinished() } else { self.installFailed(code: code, log: logFile) }
+                }
             }
         }
         do {
@@ -166,9 +173,17 @@ final class UpdateService {
             status = .installing
             Log.app.notice("Running the installer")
         } catch {
+            try? handle?.close()
             Log.app.error("Could not start the installer: \(error.localizedDescription, privacy: .public)")
             installFailed(code: -1, log: logFile)
         }
+    }
+
+    /// A successful installer quits PhoneBox first, so this copy is still running only when the installer did not
+    /// replace it (an `UpdateInstallCommand`, or a copy outside the installer's folder): the menu works again.
+    private func installFinished() {
+        Log.app.notice("The installer finished, but this PhoneBox is still running")
+        status = .idle
     }
 
     private func installFailed(code: Int32, log: URL) {

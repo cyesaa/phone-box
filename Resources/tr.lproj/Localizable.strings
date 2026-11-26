@@ -19,6 +19,7 @@
 "port.message" = "1024 ile 65535 arasında bir sayı. Telefondaki bağlantı da değişir: sonra yeni QR kodunu okut. Ana Ekran simgesi eski portu açmaya devam eder: sayfayı Ana Ekrana yeniden ekle, eski simgeyi sil.";
 "port.invalid" = "PhoneBox bu portu kullanamaz. 1024 ile 65535 arasında bir sayı yaz.";
 "port.use" = "Kullan";
+"port.inUse" = "Port %d zaten kullanımda. PhoneBox şu anki portunda kalıyor.";
 
 "login.approvalTitle" = "PhoneBox'ın girişte açılmasına izin ver";
 "login.approvalMessage" = "macOS, Sistem Ayarları → Genel → Giriş Öğeleri'nde onayını istiyor.";

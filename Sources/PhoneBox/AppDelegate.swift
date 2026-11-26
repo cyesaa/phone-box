@@ -51,12 +51,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.hub.mode = mode
         }
         menuBar.onPortChange = { [weak self] port in
-            guard let self else { return }
-            settings.port = port
-            menuBar.port = port
-            server.start(port: port)
-            // The phone's link names the port: it has to scan the new code.
-            showQR()
+            // Saved only once the new port listens: a port in use leaves PhoneBox, and its phones, on the old one.
+            self?.server.move(to: port) { [weak self] moved in
+                guard let self else { return }
+                guard moved else { return portInUse(port) }
+                settings.port = port
+                menuBar.port = port
+                // The phone's link names the port: it has to scan the new code.
+                showQR()
+            }
         }
         menuBar.onResetPairing = { [weak self] in
             guard let self else { return }
@@ -102,6 +105,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showQR() {
         qrWindow.show(link: settings.personalURL(key: key))
+    }
+
+    /// The port chosen in the menu is taken; PhoneBox stays where it is.
+    private func portInUse(_ port: UInt16) {
+        // Shown from the run loop: run from the listener's callback (a main-queue block), a modal alert would hold up
+        // every other main-queue block, the phones' connections among them, until it is closed.
+        RunLoop.main.perform {
+            MainActor.assumeIsolated {
+                let alert = NSAlert()
+                alert.messageText = L10n.portInUse(port)
+                NSApp.activate()
+                alert.runModal()
+            }
+        }
     }
 
     private func iPhoneChanged(pluggedIn: Bool) {

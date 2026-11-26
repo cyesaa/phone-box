@@ -8,6 +8,8 @@ struct AppVersionTests {
         #expect(AppVersion("v1.2.3")?.description == "1.2.3")
         #expect(AppVersion("V2.0")?.description == "2.0.0")
         #expect(AppVersion(" 3 ")?.description == "3.0.0")
+        #expect(AppVersion("0.1.1\n")?.description == "0.1.1")
+        #expect(AppVersion("\t0.1.1\r\n")?.description == "0.1.1")
     }
 
     @Test func refusesWhatIsNotAVersion() {
@@ -36,12 +38,21 @@ struct LatestReleaseTests {
     }
 
     @Test func skipsDraftsPrereleasesAndJunk() {
-        #expect(LatestRelease.parse(json(#""tag_name": "v0.2.0", "html_url": "https://x.y", "draft": true"#)) == nil)
-        #expect(LatestRelease.parse(json(#""tag_name": "v0.2.0", "html_url": "https://x.y", "prerelease": true"#)) == nil)
-        #expect(LatestRelease.parse(json(#""tag_name": "nightly", "html_url": "https://x.y""#)) == nil)
+        let page = "https://github.com/cyesaa/phone-box/releases/tag/v0.2.0"
+        #expect(LatestRelease.parse(json(#""tag_name": "v0.2.0", "html_url": "\#(page)", "draft": true"#)) == nil)
+        #expect(LatestRelease.parse(json(#""tag_name": "v0.2.0", "html_url": "\#(page)", "prerelease": true"#)) == nil)
+        #expect(LatestRelease.parse(json(#""tag_name": "nightly", "html_url": "\#(page)""#)) == nil)
         #expect(LatestRelease.parse(json(#""tag_name": "v0.2.0", "html_url": "file:///etc/passwd""#)) == nil)
         #expect(LatestRelease.parse(json(#""message": "Not Found""#)) == nil)
         #expect(LatestRelease.parse(Data("not json".utf8)) == nil)
+    }
+
+    @Test func opensOnlyAReleasePageOnGitHub() {
+        for url in ["", "https://x.y", "https://example.com/cyesaa/phone-box/releases/tag/v0.2.0",
+                    "https://github.com.example.com/releases", "https://github.com@example.com/releases",
+                    "http://github.com/cyesaa/phone-box/releases/tag/v0.2.0", "https:///releases"] {
+            #expect(LatestRelease.parse(json(#""tag_name": "v0.2.0", "html_url": "\#(url)""#)) == nil, "\(url)")
+        }
     }
 }
 

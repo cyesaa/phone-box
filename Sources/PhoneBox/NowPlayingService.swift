@@ -40,7 +40,8 @@ final class NowPlayingService {
     private var state = NowPlayingState()
     private var running = false
     private var failures = 0
-    private var startedAt = Date.distantPast
+    /// `systemUptime` when the adapter started: a clock change cannot make a run look longer or shorter.
+    private var startedAt: TimeInterval = 0
     private var names: [String: String] = [:]
 
     init(location: AdapterLocation? = .inAppBundle()) {
@@ -103,7 +104,7 @@ final class NowPlayingService {
         do {
             try process.run()
             self.process = process
-            startedAt = Date()
+            startedAt = ProcessInfo.processInfo.systemUptime
         } catch {
             // The read handler holds the process and the pipe; without this every failed start leaks both.
             output.fileHandleForReading.readabilityHandler = nil
@@ -127,7 +128,7 @@ final class NowPlayingService {
         state.clear()
         assembler.reset()
         Log.app.notice("The media adapter exited with status \(finished.terminationStatus)")
-        if Date().timeIntervalSince(startedAt) >= Self.healthyRun { failures = 0 }
+        if ProcessInfo.processInfo.systemUptime - startedAt >= Self.healthyRun { failures = 0 }
         scheduleRestart()
     }
 

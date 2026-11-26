@@ -27,6 +27,7 @@ enum L10n {
     static var portMessage: String { text("port.message") }
     static var portInvalid: String { text("port.invalid") }
     static var portUse: String { text("port.use") }
+    static func portInUse(_ port: UInt16) -> String { String(format: text("port.inUse"), Int(port)) }
 
     static var loginApprovalTitle: String { text("login.approvalTitle") }
     static var loginApprovalMessage: String { text("login.approvalMessage") }

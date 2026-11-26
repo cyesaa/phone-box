@@ -21,7 +21,10 @@ final class DashboardServer {
     private let webDirectory: URL
     private let hub: DashboardHub
     private var listener: NWListener?
-    private var connections: [ObjectIdentifier: ClientConnection] = [:]
+    /// The listener `move(to:)` is starting; it takes over from `listener` once it is ready.
+    private var pendingListener: NWListener?
+    /// Each connection with the listener that accepted it: moving to another port closes the old port's.
+    private var connections: [ObjectIdentifier: (client: ClientConnection, listener: NWListener)] = [:]
 
     init(webDirectory: URL, hub: DashboardHub) {
         self.webDirectory = webDirectory
@@ -31,52 +34,114 @@ final class DashboardServer {
 
     func start(port: UInt16) {
         stop()
-        guard let endpointPort = NWEndpoint.Port(rawValue: port) else { return }
+        guard let listener = makeListener(port: port, moved: nil) else { return }
+        self.listener = listener
+        listener.start(queue: .main)
+    }
+
+    /// Listens on `port` instead, keeping the current port until the new one works (design §9 "Port dolu"). Once the
+    /// new listener is ready the old one stops, the phones it accepted are closed and `completion` gets true. When
+    /// `port` cannot be used only the new listener goes: the old one, its phones and `state` stay, and `completion`
+    /// gets false. A later `move(to:)`, `start(port:)` or `stop()` drops a move still under way without calling its
+    /// `completion`.
+    func move(to port: UInt16, completion: @escaping @MainActor (Bool) -> Void) {
+        pendingListener?.cancel()
+        pendingListener = nil
+        guard let listener = makeListener(port: port, moved: completion) else { return completion(false) }
+        pendingListener = listener
+        listener.start(queue: .main)
+    }
+
+    func stop() {
+        listener?.cancel()
+        listener = nil
+        pendingListener?.cancel()
+        pendingListener = nil
+        state = .stopped
+    }
+
+    /// A listener on `port` that is not started yet; `moved` is set when it is to replace the current one. Nil (and,
+    /// without `moved`, a failed `state`) when it cannot be made.
+    private func makeListener(port: UInt16, moved: (@MainActor (Bool) -> Void)?) -> NWListener? {
+        guard let endpointPort = NWEndpoint.Port(rawValue: port) else { return nil }
         let parameters = NWParameters.tcp
         parameters.allowLocalEndpointReuse = true
         let listener: NWListener
         do {
             listener = try NWListener(using: parameters, on: endpointPort)
         } catch {
-            state = .failed(port: port, message: error.localizedDescription)
-            return
+            Log.server.error("Cannot listen on port \(port): \(error.localizedDescription, privacy: .public)")
+            if moved == nil { state = .failed(port: port, message: error.localizedDescription) }
+            return nil
         }
         listener.stateUpdateHandler = { [weak self, weak listener] newState in
             MainActor.assumeIsolated {
-                // A listener replaced by a newer one (another port) may still report; only the current one counts.
-                guard let self, let listener, self.listener === listener else { return }
-                switch newState {
-                case .ready:
-                    Log.server.info("Listening on port \(port)")
-                    self.state = .listening(port)
-                case let .failed(error):
-                    Log.server.error("Listener failed: \(error.localizedDescription, privacy: .public)")
-                    self.state = .failed(port: port, message: error.localizedDescription)
-                default:
-                    break
+                // A listener replaced by a newer one (another port) may still report; only the current one and the
+                // one being moved to count.
+                guard let self, let listener else { return }
+                if self.listener === listener {
+                    switch newState {
+                    case .ready:
+                        Log.server.info("Listening on port \(port)")
+                        self.state = .listening(port)
+                    case let .failed(error):
+                        Log.server.error("Listener failed: \(error.localizedDescription, privacy: .public)")
+                        self.state = .failed(port: port, message: error.localizedDescription)
+                    default:
+                        break
+                    }
+                } else if self.pendingListener === listener, let moved {
+                    switch newState {
+                    case .ready:
+                        self.takeOver(listener, port: port)
+                        moved(true)
+                    case let .failed(error):
+                        Log.server.error("Cannot move to port \(port): \(error.localizedDescription, privacy: .public)")
+                        listener.cancel()
+                        self.pendingListener = nil
+                        moved(false)
+                    default:
+                        break
+                    }
                 }
             }
         }
-        listener.newConnectionHandler = { [weak self] connection in
-            MainActor.assumeIsolated { self?.accept(connection) }
+        listener.newConnectionHandler = { [weak self, weak listener] connection in
+            MainActor.assumeIsolated {
+                guard let self, let listener else { return connection.cancel() }
+                self.accept(connection, from: listener)
+            }
         }
-        listener.start(queue: .main)
-        self.listener = listener
+        return listener
     }
 
-    func stop() {
-        listener?.cancel()
-        listener = nil
-        state = .stopped
+    /// The listener that `move(to:)` started is ready: it replaces the current one, whose phones are closed (their
+    /// page reconnects to the port in its address, which is gone; they have to scan the new QR code).
+    private func takeOver(_ newListener: NWListener, port: UInt16) {
+        let oldListener = listener
+        oldListener?.cancel()
+        listener = newListener
+        pendingListener = nil
+        for (client, owner) in connections.values where owner === oldListener {
+            // Only a WebSocket can take a close frame; a plain HTTP request is simply dropped.
+            if client.isWebSocket {
+                client.close(code: 1001, reason: "port changed")
+            } else {
+                client.cancel()
+            }
+        }
+        Log.server.info("Listening on port \(port)")
+        state = .listening(port)
     }
 
-    private func accept(_ connection: NWConnection) {
-        guard connections.count < Self.maxConnections else {
+    private func accept(_ connection: NWConnection, from listener: NWListener) {
+        // A replaced listener's late connection is refused, like its late state.
+        guard listener === self.listener || listener === pendingListener, connections.count < Self.maxConnections else {
             connection.cancel()
             return
         }
         let client = ClientConnection(connection: connection, webDirectory: webDirectory, hub: hub)
-        connections[ObjectIdentifier(client)] = client
+        connections[ObjectIdentifier(client)] = (client, listener)
         client.start()
     }
 }

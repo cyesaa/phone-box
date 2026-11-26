@@ -474,8 +474,10 @@ Simge telefon çizimi: gri = izinli istemci yok, yeşil = en az bir istemci veri
 - QR kodu göster
 - Mod: ● Kablo takılıyken / ○ Her zaman
 - Port: 4747…: 1024–65535 arası bir sayı sorar (`PortChoice`); geçersizse sebebini söyleyip yeniden sorar. Yeni port
-  hemen dinlenir, eski dinleyicinin geç gelen durumu yok sayılır; telefonun bağlantısı portu içerdiği için QR penceresi
-  açılır. 4747 seçilince ayar silinir.
+  eski port dinlenirken açılır; hazır olunca eski dinleyici durur, onun kabul ettiği bağlantılar kapanır (1001), port
+  kaydedilir ve telefonun bağlantısı portu içerdiği için QR penceresi açılır. Kullanımdaki bir port reddedilir: bir
+  uyarı bunu söyler, PhoneBox ve bağlı telefonlar eski portta kalır, kayıtlı port değişmez. Yerini başkasına bırakan
+  dinleyicinin geç gelen durumu ve bağlantısı yok sayılır. 4747 seçilince ayar silinir.
 - Girişte başlat (ServiceManagement). macOS onay isterse (`requiresApproval`) öğe yarım işaretli görünür ve bir uyarı
   "Giriş Öğeleri'ni aç" düğmesiyle Sistem Ayarları'na götürür.
 - Eşleştirmeyi sıfırla
@@ -493,7 +495,7 @@ her metnin yer tutucuları aynı olmalı (`LocalizationTests`).
 
 | Durum | Davranış |
 |---|---|
-| Port dolu | Başka porta geçilmez (kayıtlı bağlantı bozulmasın). Menüde uyarı ve "Port…" ile yeni port; QR güncellenir |
+| Port dolu | Açılışta başka porta geçilmez (kayıtlı bağlantı bozulmasın): menüde uyarı ve "Port…" ile yeni port; QR güncellenir. "Port…" ile seçilen port kullanımdaysa reddedilir: uyarı çıkar, PhoneBox eski portta kalır, kayıtlı port değişmez |
 | usbmuxd yok | Takma olayıyla QR penceresi açılamaz; menüde uyarı. Kablo modu etkilenmez (USB arayüzüne bakar) |
 | Tarayıcı HTTPS deniyor | İlk baytı `0x16` (TLS el sıkışması) olan bağlantı hemen kapatılır; tarayıcı HTTP'ye düşer |
 | Video byte aralığı istiyor | `Range` isteğine `206 Partial Content`, geçersize `416`; iOS aralıksız sunulan videoyu oynatmaz |
