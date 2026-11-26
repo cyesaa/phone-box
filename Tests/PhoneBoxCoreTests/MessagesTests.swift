@@ -70,6 +70,25 @@ struct ServerMessageTests {
             == #"{"phone":{"charging":true,"percent":76,"plugged":true},"t":3,"type":"snapshot","v":1}"#)
     }
 
+    @Test func encodesClaudeSessions() {
+        let session = ClaudeSession(id: "s1", title: "Menü", project: "PhoneBox", model: "Opus 5.5", state: .waiting,
+                                    reason: .question, activity: nil, since: 1_700)
+        #expect(ServerMessage.snapshot(Snapshot(t: 2, claude: [session])).json()
+            == #"{"claude":[{"id":"s1","model":"Opus 5.5","project":"PhoneBox","reason":"question","since":1700,"state":"waiting","title":"Menü"}],"t":2,"type":"snapshot","v":1}"#)
+        // On but no session open: an empty list, so the page keeps its second page.
+        #expect(ServerMessage.snapshot(Snapshot(t: 2, claude: [])).json() == #"{"claude":[],"t":2,"type":"snapshot","v":1}"#)
+        // Off: no `claude` at all.
+        #expect(ServerMessage.snapshot(Snapshot(t: 2)).json() == #"{"t":2,"type":"snapshot","v":1}"#)
+    }
+
+    @Test func aSnapshotThatFallsBackKeepsItsClaudeSessions() {
+        // Without them the page would take the feature for turned off and leave the Claude page for a second.
+        let session = ClaudeSession(id: "s", title: "T", project: "P", model: nil, state: .ready, reason: nil, activity: nil, since: 1)
+        let snapshot = Snapshot(t: 7, cpu: CPUSample(total: .nan, cores: [], pCores: 0, load: []), claude: [session])
+        #expect(ServerMessage.snapshot(snapshot).json()
+            == #"{"claude":[{"id":"s","project":"P","since":1,"state":"ready","title":"T"}],"t":7,"type":"snapshot","v":1}"#)
+    }
+
     @Test func aSnapshotWithANonFiniteNumberFallsBackToItsTimestamp() {
         let snapshot = Snapshot(t: 7, cpu: CPUSample(total: .nan, cores: [], pCores: 0, load: []), gpu: GPUSample(util: 3))
         #expect(ServerMessage.snapshot(snapshot).json() == #"{"t":7,"type":"snapshot","v":1}"#)

@@ -17,11 +17,11 @@ public enum ServerMessage: Equatable, Sendable {
 
     /// Compact JSON with sorted keys. Never crashes: a snapshot that cannot be encoded (a non-finite number that
     /// slipped past a collector) is sent with its timestamp only: for one second the phone keeps its CPU and RAM values and shows "—" for the
-    /// other rows.
+    /// other rows. Its Claude sessions (no numbers but whole ones) stay, or the page would leave its Claude page.
     public func json() -> String {
         if let data = try? Self.encoder.encode(self) { return String(decoding: data, as: UTF8.self) }
-        if case let .snapshot(snapshot) = self, snapshot != Snapshot(t: snapshot.t) {
-            return ServerMessage.snapshot(Snapshot(t: snapshot.t)).json()
+        if case let .snapshot(snapshot) = self, snapshot != Snapshot(t: snapshot.t, claude: snapshot.claude) {
+            return ServerMessage.snapshot(Snapshot(t: snapshot.t, claude: snapshot.claude)).json()
         }
         return #"{"type":"error","v":1}"#
     }
@@ -30,7 +30,7 @@ public enum ServerMessage: Equatable, Sendable {
 extension ServerMessage: Encodable {
     private enum Keys: String, CodingKey {
         case v, type, nonce, app, mode, host, limits, access, build, streaming, commands, cable, reason, t, cpu, mem, gpu, temp, power,
-             net, disk, battery, apps, media, audio, phone, seq, ok, error
+             net, disk, battery, apps, media, audio, phone, claude, seq, ok, error
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -69,6 +69,7 @@ extension ServerMessage: Encodable {
             try container.encodeIfPresent(snapshot.media, forKey: .media)
             try container.encodeIfPresent(snapshot.audio, forKey: .audio)
             try container.encodeIfPresent(snapshot.phone, forKey: .phone)
+            try container.encodeIfPresent(snapshot.claude, forKey: .claude)
         case let .ack(seq, ok, error):
             try container.encode("ack", forKey: .type)
             try container.encode(seq, forKey: .seq)
