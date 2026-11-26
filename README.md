@@ -98,6 +98,8 @@ Uygulamayı, ayarlarını, eşleştirme anahtarını ve kayıtlarını siler. Te
   bak.
 - **Ekran kararıyor:** dashboard'u açtıktan sonra "Başlat"a dokun. Olmazsa Ayarlar → Ekran ve Parlaklık → Otomatik
   Kilit'i "Asla" yap.
+- **Telefonu yan çevirince sayfa dönmüyor:** iPhone'da Dikey Yön Kilidi açık. Denetim Merkezi'ni aç (sağ üst köşeden
+  aşağı kaydır) ve etrafında ok olan kilit düğmesine dokunup kapat.
 
 ## Kaynaktan derleme
 
@@ -221,6 +223,8 @@ This removes the app, its settings, the pairing key and its logs. Delete the Hom
 - **Music, volume or app commands do nothing:** commands work only over the cable; check that it is plugged in.
 - **The screen goes dark:** tap "Start" after opening the dashboard. If it still does, set Settings → Display &
   Brightness → Auto-Lock to "Never".
+- **The page doesn't turn when you turn the phone sideways:** Portrait Orientation Lock is on. Open Control Center
+  (swipe down from the top-right corner) and tap the lock with the circular arrow to turn it off.
 
 ## Building from source
 
