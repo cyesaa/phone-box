@@ -194,6 +194,11 @@ struct WebClaudeTests {
         #expect(string("[TR.claudeEmpty, EN.claudeEmpty].join(' | ')") == "Açık Claude oturumu yok | No open Claude Code sessions")
     }
 
+    @Test func saysHowManySessionsDoNotFit() {
+        #expect(string("[TR.claudeMore(3), EN.claudeMore(1), EN.claudeMore(4)].join(' | ')")
+            == "+3 oturum daha | +1 more session | +4 more sessions")
+    }
+
     @Test func laysTheCardsOutInColumns() {
         #expect(string("[0, 1, 2, 4, 5, 12].map(function (n) { return C.columns(n, true); }).join(',')") == "2,2,2,2,3,3")
         #expect(string("[0, 1, 5, 12].map(function (n) { return C.columns(n, false); }).join(',')") == "1,1,1,1")

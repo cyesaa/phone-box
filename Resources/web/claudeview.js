@@ -46,6 +46,7 @@
       this.clock = new (PB().clock.Clock)($("claude-clock"));
       this.page = $("claude-page");
       this.list = $("claude-list");
+      this.more = $("claude-more");
       /// The Mac sends sessions (the feature is on): there are two pages.
       this.enabled = false;
       this.showing = "dashboard";
@@ -62,9 +63,16 @@
       this.closeTimer = 0;
       this.arrivalTimer = 0;
       this.wireSwipe();
-      global.addEventListener("resize", () => {
+      const remeasure = () => {
         this.measure = true;
         this.fit();
+      };
+      global.addEventListener("resize", remeasure);
+      // Turning the phone: iOS may still report the old sizes for a moment, and screen.js sets `--screen-height` again
+      // 300 ms after turning without a `resize`; measured once more after that.
+      global.addEventListener("orientationchange", () => {
+        remeasure();
+        global.setTimeout(remeasure, 350);
       });
     }
 
@@ -164,6 +172,8 @@
         card.index = index;
         element.style.order = String(index);
         element.style.setProperty("--i", String(index));
+        // Which cards are cut (portrait) depends on the order.
+        this.measure = true;
       }
     }
 
@@ -222,12 +232,49 @@
       }
       if (landscape) {
         list.classList.toggle("compact", rows > 2);
+        this.cut(0);
         return;
       }
       if (!this.measure) return;
       this.measure = false;
+      this.cut(0);
       list.classList.remove("compact");
       list.classList.toggle("compact", list.scrollHeight > list.clientHeight + 1);
+      // Even compact cards do not fit (many sessions on a small phone): only the cards that fit completely stay, the
+      // lowest-ranked ones go, and a line under them says how many. No scrolling.
+      if (list.scrollHeight > list.clientHeight + 1) this.cutToFit();
+    }
+
+    /// The cards in the Mac's order, the ones fading out in their places too.
+    ordered() {
+      return Array.from(this.list.querySelectorAll(".claude-card")).sort((a, b) => Number(a.style.order) - Number(b.style.order));
+    }
+
+    /// Shows the cards from the `keep`-th on again or hides them (all shown when `keep` is 0), and the "more" line with
+    /// the number of cards hidden. Cards that are fading out are not counted.
+    cut(keep) {
+      let hidden = 0;
+      this.ordered().forEach((element, index) => {
+        const cut = keep > 0 && index >= keep;
+        element.classList.toggle("cut", cut);
+        if (cut && !this.leaving.has(element)) hidden += 1;
+      });
+      setHidden(this.more, hidden === 0);
+      if (hidden) setText(this.more, this.t.claudeMore(hidden));
+    }
+
+    /// Hides the cards that run past the bottom, leaving room for the "more" line under the last one that fits.
+    cutToFit() {
+      const list = this.list;
+      // The line takes its place first, so that the list's height is what is left for the cards.
+      setText(this.more, this.t.claudeMore(this.cards.size));
+      setHidden(this.more, false);
+      const top = list.getBoundingClientRect().top;
+      const room = list.clientHeight + 1;
+      const elements = this.ordered();
+      let keep = 0;
+      while (keep < elements.length && elements[keep].getBoundingClientRect().bottom - top <= room) keep += 1;
+      this.cut(Math.max(1, keep));
     }
 
     /// Slides to `page` ("claude" or "dashboard"); without sessions only the dashboard is there.
