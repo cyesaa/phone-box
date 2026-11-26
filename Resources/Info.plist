@@ -8,6 +8,8 @@
 	<string>PhoneBox</string>
 	<key>CFBundleExecutable</key>
 	<string>PhoneBox</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.phonebox.PhoneBox</string>
 	<key>CFBundleInfoDictionaryVersion</key>
@@ -31,6 +33,8 @@
 	<true/>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 Recep Eren VATANDAŞLAR · MIT License</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>PhoneBox shows this Mac's activity on your iPhone, over the USB cable or your local network.</string>
 </dict>

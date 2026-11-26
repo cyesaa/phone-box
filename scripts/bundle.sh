@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Builds build/PhoneBox.app (release): binary, Info.plist, translations, dashboard files, the keep-awake video, the
-# Home Screen icon and mediaremote-adapter (script + framework). Ad-hoc signed, like NotchBox.
+# Builds build/PhoneBox.app (release): binary, Info.plist, the app icon, translations, dashboard files, the keep-awake
+# video, the Home Screen icon, mediaremote-adapter (script + framework), the licence and the third-party notices.
+# Ad-hoc signed, like NotchBox.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -25,6 +26,10 @@ swiftc -O -suppress-warnings "$ROOT/scripts/make-video.swift" -o "$ROOT/build/ma
 "$ROOT/build/make-video" "$APP/Contents/Resources/web/keepawake.mp4"
 swiftc -O -suppress-warnings "$ROOT/scripts/make-touch-icon.swift" -o "$ROOT/build/make-touch-icon"
 "$ROOT/build/make-touch-icon" "$APP/Contents/Resources/web/apple-touch-icon.png"
+swiftc -O -suppress-warnings "$ROOT/scripts/make-icon.swift" -o "$ROOT/build/make-icon"
+"$ROOT/build/make-icon" "$ROOT/build/AppIcon.iconset"
+iconutil -c icns "$ROOT/build/AppIcon.iconset" -o "$APP/Contents/Resources/AppIcon.icns"
+cp "$ROOT/LICENSE" "$ROOT/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/"
 
 xattr -cr "$APP"
 codesign --force --sign - "$APP"
