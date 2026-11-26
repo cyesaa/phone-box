@@ -16,9 +16,32 @@ enum L10n {
     static var modeHeader: String { text("menu.mode") }
     static var modeCable: String { text("menu.mode.cable") }
     static var modeAlways: String { text("menu.mode.always") }
+    static func portItem(_ port: UInt16) -> String { String(format: text("menu.port"), Int(port)) }
     static var launchAtLogin: String { text("menu.launchAtLogin") }
     static var resetPairing: String { text("menu.resetPairing") }
+    static var checkForUpdates: String { text("menu.checkForUpdates") }
+    static func installUpdate(_ version: String) -> String { String(format: text("menu.installUpdate"), version) }
     static var quit: String { text("menu.quit") }
+
+    static var portTitle: String { text("port.title") }
+    static var portMessage: String { text("port.message") }
+    static var portInvalid: String { text("port.invalid") }
+    static var portUse: String { text("port.use") }
+
+    static var loginApprovalTitle: String { text("login.approvalTitle") }
+    static var loginApprovalMessage: String { text("login.approvalMessage") }
+    static var loginOpenSettings: String { text("login.openSettings") }
+
+    static func updateUpToDate(_ version: String) -> String { String(format: text("update.upToDate"), version) }
+    static var updateCheckFailed: String { text("update.checkFailed") }
+    static var updateCheckFailedHint: String { text("update.checkFailedHint") }
+    static func updateAvailableTitle(_ version: String) -> String { String(format: text("update.availableTitle"), version) }
+    static func updateAvailableInfo(_ version: String) -> String { String(format: text("update.availableInfo"), version) }
+    static var updateInstall: String { text("update.install") }
+    static var updateReleaseNotes: String { text("update.releaseNotes") }
+    static var updateLater: String { text("update.later") }
+    static var updateInstallFailed: String { text("update.installFailed") }
+    static var updateInstallFailedHint: String { text("update.installFailedHint") }
 
     static var resetTitle: String { text("reset.title") }
     static var resetMessage: String { text("reset.message") }

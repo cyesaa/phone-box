@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let sampler = Sampler()
     private let usbWatcher = USBWatcher()
     private let qrWindow = QRWindowController()
+    private let updates = UpdateService()
     private lazy var commandRunner = CommandRunner(nowPlaying: sampler.nowPlaying)
     private let loaded = PairingStore.loadOrCreate()
     private var key: PairingKey
@@ -32,7 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                            powerLimits: powerLimits, commands: commandRunner)
         let webDirectory = Bundle.main.resourceURL!.appendingPathComponent("web", isDirectory: true)
         server = DashboardServer(webDirectory: webDirectory, hub: hub)
-        menuBar = MenuBarController(mode: settings.mode)
+        menuBar = MenuBarController(mode: settings.mode, port: settings.port, updates: updates)
 
         hub.onStreamingChange = { [weak self] streaming in self?.sampler.setRunning(streaming) }
         hub.onClientsChange = { [weak self] streaming, waiting in
@@ -49,6 +50,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.settings.mode = mode
             self?.hub.mode = mode
         }
+        menuBar.onPortChange = { [weak self] port in
+            guard let self else { return }
+            settings.port = port
+            menuBar.port = port
+            server.start(port: port)
+            // The phone's link names the port: it has to scan the new code.
+            showQR()
+        }
         menuBar.onResetPairing = { [weak self] in
             guard let self else { return }
             key = PairingStore.reset()
@@ -61,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         usbWatcher.onAvailabilityChange = { [weak self] _ in self?.refreshStatus() }
         usbWatcher.start()
         server.start(port: settings.port)
+        updates.start()
 
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main

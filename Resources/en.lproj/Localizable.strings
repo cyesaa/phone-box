@@ -8,9 +8,32 @@
 "menu.mode" = "Send data";
 "menu.mode.cable" = "Only While the Cable Is Plugged In";
 "menu.mode.always" = "Always, Also over Wi-Fi";
+"menu.port" = "Port: %d…";
 "menu.launchAtLogin" = "Open at Login";
 "menu.resetPairing" = "Reset Pairing…";
+"menu.checkForUpdates" = "Check for Updates…";
+"menu.installUpdate" = "Install PhoneBox %@…";
 "menu.quit" = "Quit PhoneBox";
+
+"port.title" = "Choose the dashboard's port";
+"port.message" = "A number from 1024 to 65535. The phone's link changes with it: scan the new QR code afterwards.";
+"port.invalid" = "That is not a port PhoneBox can use. Type a number from 1024 to 65535.";
+"port.use" = "Use";
+
+"login.approvalTitle" = "Allow PhoneBox to open at login";
+"login.approvalMessage" = "macOS wants your approval in System Settings → General → Login Items.";
+"login.openSettings" = "Open Login Items";
+
+"update.upToDate" = "PhoneBox %@ is up to date.";
+"update.checkFailed" = "Could not check for updates.";
+"update.checkFailedHint" = "Check the internet connection and try again later.";
+"update.availableTitle" = "PhoneBox %@ is available";
+"update.availableInfo" = "You have %@. Installing quits PhoneBox, puts the new version in place and opens it again; the phone reconnects by itself.";
+"update.install" = "Install";
+"update.releaseNotes" = "Release Notes";
+"update.later" = "Later";
+"update.installFailed" = "The update could not be installed.";
+"update.installFailedHint" = "The install command is on the clipboard: paste it into Terminal. The log is in ~/Library/Logs/PhoneBox.";
 
 "reset.title" = "Reset pairing?";
 "reset.message" = "Every paired phone is disconnected and has to scan the new QR code.";

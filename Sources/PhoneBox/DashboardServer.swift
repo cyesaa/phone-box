@@ -41,15 +41,17 @@ final class DashboardServer {
             state = .failed(port: port, message: error.localizedDescription)
             return
         }
-        listener.stateUpdateHandler = { [weak self] newState in
+        listener.stateUpdateHandler = { [weak self, weak listener] newState in
             MainActor.assumeIsolated {
+                // A listener replaced by a newer one (another port) may still report; only the current one counts.
+                guard let self, let listener, self.listener === listener else { return }
                 switch newState {
                 case .ready:
                     Log.server.info("Listening on port \(port)")
-                    self?.state = .listening(port)
+                    self.state = .listening(port)
                 case let .failed(error):
                     Log.server.error("Listener failed: \(error.localizedDescription, privacy: .public)")
-                    self?.state = .failed(port: port, message: error.localizedDescription)
+                    self.state = .failed(port: port, message: error.localizedDescription)
                 default:
                     break
                 }

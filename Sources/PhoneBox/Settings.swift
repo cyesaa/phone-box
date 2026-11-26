@@ -17,10 +17,19 @@ final class Settings {
         set { defaults.set(newValue.rawValue, forKey: "mode") }
     }
 
-    /// `defaults write com.phonebox.PhoneBox port -int 4848` until the menu gets a port item (Plan 5).
+    /// Chosen in the menu's "Port…" dialog; 4747 when nothing (or something out of range) is saved.
     var port: UInt16 {
-        let value = defaults.integer(forKey: "port")
-        return (1024...65535).contains(value) ? UInt16(value) : Self.defaultPort
+        get {
+            let value = defaults.integer(forKey: "port")
+            return PortChoice.range.contains(value) ? UInt16(value) : Self.defaultPort
+        }
+        set {
+            if newValue == Self.defaultPort {
+                defaults.removeObject(forKey: "port")
+            } else {
+                defaults.set(Int(newValue), forKey: "port")
+            }
+        }
     }
 
     /// False until a phone has authenticated once; while false, plugging in an iPhone opens the QR window.
