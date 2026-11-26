@@ -9,6 +9,7 @@
 "menu.mode.cable" = "Only While the Cable Is Plugged In";
 "menu.mode.always" = "Always, Also over Wi-Fi";
 "menu.lockAndMusic" = "Lock and Music over Wi-Fi";
+"menu.claudeSessions" = "Claude Code Sessions";
 "menu.port" = "Port: %d…";
 "menu.launchAtLogin" = "Open at Login";
 "menu.resetPairing" = "Reset Pairing…";
@@ -29,6 +30,15 @@
 "lockAndMusic.title" = "Allow lock and music over Wi-Fi?";
 "lockAndMusic.message" = "Phones on Wi-Fi can then lock this Mac and play, pause or skip music. Someone who takes over your Wi-Fi network could do the same. Volume, display off, quitting apps and sleep still need the cable.";
 "lockAndMusic.allow" = "Allow";
+
+"claudeSessions.title" = "Show Claude Code sessions on the phone?";
+"claudeSessions.message" = "PhoneBox will add hooks to ~/.claude/settings.json and keep a copy of the file as settings.json.phonebox-backup. The phone then shows your open Claude Code sessions, and which ones are waiting for you, on a page below the dashboard. Session titles and project names go to the phone, in “Always” mode over Wi-Fi too; messages, questions and code never do. Turning this off removes the hooks.";
+"claudeSessions.turnOn" = "Turn On";
+"claudeSessions.failedTitle" = "Couldn't change ~/.claude/settings.json";
+"claudeSessions.failedMessage" = "The file was left as it was. %@";
+"claudeSessions.notJSON" = "It is not valid JSON.";
+"claudeSessions.notAnObject" = "It does not hold a settings object.";
+"claudeSessions.unknownHooks" = "It has a hooks entry PhoneBox does not understand.";
 
 "update.upToDate" = "PhoneBox %@ is up to date.";
 "update.checkFailed" = "Could not check for updates.";

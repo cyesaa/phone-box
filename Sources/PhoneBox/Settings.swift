@@ -23,6 +23,12 @@ final class Settings {
         set { defaults.set(newValue, forKey: "lockAndMusicOverWiFi") }
     }
 
+    /// "Claude Code Sessions" (design §14); off until the user turns it on in the menu, which installs the hooks.
+    var claudeSessions: Bool {
+        get { defaults.bool(forKey: "claudeSessions") }
+        set { defaults.set(newValue, forKey: "claudeSessions") }
+    }
+
     /// Chosen in the menu's "Port…" dialog; 4747 when nothing (or something out of range) is saved.
     var port: UInt16 {
         get {

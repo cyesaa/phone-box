@@ -8,6 +8,8 @@ final class Sampler {
     /// Reading every process takes a few milliseconds; every 3 s keeps PhoneBox under 1 % CPU.
     static let appsEvery = 3
     var onSnapshot: ((Snapshot) -> Void)?
+    /// The Claude Code sessions for the snapshot's `claude`; nil while the feature is off.
+    var claudeSessions: (() -> [ClaudeSession]?)?
     /// Also sends the media commands, so the command runner shares it.
     let nowPlaying = NowPlayingService()
 
@@ -87,6 +89,6 @@ final class Sampler {
             t: now, cpu: cpu.sample(), mem: memory.sample(), gpu: gpu.sample(), temp: temperature.sample(),
             power: power.sample(), net: network.sample(), disk: disk.sample(), battery: battery.sample(),
             apps: tickCount % Self.appsEvery == 0 ? apps.sample() : nil, media: nowPlaying.current(), audio: audio.sample(),
-            phone: phoneBattery.latest))
+            phone: phoneBattery.latest, claude: claudeSessions?()))
     }
 }

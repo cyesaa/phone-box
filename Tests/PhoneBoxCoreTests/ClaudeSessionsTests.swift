@@ -210,6 +210,7 @@ struct ClaudeSessionsTests {
         // The waiting one is never the one left out.
         #expect(sessions.list.first?.id == "s14")
         #expect(sessions.list.last?.id == "s10")
+        #expect(sessions.ids == Set((0..<15).map { "s\($0)" }))
     }
 
     @Test func removesSessionsWhoseProcessEnded() {

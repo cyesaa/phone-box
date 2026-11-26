@@ -9,16 +9,21 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSMenuItemValidation {
     var onShowQR: (() -> Void)?
     var onModeChange: ((AccessMode) -> Void)?
     var onLockAndMusicChange: ((Bool) -> Void)?
+    /// Asked to turn "Claude Code Sessions" on or off; the owner sets `claudeSessions` to what came of it.
+    var onClaudeSessionsChange: ((Bool) -> Void)?
     var onPortChange: ((UInt16) -> Void)?
     var onResetPairing: (() -> Void)?
     /// The port shown in the "Port…" item and offered in its dialog.
     var port: UInt16
+    /// Whether "Claude Code Sessions" is on: its checkmark.
+    var claudeSessions: Bool
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let statusLine = NSMenuItem()
     private let cableItem = NSMenuItem()
     private let alwaysItem = NSMenuItem()
     private let lockAndMusicItem = NSMenuItem()
+    private let claudeItem = NSMenuItem()
     private let portItem = NSMenuItem()
     private let loginItem = NSMenuItem()
     private let installItem = NSMenuItem()
@@ -26,9 +31,10 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSMenuItemValidation {
     private var mode: AccessMode
     private var lockAndMusicOverWiFi: Bool
 
-    init(mode: AccessMode, lockAndMusicOverWiFi: Bool, port: UInt16, updates: UpdateService) {
+    init(mode: AccessMode, lockAndMusicOverWiFi: Bool, claudeSessions: Bool, port: UInt16, updates: UpdateService) {
         self.mode = mode
         self.lockAndMusicOverWiFi = lockAndMusicOverWiFi
+        self.claudeSessions = claudeSessions
         self.port = port
         self.updates = updates
         super.init()
@@ -44,6 +50,8 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSMenuItemValidation {
         alwaysItem.action = #selector(chooseAlways)
         lockAndMusicItem.title = L10n.lockAndMusic
         lockAndMusicItem.action = #selector(toggleLockAndMusic)
+        claudeItem.title = L10n.claudeSessions
+        claudeItem.action = #selector(toggleClaudeSessions)
         portItem.action = #selector(choosePort)
         loginItem.title = L10n.launchAtLogin
         loginItem.action = #selector(toggleLaunchAtLogin)
@@ -53,14 +61,16 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSMenuItemValidation {
         let checkItem = NSMenuItem(title: L10n.checkForUpdates, action: #selector(checkForUpdates), keyEquivalent: "")
         let quitItem = NSMenuItem(title: L10n.quit, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quitItem.target = NSApp
-        for item in [qrItem, cableItem, alwaysItem, lockAndMusicItem, portItem, loginItem, resetItem, installItem, checkItem] {
+        for item in [qrItem, cableItem, alwaysItem, lockAndMusicItem, claudeItem, portItem, loginItem, resetItem, installItem,
+                     checkItem] {
             item.target = self
         }
 
         let menu = NSMenu()
         menu.delegate = self
         for item in [statusLine, .separator(), qrItem, .separator(), modeHeader, cableItem, alwaysItem, lockAndMusicItem,
-                     .separator(), portItem, loginItem, resetItem, .separator(), installItem, checkItem, .separator(), quitItem] {
+                     .separator(), claudeItem, .separator(), portItem, loginItem, resetItem, .separator(), installItem, checkItem,
+                     .separator(), quitItem] {
             menu.addItem(item)
         }
         statusItem.menu = menu
@@ -77,6 +87,7 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSMenuItemValidation {
         cableItem.state = mode == .cable ? .on : .off
         alwaysItem.state = mode == .always ? .on : .off
         lockAndMusicItem.state = lockAndMusicOverWiFi ? .on : .off
+        claudeItem.state = claudeSessions ? .on : .off
         portItem.title = L10n.portItem(port)
         switch SMAppService.mainApp.status {
         case .enabled: loginItem.state = .on
@@ -121,6 +132,21 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSMenuItemValidation {
         }
         lockAndMusicOverWiFi.toggle()
         onLockAndMusicChange?(lockAndMusicOverWiFi)
+    }
+
+    /// Turning it on asks first (design §14 "Kurulum"): it changes ~/.claude/settings.json, and session titles go to the
+    /// phone. Turning it off asks nothing.
+    @objc private func toggleClaudeSessions() {
+        if !claudeSessions {
+            let alert = NSAlert()
+            alert.messageText = L10n.claudeSessionsTitle
+            alert.informativeText = L10n.claudeSessionsMessage
+            alert.addButton(withTitle: L10n.claudeSessionsTurnOn)
+            alert.addButton(withTitle: L10n.cancel)
+            NSApp.activate()
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+        onClaudeSessionsChange?(!claudeSessions)
     }
 
     /// Asks for a port until a valid one is typed or the dialog is cancelled.

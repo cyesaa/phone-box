@@ -67,6 +67,9 @@ public struct ClaudeSessions: Sendable {
 
     public var count: Int { entries.count }
 
+    /// Every session's id, listed or not.
+    public var ids: Set<String> { Set(entries.keys) }
+
     public mutating func apply(_ event: ClaudeEvent, now: Int64) {
         // A subagent's stop ends only its own work; the session goes on.
         if event.kind == .stop, event.subagent { return }

@@ -9,6 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let usbWatcher = USBWatcher()
     private let qrWindow = QRWindowController()
     private let updates = UpdateService()
+    private let claudeMonitor = ClaudeMonitor()
+    private let claudeHooks = ClaudeHooksFile()
     private lazy var commandRunner = CommandRunner(nowPlaying: sampler.nowPlaying)
     private let loaded = PairingStore.loadOrCreate()
     private var key: PairingKey
@@ -34,8 +36,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                            appName: "PhoneBox \(version)", hostName: Settings.computerName(), powerLimits: powerLimits,
                            build: Self.webBuild(webDirectory), commands: commandRunner)
         server = DashboardServer(webDirectory: webDirectory, hub: hub)
+        resumeClaudeSessions()
         menuBar = MenuBarController(mode: settings.mode, lockAndMusicOverWiFi: settings.lockAndMusicOverWiFi,
-                                    port: settings.port, updates: updates)
+                                    claudeSessions: settings.claudeSessions, port: settings.port, updates: updates)
 
         hub.onStreamingChange = { [weak self] streaming in self?.sampler.setRunning(streaming) }
         hub.onClientsChange = { [weak self] streaming, waiting in
@@ -45,6 +48,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         hub.onAuthenticated = { [weak self] in self?.settings.hasEverPaired = true }
         sampler.onSnapshot = { [weak self] snapshot in self?.hub.broadcast(snapshot) }
+        sampler.claudeSessions = { [weak self] in
+            guard let self, settings.claudeSessions else { return nil }
+            return claudeMonitor.sessions
+        }
         server.onStateChange = { [weak self] _ in self?.refreshStatus() }
 
         menuBar.onShowQR = { [weak self] in self?.showQR() }
@@ -56,6 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.settings.lockAndMusicOverWiFi = on
             self?.hub.lockAndMusicOverWiFi = on
         }
+        menuBar.onClaudeSessionsChange = { [weak self] on in self?.setClaudeSessions(on) }
         menuBar.onPortChange = { [weak self] port in
             // Saved only once the new port listens: a port in use leaves PhoneBox, and its phones, on the old one.
             self?.server.move(to: port) { [weak self] moved in
@@ -92,6 +100,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Stops the sampler and with it the media adapter's child process, which would otherwise outlive the app
         // until its next write.
         sampler.setRunning(false)
+        // A hook that finds no socket gives up at once.
+        claudeMonitor.stop()
+    }
+
+    /// At launch (design §14 "Kurulum"): hooks the user deleted turn the feature off; hooks that run another copy of
+    /// PhoneBox (the app was moved) are installed again for this one.
+    private func resumeClaudeSessions() {
+        guard settings.claudeSessions else { return }
+        let commands = claudeHooks.installedCommands()
+        guard !commands.isEmpty else {
+            settings.claudeSessions = false
+            return
+        }
+        let executable = Bundle.main.executablePath!
+        if commands.contains(where: { $0 != ClaudeHooks.command(executable: executable) }) {
+            do {
+                try claudeHooks.install(executable: executable)
+            } catch {
+                Log.app.error("Could not install the Claude Code hooks again: \(Self.reason(error), privacy: .public)")
+            }
+        }
+        claudeMonitor.start()
+    }
+
+    /// From the menu. On: the hooks first, and only if they are in place the feature. Off: the feature stops even when
+    /// the hooks cannot be removed.
+    private func setClaudeSessions(_ on: Bool) {
+        if on {
+            do {
+                try claudeHooks.install(executable: Bundle.main.executablePath!)
+                settings.claudeSessions = true
+                claudeMonitor.start()
+            } catch {
+                showClaudeSettingsFailure(error)
+            }
+        } else {
+            settings.claudeSessions = false
+            claudeMonitor.stop()
+            do {
+                try claudeHooks.remove()
+            } catch {
+                showClaudeSettingsFailure(error)
+            }
+        }
+        menuBar.claudeSessions = settings.claudeSessions
+    }
+
+    private func showClaudeSettingsFailure(_ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = L10n.claudeSettingsFailedTitle
+        alert.informativeText = L10n.claudeSettingsFailedMessage(Self.reason(error))
+        NSApp.activate()
+        alert.runModal()
+    }
+
+    /// Why `ClaudeHooksFile` left the file alone, in a few words.
+    private static func reason(_ error: Error) -> String {
+        switch error {
+        case ClaudeHooksFile.Failure.hooks(.notJSON): return L10n.claudeSettingsNotJSON
+        case ClaudeHooksFile.Failure.hooks(.notAnObject): return L10n.claudeSettingsNotAnObject
+        case ClaudeHooksFile.Failure.hooks: return L10n.claudeSettingsUnknownHooks
+        case let ClaudeHooksFile.Failure.file(error): return error.localizedDescription
+        default: return error.localizedDescription
+        }
     }
 
     /// The name of the dashboard files in `directory` (`WebBuild`), keyed by their paths relative to it: an update changes it, and a page left open reloads.

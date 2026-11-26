@@ -17,6 +17,7 @@ enum L10n {
     static var modeCable: String { text("menu.mode.cable") }
     static var modeAlways: String { text("menu.mode.always") }
     static var lockAndMusic: String { text("menu.lockAndMusic") }
+    static var claudeSessions: String { text("menu.claudeSessions") }
     static func portItem(_ port: UInt16) -> String { String(format: text("menu.port"), Int(port)) }
     static var launchAtLogin: String { text("menu.launchAtLogin") }
     static var resetPairing: String { text("menu.resetPairing") }
@@ -37,6 +38,17 @@ enum L10n {
     static var lockAndMusicTitle: String { text("lockAndMusic.title") }
     static var lockAndMusicMessage: String { text("lockAndMusic.message") }
     static var lockAndMusicAllow: String { text("lockAndMusic.allow") }
+
+    static var claudeSessionsTitle: String { text("claudeSessions.title") }
+    static var claudeSessionsMessage: String { text("claudeSessions.message") }
+    static var claudeSessionsTurnOn: String { text("claudeSessions.turnOn") }
+    static var claudeSettingsFailedTitle: String { text("claudeSessions.failedTitle") }
+    static func claudeSettingsFailedMessage(_ reason: String) -> String {
+        String(format: text("claudeSessions.failedMessage"), reason)
+    }
+    static var claudeSettingsNotJSON: String { text("claudeSessions.notJSON") }
+    static var claudeSettingsNotAnObject: String { text("claudeSessions.notAnObject") }
+    static var claudeSettingsUnknownHooks: String { text("claudeSessions.unknownHooks") }
 
     static func updateUpToDate(_ version: String) -> String { String(format: text("update.upToDate"), version) }
     static var updateCheckFailed: String { text("update.checkFailed") }

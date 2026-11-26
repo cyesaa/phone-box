@@ -506,6 +506,8 @@ Simge telefon çizimi: gri = izinli istemci yok, yeşil = en az bir istemci veri
   ("Wi-Fi'den kilit ve müzik açılsın mı?": Wi-Fi ağını ele geçiren biri de aynısını yapabilir; ses, ekranı kapatma,
   uygulama kapatma ve uyutma yine kablo ister; "İzin ver" / "Vazgeç"); kapatırken sormaz. Değişince erişimi değişen
   telefonlara mod değişimindeki gibi yeni `access` gider (bölüm 5).
+- Claude Code Oturumları (mod grubundan sonra kendi grubunda; açıkken işaretli, varsayılan kapalı): açarken uyarı sorar,
+  hook'ları `~/.claude/settings.json`'a kurar; kapatınca sormadan siler; dosya değiştirilemezse uyarı (bölüm 14).
 - Port: 4747…: 1024–65535 arası bir sayı sorar (`PortChoice`); geçersizse sebebini söyleyip yeniden sorar. Yeni port
   eski port dinlenirken açılır; hazır olunca eski dinleyici durur, onun kabul ettiği bağlantılar kapanır (1001), port
   kaydedilir ve telefonun bağlantısı portu içerdiği için QR penceresi açılır. Kullanımdaki bir port reddedilir: bir
