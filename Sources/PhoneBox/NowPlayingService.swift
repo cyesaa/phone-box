@@ -31,6 +31,8 @@ final class NowPlayingService {
     static let streamArguments = ["stream", "--no-diff", "--no-artwork", "--debounce=100"]
     /// Waits before restarting an adapter that exited; the last one repeats.
     static let restartDelays: [TimeInterval] = [1, 2, 5, 10, 30]
+    /// An adapter that ran this long before it exited counts as healthy: the next restart waits only 1 s again.
+    static let healthyRun: TimeInterval = 30
 
     private let location: AdapterLocation?
     private var process: Process?
@@ -38,6 +40,7 @@ final class NowPlayingService {
     private var state = NowPlayingState()
     private var running = false
     private var failures = 0
+    private var startedAt = Date.distantPast
     private var names: [String: String] = [:]
 
     init(location: AdapterLocation? = .inAppBundle()) {
@@ -100,6 +103,7 @@ final class NowPlayingService {
         do {
             try process.run()
             self.process = process
+            startedAt = Date()
         } catch {
             // The read handler holds the process and the pipe; without this every failed start leaks both.
             output.fileHandleForReading.readabilityHandler = nil
@@ -113,9 +117,7 @@ final class NowPlayingService {
     private func received(_ data: Data, from source: Process) {
         guard source === process, !data.isEmpty else { return }
         for line in assembler.append(data) {
-            let parsed = NowPlayingStream.parse(line)
-            if parsed != .invalid { failures = 0 }
-            state.received(parsed, at: Date())
+            state.received(NowPlayingStream.parse(line), at: Date())
         }
     }
 
@@ -125,6 +127,7 @@ final class NowPlayingService {
         state.clear()
         assembler.reset()
         Log.app.notice("The media adapter exited with status \(finished.terminationStatus)")
+        if Date().timeIntervalSince(startedAt) >= Self.healthyRun { failures = 0 }
         scheduleRestart()
     }
 

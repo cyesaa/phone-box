@@ -37,6 +37,9 @@ struct MobileDeviceAPI: @unchecked Sendable {
     let stopSession: Call
     let copyValue: CopyValue
 
+    /// Loaded on first use (the framework is not opened at launch); nil if it is missing.
+    static let shared = load()
+
     static func load() -> MobileDeviceAPI? {
         let library = PrivateSymbols.mobileDevice
         func function<T>(_ name: String, _ type: T.Type) -> T? { PrivateSymbols.function(library, name, as: type) }
@@ -75,22 +78,29 @@ struct MobileDeviceAPI: @unchecked Sendable {
 }
 
 /// Reads the battery of the iPhone plugged in over USB (design §6 `phone`): a moment after it is plugged in and
-/// then once a minute, only between `start()` and `stop()` (while the sampler runs). Reads run on their own queue,
-/// one at a time, so they never hold up a snapshot. With two iPhones plugged in there is no "the" phone and
-/// `latest` is nil.
+/// then once a minute, only between `start()` and `stop()` (while the sampler runs). A failed read (the phone still
+/// waking, or asking whether to trust this Mac) is tried again after 10 s, up to 3 times. Reads run on their own
+/// queue, one at a time, so they never hold up a snapshot. With two iPhones plugged in there is no "the" phone and
+/// `latest` is nil; unplugging one reads the other.
 @MainActor
 final class PhoneBatteryReader {
     static let interval: TimeInterval = 60
     /// The phone needs a moment after usbmuxd reports it before it answers.
     static let settleDelay: TimeInterval = 2
+    static let retryDelay: TimeInterval = 10
+    static let maxRetries = 3
 
-    private let api = MobileDeviceAPI.load()
+    private var api: MobileDeviceAPI? { MobileDeviceAPI.shared }
     private let queue = DispatchQueue(label: "com.phonebox.PhoneBox.phone-battery", qos: .utility)
     private var subscription: UnsafeMutableRawPointer?
     private var devices: [DeviceRef] = []
     private var memory = PhoneBatteryMemory()
     private var timer: Timer?
     private var reading = false
+    /// Failed reads in a row since the last good one or the last plug-in.
+    private var retries = 0
+    /// True while `subscribe` runs: phones already plugged in may be reported before it returns.
+    private var subscribing = false
 
     /// The last good reading of the one iPhone on USB, at most 5 minutes old.
     var latest: PhoneBatterySample? { memory.current(at: Date()) }
@@ -106,9 +116,21 @@ final class PhoneBatteryReader {
             let device = DeviceRef(pointer: info.load(as: UnsafeMutableRawPointer.self))
             let message = info.load(fromByteOffset: MemoryLayout<UnsafeMutableRawPointer>.size, as: UInt32.self)
             let reader = Unmanaged<PhoneBatteryReader>.fromOpaque(context).takeUnretainedValue()
-            MainActor.assumeIsolated { reader.deviceChanged(device, message: message) }
+            if Thread.isMainThread {
+                MainActor.assumeIsolated { reader.deviceChanged(device, message: message) }
+                return
+            }
+            // Not the main thread after all: keep the device alive until the main thread has seen it.
+            guard let api = MobileDeviceAPI.shared else { return }
+            _ = api.retain(device.pointer)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { reader.deviceChanged(device, message: message) }
+                api.release(device.pointer)
+            }
         }
         var subscription: UnsafeMutableRawPointer?
+        subscribing = true
+        defer { subscribing = false }
         guard api.subscribe(callback, 0, 0, context, &subscription) == 0 else {
             Log.app.notice("Cannot watch iPhones for their battery")
             return
@@ -134,22 +156,32 @@ final class PhoneBatteryReader {
     }
 
     private func deviceChanged(_ device: DeviceRef, message: UInt32) {
-        guard let api, subscription != nil else { return }
+        guard let api, subscription != nil || subscribing else { return }
         switch message {
         case MobileDeviceAPI.connected where api.interfaceType(device.pointer) == MobileDeviceAPI.usb:
             guard !devices.contains(device) else { return }
             _ = api.retain(device.pointer)
             devices.append(device)
             memory.forget()
-            DispatchQueue.main.asyncAfter(deadline: .now() + Self.settleDelay) { [weak self] in
-                MainActor.assumeIsolated { self?.read() }
-            }
+            retries = 0
+            read(after: Self.settleDelay)
         case MobileDeviceAPI.disconnected:
             guard let index = devices.firstIndex(of: device) else { return }
             api.release(devices.remove(at: index).pointer)
             memory.forget()
+            // Two phones were plugged in and one is left: it is "the" phone now.
+            if devices.count == 1 {
+                retries = 0
+                read(after: Self.settleDelay)
+            }
         default:
             break
+        }
+    }
+
+    private func read(after delay: TimeInterval) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            MainActor.assumeIsolated { self?.read() }
         }
     }
 
@@ -169,7 +201,14 @@ final class PhoneBatteryReader {
     private func finished(_ device: DeviceRef, _ sample: PhoneBatterySample?) {
         reading = false
         // The phone may have been unplugged, or another one plugged in, while it was read.
-        guard let sample, devices == [device] else { return }
+        guard subscription != nil, devices == [device] else { return }
+        guard let sample else {
+            guard retries < Self.maxRetries else { return }
+            retries += 1
+            read(after: Self.retryDelay)
+            return
+        }
+        retries = 0
         memory.remember(sample, at: Date())
     }
 }

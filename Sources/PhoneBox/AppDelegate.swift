@@ -28,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if loaded.created { settings.hasEverPaired = false }
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
         // A Mac with a battery reports its whole power draw; a desktop Mac only the GPU's.
-        let powerLimits = PowerLimits.forChip(Settings.chipName(), wholeMac: BatteryCollector().sample() != nil)
+        let powerLimits = PowerLimits.forChip(Settings.chipName(), wholeMac: BatteryCollector.hasInternalBattery())
         hub = DashboardHub(mode: settings.mode, key: key, appName: "PhoneBox \(version)", hostName: Settings.computerName(),
                            powerLimits: powerLimits, commands: commandRunner)
         let webDirectory = Bundle.main.resourceURL!.appendingPathComponent("web", isDirectory: true)
