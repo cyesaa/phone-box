@@ -10,6 +10,9 @@ enum L10n {
         bundle.localizedString(forKey: key, value: key, table: nil)
     }
 
+    /// The current language's locale, for case changes ("i" becomes "İ" in Turkish).
+    static var locale: Locale { Locale(identifier: text("locale.identifier")) }
+
     static var statusWaiting: String { text("status.waiting") }
     static func statusStreaming(_ count: Int) -> String { String(format: text("status.streaming"), count) }
     static var statusWaitingForCable: String { text("status.waitingForCable") }

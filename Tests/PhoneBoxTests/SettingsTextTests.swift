@@ -88,6 +88,11 @@ struct SettingsTextTests {
         }
     }
 
+    @Test func theFirstLetterIsCapitalisedByTheLanguage() {
+        inLanguage("tr") { #expect(SettingsText.capitalized("iyi") == "İyi") }
+        inLanguage("en") { #expect(SettingsText.capitalized("illustrated") == "Illustrated") }
+    }
+
     @Test func theUpdateLineSaysWhatTheLastCheckFoundAndWhen() throws {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let release = LatestRelease(version: try #require(AppVersion("0.5.0")),

@@ -1,3 +1,5 @@
+"locale.identifier" = "tr";
+
 "status.waiting" = "iPhone bekleniyor";
 "status.streaming" = "iPhone bağlı · %d cihaz";
 "status.waitingForCable" = "Telefon Wi-Fi'de: kabloyu tak";

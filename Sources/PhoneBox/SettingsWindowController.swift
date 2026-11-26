@@ -25,7 +25,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         let window = self.window ?? makeWindow()
         if !window.isVisible { model.copied = false }
         self.window = window
-        onShow?()
+        // A window that is not key yet reports itself in windowDidBecomeKey; refreshing here too would do it twice.
+        if window.isKeyWindow { onShow?() }
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
     }
@@ -55,13 +56,26 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
 }
 
-/// ⌘W closes it: PhoneBox has no main menu that would.
+/// PhoneBox has no main menu, so the window handles ⌘W (close), ⌘Q (quit, like the menu's) and ⌘, (bring it forward).
 private final class SettingsWindow: NSWindow {
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
-           event.charactersIgnoringModifiers == "w" {
-            performClose(nil)
-            return true
+        // Only the four real modifiers count: Caps Lock, the numeric pad and the function flag do not matter.
+        let modifiers = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        if modifiers == .command {
+            switch event.charactersIgnoringModifiers {
+            case "w":
+                performClose(nil)
+                return true
+            case "q":
+                NSApp.terminate(nil)
+                return true
+            case ",":
+                NSApp.activate()
+                makeKeyAndOrderFront(nil)
+                return true
+            default:
+                break
+            }
         }
         return super.performKeyEquivalent(with: event)
     }

@@ -1,3 +1,4 @@
+import AppKit
 import PhoneBoxCore
 import SwiftUI
 
@@ -7,7 +8,8 @@ struct SettingsView: View {
     @ObservedObject var model: SettingsModel
 
     var body: some View {
-        NavigationSplitView {
+        // The sidebar is always there, like System Settings': no toggle, and no collapsing by dragging.
+        NavigationSplitView(columnVisibility: .constant(.all)) {
             List(SettingsSection.allCases, selection: selection) { section in
                 Label {
                     Text(section.title)
@@ -17,6 +19,7 @@ struct SettingsView: View {
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 260)
             .toolbar(removing: .sidebarToggle)
+            .background(SidebarLock())
         } detail: {
             Form {
                 switch model.section {
@@ -32,7 +35,44 @@ struct SettingsView: View {
     }
 
     private var selection: Binding<SettingsSection?> {
-        Binding(get: { model.section }, set: { if let section = $0 { model.section = section } })
+        Binding(get: { model.section }, set: { section in
+            if let section {
+                model.section = section
+            } else {
+                // A click below the rows or ⌘-click on the chosen row clears the table's selection: tell SwiftUI to
+                // read the section again, so the row is chosen once more.
+                model.objectWillChange.send()
+            }
+        })
+    }
+}
+
+/// Stops the sidebar from collapsing (by dragging its edge, or "Hide Sidebar"): `columnVisibility` alone leaves the
+/// split view item collapsible on macOS 14. Finds the split view controller SwiftUI made as the delegate of the enclosing split view.
+private struct SidebarLock: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { LockView() }
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    private final class LockView: NSView {
+        // SwiftUI sets the item up after the view enters the window, and again on updates: lock after each layout.
+        override func layout() {
+            super.layout()
+            lock()
+        }
+
+        private func lock() {
+            var view: NSView? = self
+            while let current = view {
+                if let controller = (current as? NSSplitView)?.delegate as? NSSplitViewController {
+                    for item in controller.splitViewItems where item.behavior == .sidebar {
+                        if item.canCollapse { item.canCollapse = false }
+                        if item.isCollapsed { item.isCollapsed = false }
+                    }
+                    return
+                }
+                view = current.superview
+            }
+        }
     }
 }
 

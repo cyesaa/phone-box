@@ -46,10 +46,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsModel.actions = makeSettingsActions()
         settingsWindow = SettingsWindowController(model: settingsModel)
         // Open at Login and the Claude Code settings file tell nobody when they change: read each time the window
-        // comes to the front.
+        // comes to the front. So is the link: the Mac's name can change while PhoneBox runs.
         settingsWindow.onShow = { [weak self] in
-            self?.showValue(\.loginItem, LoginItem.state)
-            self?.refreshClaudeFile()
+            guard let self else { return }
+            showValue(\.link, settings.personalURL(key: key))
+            showValue(\.loginItem, LoginItem.state)
+            refreshClaudeFile()
         }
 
         hub.onStreamingChange = { [weak self] streaming in self?.sampler.setRunning(streaming) }
@@ -254,9 +256,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return settings.personalURL(key: key)
     }
 
-    /// The bundled licence and notices, in TextEdit (a .md file may have no app of its own).
+    /// The bundled licence and notices, in TextEdit (a .md file may have no app of its own). Copies in the temporary
+    /// folder open, so an accidental edit cannot change the signed app bundle.
     private static func openLicenses() {
-        let files = ["LICENSE", "THIRD_PARTY_NOTICES.md"].compactMap { Bundle.main.url(forResource: $0, withExtension: nil) }
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("PhoneBox", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let files = ["LICENSE", "THIRD_PARTY_NOTICES.md"].compactMap { name -> URL? in
+            guard let original = Bundle.main.url(forResource: name, withExtension: nil) else { return nil }
+            let copy = folder.appendingPathComponent(name)
+            try? FileManager.default.removeItem(at: copy)
+            do { try FileManager.default.copyItem(at: original, to: copy) } catch { return nil }
+            return copy
+        }
         guard !files.isEmpty else { return }
         let workspace = NSWorkspace.shared
         if let textEdit = workspace.urlForApplication(withBundleIdentifier: "com.apple.TextEdit") {

@@ -114,7 +114,12 @@ enum SettingsText {
         if automatic { parts.append(L10n.updateLineAutomatic) }
         let line = parts.joined(separator: " · ")
         // "son denetim …" can come first (the installer left this copy running).
-        return line.prefix(1).uppercased() + line.dropFirst()
+        return capitalized(line)
+    }
+
+    /// The first letter in capitals by the current language's rules (Turkish "i" becomes "İ").
+    static func capitalized(_ text: String) -> String {
+        text.prefix(1).uppercased(with: L10n.locale) + text.dropFirst()
     }
 
     /// "az önce", "5 dk önce", "2 sa önce", "3 gün önce": whole units, rounded down.
