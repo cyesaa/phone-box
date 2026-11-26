@@ -352,6 +352,8 @@
       global.clearTimeout(this.switchTimer);
       if (PB().motion.reduced()) {
         this.switching = null;
+        // A fade started before "Reduce Motion" was turned on must not leave the graph faded out.
+        canvas.classList.remove("switching");
         this.select(metric);
         this.renderGraph(history);
         return;

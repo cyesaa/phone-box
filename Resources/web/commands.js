@@ -1,28 +1,46 @@
 // The page's commands to the Mac (design §5, §7): each one numbered and signed with the pairing key, its answer
-// (`ack`) matched back to it, and the volume slider held to 4 values a second. Pure: the connection, the clock and the
-// timers come in from outside, so the Swift tests run it in JavaScriptCore with fakes.
+// (`ack`) matched back to it, at most 9 sent in any second, and the volume slider held to 4 values a second. Pure: the
+// connection, the clock and the timers come in from outside, so the Swift tests run it in JavaScriptCore with fakes.
 (function (global) {
   "use strict";
 
   /// A command with no answer after this long counts as failed (the socket may have dropped on the way).
   const answerWithin = 5000;
+  /// The Mac closes a socket on the 11th command within one second; the page sends at most this many, one short of
+  /// the Mac's 10, so a little network jitter cannot bunch them over it.
+  const perSecond = 9;
+
+  /// A clock that only moves forward (the wall clock can jump). JavaScriptCore, where the tests run, has no
+  /// `performance`.
+  const monotonic = () => (typeof global.performance !== "undefined" ? global.performance.now() : Date.now());
 
   class Commands {
     /// `link`: `key` (the pairing key's bytes), `nonce()` (the authenticated socket's nonce, or null) and
-    /// `send(message)` (true when it went out). `options.later(fn, ms)` replaces `setTimeout` in tests.
+    /// `send(message)` (true when it went out). `options.later(fn, ms)` replaces `setTimeout` and `options.now()`
+    /// the clock in tests.
     constructor(link, options = {}) {
       this.link = link;
       this.later = options.later || ((fn, ms) => global.setTimeout(fn, ms));
+      this.now = options.now || monotonic;
       this.seq = 0;
       this.pending = new Map();
+      /// When each command of the last second went out.
+      this.sentAt = [];
+    }
+
+    /// Commands can go out: the socket is authenticated.
+    canSend() {
+      return this.link.nonce() !== null;
     }
 
     /// Sends `name` with `args` (an object). `done(result)` gets "ok", the ack's error ("not-allowed",
-    /// "app-changed", "unsupported", "failed"), or "failed" when it could not go out or no answer came in 5 s.
-    /// Returns the command's number, or 0 when it did not go out.
+    /// "app-changed", "unsupported", "failed"), or "failed" when it could not go out, 9 already went out in the last
+    /// second, or no answer came in 5 s. Returns the command's number, or 0 when it did not go out.
     run(name, args, done) {
       const nonce = this.link.nonce();
-      if (nonce === null) {
+      const now = this.now();
+      this.sentAt = this.sentAt.filter((at) => now - at < 1000);
+      if (nonce === null || this.sentAt.length >= perSecond) {
         if (done) done("failed");
         return 0;
       }
@@ -38,6 +56,7 @@
         return 0;
       }
       this.seq = seq;
+      this.sentAt.push(now);
       this.pending.set(seq, done || null);
       this.later(() => this.settle(seq, "failed"), answerWithin);
       return seq;
@@ -64,7 +83,7 @@
     constructor(interval, send, options = {}) {
       this.interval = interval;
       this.send = send;
-      this.now = options.now || (() => Date.now());
+      this.now = options.now || monotonic;
       this.later = options.later || ((fn, ms) => global.setTimeout(fn, ms));
       this.sentAt = -Infinity;
       /// The timer set last, by number, and when it goes off; a send voids every timer set before it.

@@ -113,6 +113,9 @@
   });
 
   // ---- "⋯" menu: opens above its button.
+  /// When it last opened (`performance.now()`): controls.js ignores a tap on its commands that comes too soon after.
+  let menuOpenedAt = -Infinity;
+
   function openMenu() {
     const menu = $("menu");
     menu.hidden = false;
@@ -120,6 +123,7 @@
     const button = $("more").getBoundingClientRect();
     menu.style.left = Math.max(8, Math.min(button.right - menu.offsetWidth, global.innerWidth - menu.offsetWidth - 8)) + "px";
     menu.style.top = Math.max(8, button.top - menu.offsetHeight - 8) + "px";
+    menuOpenedAt = global.performance.now();
   }
 
   function closeMenu() {
@@ -160,5 +164,10 @@
     $("start").hidden = true;
   }
 
-  global.PhoneBox.ui = { setup, openGuide, closeMenu, hideStart, isStarted: () => started };
+  global.PhoneBox.ui = {
+    setup, openGuide, closeMenu, hideStart, isStarted: () => started,
+    get menuOpenedAt() {
+      return menuOpenedAt;
+    },
+  };
 })(typeof window !== "undefined" ? window : globalThis);

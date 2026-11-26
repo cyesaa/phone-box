@@ -423,6 +423,8 @@ p { margin: 0; }
   display: flex;
   align-items: center;
   gap: 8px;
+  /* Fixed at left: 50%, it would otherwise shrink to half the screen and wrap a short text. */
+  width: max-content;
   max-width: min(90vw, 440px);
   padding: 10px 16px;
   border-radius: 14px;

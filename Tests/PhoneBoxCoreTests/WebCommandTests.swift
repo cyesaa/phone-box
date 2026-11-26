@@ -25,8 +25,9 @@ struct WebCommandTests {
               due.forEach(function (t) { t.fn(); });
             }
             var key = new Uint8Array(32); for (var i = 0; i < 32; i += 1) key[i] = i;
-            var commands = new PhoneBox.Commands({ key: key, nonce: function () { return open ? nonce : null; },
-              send: function (m) { if (!open) return false; sent.push(m); return true; } }, { later: later });
+            var link = { key: key, nonce: function () { return open ? nonce : null; },
+              send: function (m) { if (!open) return false; sent.push(m); return true; } };
+            var commands = new PhoneBox.Commands(link, { later: later });
             function done(label) { return function (result) { results.push(label + ":" + result); }; }
             """)
     }
@@ -79,6 +80,21 @@ struct WebCommandTests {
             [early, results.join(" ")].join(" ")
             """)
         #expect(result == "0 display:failed")
+    }
+
+    /// The Mac closes the socket on the 11th command within one second: the page keeps to 9 and fails the 10th
+    /// without sending it.
+    @Test func sendsAtMostNineCommandsASecond() {
+        let result = string("""
+            var limited = new PhoneBox.Commands(link, { now: function () { return now; }, later: later });
+            var seqs = [];
+            for (var i = 1; i <= 10; i += 1) seqs.push(limited.run("media", { action: "next" }, done("c" + i)));
+            var first = sent.length;
+            advance(1001);
+            var again = limited.run("lock", {}, done("lock"));
+            [first, seqs[8], seqs[9], again, sent.length, results.join(" ")].join(" ")
+            """)
+        #expect(result == "9 9 0 10 10 c10:failed")
     }
 
     @Test func keepsTheVolumeToFourValuesASecondAndSendsTheLast() {

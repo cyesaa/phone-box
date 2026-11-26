@@ -273,8 +273,10 @@ ekran yüksekliğine göre ayarlanır, iPhone SE'den Pro Max'e kadar her şey ka
 - **Şimdi çalıyor:** şarkı, sanatçı ve uygulama (kapak resmi yok). `media` alanı yoksa gizlenir; yatayda liste bir
   satır uzar.
 - **Kontrol şeridi:** önceki, oynat/duraklat (çalma durumuna göre simge), sonraki, ses kaydırıcısı (Mac'in o anki
-  seviyesi), sessiz, "⋯". Simgeler sayfanın içinde SVG (emoji değil). Dokunma alanları en az 44×44 pt. `audio` alanı
-  yoksa kaydırıcı ve sessiz soluk. Kaydırıcı parmakla sürüklenir: en çok saniyede 4 değer gider, bırakınca son değer
+  seviyesi), sessiz, "⋯". Simgeler sayfanın içinde SVG (emoji değil). Dokunma alanları en az 44×44 pt. İstisna,
+  sıkı yerleşim için: uygulama satırları 34 px, sıralama düğmesi yaklaşık 24 px yüksek; yanlış satıra dokunmak
+  sadece uygulamanın adını yazan paneli açar ve panelin düğmeleri 46 px. `audio` alanı yoksa kaydırıcı ve sessiz
+  soluk. Kaydırıcı parmakla sürüklenir: en çok saniyede 4 değer gider, bırakınca son değer
   gider; bıraktıktan sonra 1,5 sn Mac'in eski değeri gösterilmez (düğme geri sıçramasın). Sessiz düğmesi dokunur
   dokunmaz değişir, sonraki snapshot doğrular.
 - **Komut etkileşimleri** (görsel taslaklarla seçildi):
@@ -289,7 +291,13 @@ ekran yüksekliğine göre ayarlanır, iPhone SE'den Pro Max'e kadar her şey ka
     yenilendi", `unsupported` → ses komutlarında "Bu çıkışta ses kontrolü yok", diğerlerinde "Bu komut
     desteklenmiyor", `failed` ya da 5 sn içinde cevap gelmemesi → "Olmadı").
   - Komutlar numaralanır (`seq` sayfa açık kaldıkça hep artar) ve imzalanır; cevap (`ack`) numarasıyla eşlenir
-    (`commands.js`).
+    (`commands.js`). Sayfa herhangi bir saniyede en çok 9 komut gönderir (Mac'in sınırı 10, bölüm 5); onuncusu
+    gönderilmez, "Olmadı" der.
+  - Panel ve onay penceresi açıldıktan ya da kapandıktan sonra 0,4 sn boyunca dokunuşlar yok sayılır (panelin ve
+    onayın düğmeleri, arka planları ve alttaki komutlar); "⋯" menüsünün komutları da menü açıldıktan sonra 0,4 sn.
+    Pencereler 0,25–0,35 sn'de belirip kaybolur ama dokunuşu hemen alır ya da hemen geçirir; böylece çift dokunuşun
+    ikincisi kullanıcının henüz görmediği bir düğmeye (menüdeki "Uyut"un üstündeki onay düğmesine, uygulama
+    satırlarının üstündeki "Kapat"a) basamaz. Kapalı panel ve onay `inert`tir: klavye ve VoiceOver da onlara ulaşmaz.
   - `access.commands` false iken (Wi-Fi) şerit, panel düğmeleri ve menüdeki komutlar soluk; dokununca "Komutlar
     sadece kabloyla çalışır".
 - **Bağlantı göstergesi:** saat başlığında telefonun pilinin yanında renkli nokta: yeşil kabloda, turuncu Wi-Fi'de
@@ -438,10 +446,10 @@ parçaları JavaScriptCore'da doğrudan çalıştırabilir. İki yön için tek 
 | `clock.js` | saat, tarih, rakam kayması | biçim JavaScriptCore'da, kayma gözle |
 | `chart.js` | grafik ölçeği (saf) ve her karede `<canvas>` çizimi (kızarma, sınır çizgisi, nabız) | ölçek JavaScriptCore'da, çizim gözle |
 | `connection.js` | bağlantı, eşleşme, yeniden bağlanma (bugünkü `app.js`'ten) | gözle / telefonda |
-| `commands.js` | komut imzası, `seq`, cevap eşleme, 5 sn zaman aşımı, ses kaydırıcısının hız sınırı | imza (Swift'in `MessageAuth`'u ile), eşleme ve hız sınırı JavaScriptCore'da |
-| `controls.js` | kontrol şeridi, uygulama paneli, "⋯" komutları, onay, bildirim | gözle |
+| `commands.js` | komut imzası, `seq`, cevap eşleme, 5 sn zaman aşımı, saniyede en çok 9 komut, ses kaydırıcısının hız sınırı | imza (Swift'in `MessageAuth`'u ile), eşleme ve hız sınırları JavaScriptCore'da |
+| `controls.js` | kontrol şeridi, uygulama paneli, "⋯" komutları, onay, bildirim, çift dokunuş kalkanı | gözle |
 | `view.js` | halkalar, kutucuklar, liste (satır kayması), şarkı kartı, saat başlığı, telefonun pili, alarm ve kenar ışığı, durumlar | gözle |
-| `ui.js` | panel, menü, onay, bildirim, rehber, Başlat ekranı, OLED kayması | gözle |
+| `ui.js` | ekranı açık tutma, "⋯" menüsünün açılıp kapanması, rehber, Başlat ekranı, OLED kayması | gözle |
 | `app.js` | parçaları birbirine bağlar | — |
 
 ### Uygulama sırası
@@ -551,8 +559,7 @@ Sources/PhoneBox/         uygulama, Collectors, Sampler, USBWatcher, Server, Pai
 Resources/                Info.plist, AppIcon.icns, en.lproj, tr.lproj
 Resources/web/            index.html, styles.css, sha256.js, i18n.js, format.js, history.js, metrics.js, heat.js,
                           motion.js, rings.js, clock.js, chart.js, connection.js, commands.js, view.js, ui.js,
-                          controls.js,
-                          app.js, keepawake.mp4, apple-touch-icon.png
+                          controls.js, app.js, keepawake.mp4, apple-touch-icon.png
 Vendor/mediaremote-adapter/   (git alt modülü)
 Tests/PhoneBoxCoreTests/  Tests/PhoneBoxTests/
 docs/design/2026-11-25-phonebox-design.md   docs/spike-results.md   docs/manual-testing.md

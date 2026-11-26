@@ -1,7 +1,8 @@
 // The command side of the page (design §7, §8 "Komut etkileşimleri"): the control strip (previous, play/pause, next,
 // the volume slider, mute), the app panel (Quit, Force quit), the "⋯" menu's Mac commands, the confirmation that
 // Sleep and Force quit ask for, and the 2-second toast. Commands go only from the cable; elsewhere the controls are
-// dim and a tap says why. Checked by eye.
+// dim and a tap says why. A tap that comes just as an overlay opens or closes is ignored (`settleTaps`). Checked by
+// eye.
 (function (global) {
   "use strict";
 
@@ -9,6 +10,12 @@
   /// After the slider is let go, the Mac's own volume is shown again only after this long, so the knob does not jump
   /// back to the old value before the Mac has taken the new one.
   const settleAfterDrag = 1500;
+  /// The panel and the confirmation take taps the moment they open and let them through the moment they close, while
+  /// their fade takes 0.25–0.35 s. For this long after either, their buttons and the commands beneath ignore taps, and
+  /// so do the "⋯" menu's commands after the menu opens: the second tap of a double tap must not press a button the
+  /// user has not seen (the Sleep confirmation's "Uyut" lies over the menu's "Uyut", the panel's "Kapat" over app rows,
+  /// its "Vazgeç" over the control strip).
+  const settleTaps = 400;
 
   class Controls {
     constructor(t, format, commands) {
@@ -20,6 +27,8 @@
       this.media = null;
       this.dragging = false;
       this.quietUntil = 0;
+      /// Until then taps on the overlays and the commands are ignored (`settleTaps`).
+      this.calmUntil = 0;
       this.toastTimer = null;
       this.onConfirm = null;
       /// The app whose panel is open.
@@ -43,7 +52,12 @@
 
     /// Commands may go out: the Mac allows them (cable) and the socket is authenticated.
     allowed() {
-      return Boolean(this.access && this.access.commands) && this.commands.link.nonce() !== null;
+      return Boolean(this.access && this.access.commands) && this.commands.canSend();
+    }
+
+    /// True just after the panel or the confirmation opened or closed (`settleTaps`).
+    calm() {
+      return global.performance.now() < this.calmUntil;
     }
 
     render() {
@@ -54,7 +68,7 @@
       $("volume").classList.toggle("off", !audio);
       $("mute").classList.toggle("off", !audio);
       $("mute").classList.toggle("muted", Boolean(this.audio && this.audio.muted));
-      if (this.audio && !this.dragging && Date.now() >= this.quietUntil) this.paintVolume(this.audio.volume);
+      if (this.audio && !this.dragging && global.performance.now() >= this.quietUntil) this.paintVolume(this.audio.volume);
       for (const item of global.document.querySelectorAll("#menu [data-command]")) item.classList.toggle("off", !allowed);
       $("sheet-quit").classList.toggle("off", !allowed);
       $("sheet-force").classList.toggle("off", !allowed);
@@ -72,10 +86,16 @@
       $("sheet-quit").hidden = !quittable;
       $("sheet-force").hidden = !quittable;
       this.render();
+      this.calmUntil = global.performance.now() + settleTaps;
+      $("sheet").removeAttribute("inert");
       $("sheet").classList.add("show");
     }
 
+    /// Closed, the panel is inert: neither a tap nor the keyboard or VoiceOver reaches its buttons.
     closeApp() {
+      this.app = null;
+      this.calmUntil = global.performance.now() + settleTaps;
+      $("sheet").setAttribute("inert", "");
       $("sheet").classList.remove("show");
     }
 
@@ -96,8 +116,14 @@
       slider.setAttribute("aria-valuenow", String(Math.round(level * 100)));
     }
 
-    /// True when `name` may go out now; otherwise a red toast says why.
+    /// True when a tap may send `name` now. A tap that comes just as the panel or the confirmation opens or closes is
+    /// ignored without a word (`settleTaps`); otherwise a red toast says why the command cannot go.
     ready(name) {
+      return !this.calm() && this.possible(name);
+    }
+
+    /// True when `name` may go out now; otherwise a red toast says why.
+    possible(name) {
       if (!this.allowed()) {
         this.toast(this.access && this.access.commands ? this.t.errorFailed : this.t.errorNotAllowed, false);
         return false;
@@ -110,9 +136,10 @@
     }
 
     /// Sends a command. A failure always shows a red toast; success shows `done` (a text) in green, or nothing when
-    /// the screen already shows the change (media, volume, mute).
+    /// the screen already shows the change (media, volume, mute). Not held back by `settleTaps`: a command the user
+    /// just confirmed, or the slider's last value, still goes out; the taps that start them check `ready`.
     run(name, args, done) {
-      if (!this.ready(name)) return;
+      if (!this.possible(name)) return;
       this.commands.run(name, args, (result) => {
         if (result === "ok") {
           if (done) this.toast(done, true);
@@ -150,10 +177,15 @@
       $("confirm-text").textContent = text;
       $("confirm-ok").textContent = action;
       this.onConfirm = then;
+      this.calmUntil = global.performance.now() + settleTaps;
+      $("confirm").removeAttribute("inert");
       $("confirm").classList.add("show");
     }
 
+    /// Closed, the confirmation is inert like the panel.
     closeConfirm(accepted) {
+      this.calmUntil = global.performance.now() + settleTaps;
+      $("confirm").setAttribute("inert", "");
       $("confirm").classList.remove("show");
       const then = this.onConfirm;
       this.onConfirm = null;
@@ -163,7 +195,9 @@
     wire() {
       const t = this.t;
       for (const button of global.document.querySelectorAll("[data-media]")) {
-        button.addEventListener("click", () => this.run("media", { action: button.dataset.media }, null));
+        button.addEventListener("click", () => {
+          if (this.ready("media")) this.run("media", { action: button.dataset.media }, null);
+        });
       }
       $("mute").addEventListener("click", () => {
         if (!this.ready("mute")) return;
@@ -175,8 +209,11 @@
       });
 
       const slider = $("volume");
+      // The fill and the knob sit in the track, inside the slider's side padding: measuring the track keeps the knob
+      // under the finger.
+      const track = slider.querySelector(".volume-track");
       const level = (event) => {
-        const box = slider.getBoundingClientRect();
+        const box = track.getBoundingClientRect();
         return Math.max(0, Math.min(1, (event.clientX - box.left) / box.width));
       };
       const slide = (value) => {
@@ -202,7 +239,7 @@
         this.dragging = false;
         slider.classList.remove("dragging");
         this.throttle.flush();
-        this.quietUntil = Date.now() + settleAfterDrag;
+        this.quietUntil = global.performance.now() + settleAfterDrag;
       };
       slider.addEventListener("pointerup", end);
       slider.addEventListener("pointercancel", end);
@@ -210,6 +247,9 @@
       const done = { lock: t.doneLock, displaySleep: t.doneDisplay, sleep: t.doneSleep };
       for (const item of global.document.querySelectorAll("#menu [data-command]")) {
         item.addEventListener("click", () => {
+          // So soon after the menu opened, this is the second tap of a double tap on "⋯": it closes nothing and sends
+          // nothing.
+          if (global.performance.now() - global.PhoneBox.ui.menuOpenedAt < settleTaps) return;
           global.PhoneBox.ui.closeMenu();
           const name = item.dataset.command;
           if (!this.ready(name)) return;
@@ -220,16 +260,27 @@
           }
         });
       }
-      $("sheet-quit").addEventListener("click", () => this.quit(false));
-      $("sheet-force").addEventListener("click", () => this.quit(true));
-      $("sheet-cancel").addEventListener("click", () => this.closeApp());
-      $("sheet").addEventListener("click", (event) => {
-        if (event.target === $("sheet")) this.closeApp();
+      // The panel's and the confirmation's buttons and backdrops do nothing just as they open or close.
+      $("sheet-quit").addEventListener("click", () => {
+        if (!this.calm()) this.quit(false);
       });
-      $("confirm-ok").addEventListener("click", () => this.closeConfirm(true));
-      $("confirm-cancel").addEventListener("click", () => this.closeConfirm(false));
+      $("sheet-force").addEventListener("click", () => {
+        if (!this.calm()) this.quit(true);
+      });
+      $("sheet-cancel").addEventListener("click", () => {
+        if (!this.calm()) this.closeApp();
+      });
+      $("sheet").addEventListener("click", (event) => {
+        if (event.target === $("sheet") && !this.calm()) this.closeApp();
+      });
+      $("confirm-ok").addEventListener("click", () => {
+        if (!this.calm()) this.closeConfirm(true);
+      });
+      $("confirm-cancel").addEventListener("click", () => {
+        if (!this.calm()) this.closeConfirm(false);
+      });
       $("confirm").addEventListener("click", (event) => {
-        if (event.target === $("confirm")) this.closeConfirm(false);
+        if (event.target === $("confirm") && !this.calm()) this.closeConfirm(false);
       });
     }
   }
