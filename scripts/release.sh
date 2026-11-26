@@ -36,8 +36,9 @@ CURRENT="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$PLIST
 BUILD="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$PLIST")"
 say "PhoneBox $CURRENT (build $BUILD) -> $VERSION (build $((BUILD + 1)))"
 
+# Until "Release <version>" is committed, any exit (a dry run, a failed test or build, no token) puts Info.plist back.
 restore_plist() { git checkout -- "$PLIST"; }
-[ -z "$DRY_RUN" ] || trap restore_plist EXIT
+trap restore_plist EXIT
 /usr/libexec/PlistBuddy -c "Set CFBundleShortVersionString $VERSION" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set CFBundleVersion $((BUILD + 1))" "$PLIST"
 
@@ -64,12 +65,22 @@ fi
 
 say "Committing and tagging v$VERSION"
 git commit --quiet -m "Release $VERSION" -- "$PLIST"
+trap - EXIT
 git tag -a "v$VERSION" -m "PhoneBox $VERSION"
 git push --quiet origin main "v$VERSION"
 
+# From here until the release is published, a failure leaves a tag on GitHub without a release: say how to go on.
+unpublished() {
+  echo "error: the tag v$VERSION is on GitHub without a published release; finish or delete the draft at" \
+    "https://github.com/$REPO/releases, or remove the tag with" \
+    "\`git push --delete origin v$VERSION && git tag -d v$VERSION\` and run this again." >&2
+}
+trap unpublished EXIT
+
+# The token goes to curl as a config on stdin, so it never shows in curl's arguments (ps).
 api() {
-  curl -fsS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" \
-    -H "X-GitHub-Api-Version: 2022-11-28" "$@"
+  printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" |
+    curl -fsS -K - -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "$@"
 }
 
 say "Creating the draft GitHub release"
@@ -99,5 +110,6 @@ api -X POST -H "Content-Type: application/zip" --data-binary "@$ZIP" \
 # Published only now, so releases/latest/download/PhoneBox.zip never points at a release without its zip.
 say "Publishing the release"
 PUBLISHED="$(api -X PATCH "https://api.github.com/repos/$REPO/releases/$RELEASE_ID" -d '{"draft":false}')"
+trap - EXIT
 RELEASE_URL="$(printf '%s' "$PUBLISHED" | /usr/bin/python3 -c 'import json, sys; print(json.load(sys.stdin)["html_url"])')"
 say "Published $RELEASE_URL"

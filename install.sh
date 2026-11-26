@@ -7,7 +7,7 @@
 #
 # Files downloaded with curl are not quarantined, so macOS does not block the (not notarized) app.
 # For testing: PHONEBOX_ZIP=<local zip> uses that file instead of downloading, PHONEBOX_DEST=<dir> installs somewhere
-# else, PHONEBOX_NO_OPEN=1 does not start the app afterwards.
+# else (and quits only a PhoneBox running from there), PHONEBOX_NO_OPEN=1 does not start the app afterwards.
 set -euo pipefail
 
 REPO="cyesaa/phone-box"
@@ -42,28 +42,52 @@ destination() {
   fi
 }
 
-# -a: pgrep and pkill skip their own ancestors by default, and when PhoneBox runs this script to update itself,
-# PhoneBox is one of them.
+# The pids of the PhoneBox processes to quit before the copy in folder $1 is replaced or removed, one per line.
+# Without PHONEBOX_DEST that is every PhoneBox: one running from anywhere else would fight the new one for the port.
+# A test install (PHONEBOX_DEST) only quits a copy that runs from that folder, given with trailing slashes or through
+# a symlink too (/tmp -> /private/tmp: ps shows the resolved path), and leaves one that runs from elsewhere alone.
+# -a: pgrep skips its own ancestors by default, and when PhoneBox runs this script to update itself, PhoneBox is one
+# of them.
+running_pids() {
+  if [ -z "${PHONEBOX_DEST:-}" ]; then
+    pgrep -ax PhoneBox || true
+    return 0
+  fi
+  local pid path dir="$1" resolved=""
+  while [ "$dir" != "${dir%/}" ]; do dir="${dir%/}"; done
+  if [ -d "${dir:-/}" ]; then
+    resolved="$(cd "${dir:-/}" 2>/dev/null && pwd -P || true)"
+    resolved="${resolved%/}"
+  fi
+  for pid in $(pgrep -ax PhoneBox || true); do
+    path="$(ps -o comm= -p "$pid" 2>/dev/null || true)"
+    case "$path" in "$dir"/* | "${resolved:-$dir}"/*) echo "$pid" ;; esac
+  done
+  return 0
+}
+
+should_quit() {
+  [ -n "$(running_pids "$1")" ]
+}
+
+# Quits the PhoneBox processes that running_pids names for folder $1 and waits up to 5 s for them to go.
 quit_running_app() {
-  pgrep -ax PhoneBox >/dev/null || return 0
+  local pids pid alive
+  pids="$(running_pids "$1")"
+  [ -n "$pids" ] || return 0
   say "Quitting the running PhoneBox"
-  pkill -ax PhoneBox || true
+  # One pid per word.
+  # shellcheck disable=SC2086
+  kill $pids 2>/dev/null || true
   for _ in $(seq 1 50); do
-    pgrep -ax PhoneBox >/dev/null || return 0
+    alive=""
+    for pid in $pids; do
+      if ps -p "$pid" >/dev/null 2>&1; then alive=1; fi
+    done
+    [ -n "$alive" ] || return 0
     sleep 0.1
   done
   fail "PhoneBox did not quit. Quit it from its menu bar icon and run this again."
-}
-
-# A test install (PHONEBOX_DEST) leaves a PhoneBox that runs from another folder alone.
-should_quit() {
-  [ -n "${PHONEBOX_DEST:-}" ] || return 0
-  local pid path
-  for pid in $(pgrep -ax PhoneBox || true); do
-    path="$(ps -o comm= -p "$pid" 2>/dev/null || true)"
-    case "$path" in "$1"/*) return 0 ;; esac
-  done
-  return 1
 }
 
 install() {
@@ -91,7 +115,7 @@ install() {
   [ -d "$WORK/unpacked/$APP" ] || fail "The zip does not contain $APP."
   codesign --verify --deep --strict "$WORK/unpacked/$APP" 2>/dev/null || fail "$APP failed its signature check."
 
-  if should_quit "$dest"; then quit_running_app; fi
+  if should_quit "$dest"; then quit_running_app "$dest"; fi
   mkdir -p "$dest"
   # Copy next to the final place first: if the copy fails (disk full) the old app is still there.
   rm -rf "${dest:?}/.PhoneBox-installing.app"
@@ -121,7 +145,7 @@ uninstall() {
     dirs=(/Applications "$HOME/Applications")
   fi
   for dir in "${dirs[@]}"; do
-    if should_quit "$dir"; then quit_running_app; break; fi
+    if should_quit "$dir"; then quit_running_app "$dir"; break; fi
   done
   for dir in "${dirs[@]}"; do
     [ -d "$dir/$APP" ] || continue
