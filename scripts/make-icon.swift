@@ -29,7 +29,9 @@ func draw(pixels: Int) -> CGImage {
     let tile = CGRect(x: 100, y: 100, width: 824, height: 824)
     let tilePath = CGPath(roundedRect: tile, cornerWidth: 185, cornerHeight: 185, transform: nil)
     context.saveGState()
-    context.setShadow(offset: CGSize(width: 0, height: -12), blur: 28, color: color(0x000000, 0.45))
+    // Shadows ignore the scale above (they are in pixels), so they are scaled by hand: a 16-pixel icon gets a
+    // 16-pixel-sized shadow, not a 1024-pixel one.
+    context.setShadow(offset: CGSize(width: 0, height: -12 * scale), blur: 28 * scale, color: color(0x000000, 0.45))
     context.addPath(tilePath)
     context.setFillColor(color(0x04101f))
     context.fillPath()
