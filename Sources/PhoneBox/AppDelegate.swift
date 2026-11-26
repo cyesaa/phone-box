@@ -115,7 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settings.claudeSessions = false
             return
         case .unreadable:
-            Log.app.error("Could not read the Claude Code settings; the hooks are left as they are")
+            Log.app.error("Could not read the Claude Code settings, or there are none; the hooks are left as they are")
         case .reinstall:
             do {
                 try claudeHooks.install(executable: executable)

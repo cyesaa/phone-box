@@ -117,7 +117,9 @@ struct ClaudeHooksFileTests {
         let app = folder.appendingPathComponent("A/PhoneBox.app/Contents/MacOS/PhoneBox")
         let copy = folder.appendingPathComponent("B/PhoneBox.app/Contents/MacOS/PhoneBox")
         for executable in [app, copy] { try write("#!/bin/sh\n", to: executable, mode: 0o755) }
-        // No file: the user took the hooks out.
+        // No file: nothing is known about the hooks.
+        #expect(file.launchCheck(executable: app.path) == .unreadable)
+        try write("{}", to: settings)
         #expect(file.launchCheck(executable: app.path) == .removed)
         try file.install(executable: app.path)
         #expect(file.launchCheck(executable: app.path) == .current)

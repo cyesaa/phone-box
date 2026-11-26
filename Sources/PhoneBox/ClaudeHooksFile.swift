@@ -46,7 +46,7 @@ struct ClaudeHooksFile {
     }
 
     /// What to do with the file at launch while the feature is on, for this app's `executable`
-    /// (`ClaudeHooks.launchCheck`); a file that cannot be read is `.unreadable`, a missing one has no hooks.
+    /// (`ClaudeHooks.launchCheck`); a file that cannot be read, or a missing one, is `.unreadable`.
     func launchCheck(executable: String) -> ClaudeHooks.LaunchCheck {
         let data: Data?
         do {

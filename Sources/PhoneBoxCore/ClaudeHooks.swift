@@ -37,7 +37,7 @@ public enum ClaudeHooks {
     public enum LaunchCheck: Equatable, Sendable {
         /// The hooks run this app, for every event: nothing to do.
         case current
-        /// The file cannot be read: it stays as it is, and so does the feature.
+        /// The file cannot be read, or there is none (no `~/.claude`): it stays as it is, and so does the feature.
         case unreadable
         /// No PhoneBox hooks: the user took them out, and the feature goes off.
         case removed
@@ -52,27 +52,30 @@ public enum ClaudeHooks {
     /// `settings` is the file's contents, nil when there is no file; `executable` is this app's; `exists` says whether
     /// an executable is still on disk.
     public static func launchCheck(settings: Data?, executable: String, exists: (String) -> Bool) -> LaunchCheck {
+        // No file at all says nothing about the hooks (no `~/.claude` yet, or it cannot be seen): like an unreadable one.
+        guard let settings else { return .unreadable }
         var byEvent: [String: Int] = [:]
         var executables: Set<String?> = []
-        if let settings {
-            let hooks: [String: Any]?
-            do {
-                hooks = try hooksObject(of: try parse(settings))
-            } catch {
-                return .unreadable
-            }
-            for (event, groups) in hooks ?? [:] {
-                for group in groups as? [Any] ?? [] {
-                    for entry in (group as? [String: Any])?["hooks"] as? [Any] ?? [] {
-                        guard let command = phoneBoxCommand(entry) else { continue }
-                        byEvent[event, default: 0] += 1
-                        executables.insert(Self.executable(fromCommand: command))
-                    }
+        let hooks: [String: Any]?
+        do {
+            hooks = try hooksObject(of: try parse(settings))
+        } catch {
+            return .unreadable
+        }
+        for (event, groups) in hooks ?? [:] {
+            for group in groups as? [Any] ?? [] {
+                for entry in (group as? [String: Any])?["hooks"] as? [Any] ?? [] {
+                    guard let command = phoneBoxCommand(entry) else { continue }
+                    byEvent[event, default: 0] += 1
+                    executables.insert(Self.executable(fromCommand: command))
                 }
             }
         }
         if executables.isEmpty { return .removed }
         let gone = executables.contains { $0.map(exists) != true }
+        // Hooks that all run PhoneBoxes still on disk, none of them this one, belong to those copies, whatever events
+        // they miss.
+        if !gone, !executables.contains(executable) { return .otherCopy }
         if gone || events.contains(where: { byEvent[$0] == nil }) { return .reinstall }
         return executables == [executable] ? .current : .otherCopy
     }

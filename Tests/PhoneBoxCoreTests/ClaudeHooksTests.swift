@@ -185,9 +185,14 @@ struct ClaudeHooksTests {
 
     /// The user took the hooks out by hand: the feature goes off.
     @Test func atLaunchNoHooksTurnTheFeatureOff() {
-        for text in [nil, "", "{}", #"{"hooks":{}}"#, #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"say done"}]}]}}"#] {
-            #expect(Self.check(text.map { Data($0.utf8) }) == .removed, "\(text ?? "nil")")
+        for text: String in ["", "{}", #"{"hooks":{}}"#, #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"say done"}]}]}}"#] {
+            #expect(Self.check(Data(text.utf8)) == .removed, "\(text)")
         }
+    }
+
+    /// No file at all (no `~/.claude`) is not the user taking the hooks out: it stays as it is.
+    @Test func atLaunchNoFileIsLeftAlone() {
+        #expect(Self.check(nil) == .unreadable)
     }
 
     /// A file PhoneBox cannot read says nothing about the hooks: it stays as it is, and so does the feature.
@@ -217,6 +222,12 @@ struct ClaudeHooksTests {
     @Test func atLaunchHooksOfAnotherPhoneBoxThatIsThereAreLeftAlone() throws {
         #expect(Self.check(try Self.installed(for: Self.copy)) == .otherCopy)
         #expect(Self.check(try Self.installed(for: Self.app), executable: Self.copy) == .otherCopy)
+        // A copy's hooks that miss an event are still the copy's, as long as it is there.
+        var root = try #require(try JSONSerialization.jsonObject(with: try Self.installed(for: Self.copy)) as? [String: Any])
+        var hooks = try #require(root["hooks"] as? [String: Any])
+        hooks["Stop"] = nil
+        root["hooks"] = hooks
+        #expect(Self.check(try JSONSerialization.data(withJSONObject: root)) == .otherCopy)
         // Once it is gone, they are this app's again.
         #expect(Self.check(try Self.installed(for: Self.copy), existing: [Self.app]) == .reinstall)
     }
