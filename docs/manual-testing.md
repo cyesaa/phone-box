@@ -209,3 +209,19 @@ iPhone ile (ana ekran simgesi, kablo; iPhone Yansıtma üzerinden):
   Uyut denenmez.
 - Not: telefondaki açık sayfa yeni sürümün dosyalarını kendiliğinden almaz; uygulama değiştiriciden kapatıp ana ekran
   simgesinden yeniden açmak gerekti (Plan 5'te sayfa, PhoneBox'ın web dosyaları değişince kendini yeniler).
+
+### 2026-11-26 — Plan 5 (main 4ea7032), MacBook Pro M4 / macOS 27.2
+
+Mac'te:
+- Geçti: `make app` simgeli paketi kurdu (`AppIcon.icns`, `LICENSE`, `THIRD_PARTY_NOTICES.md` içinde), `codesign --verify
+  --strict` geçti; simge 1024, 64 ve 32 pikselde gözle kontrol edildi (küçük boylarda gölge ölçeklendi, a4af370).
+- Geçti: `make dist` zip'i yaptı ve imzasını doğruladı; `PHONEBOX_ZIP=… PHONEBOX_DEST=<geçici> PHONEBOX_NO_OPEN=1
+  ./install.sh` kurdu (geride ara kopya kalmadı), `--uninstall` kaldırdı; başka klasörden çalışan PhoneBox açık kaldı.
+- Geçti: güncelleme denetimi açılıştan ~15 sn sonra çalıştı. `UpdateFeedURL` yerel bir v0.2.0 yanıtına bakınca kayıtta
+  "Update available: 0.2.0"; v0.1.0 yanıtında hiçbir şey (güncel); depo henüz yokken GitHub'dan "Update check failed
+  (HTTP 404)". Deneme anahtarı sonra silindi.
+- Geçti: `PHONEBOX_LIVE=1 make test FILTER="PhoneBatteryLiveTests"` değişen pil okuyucusuyla (planlama sırasında).
+- Denenmedi: menüdeki Port…, Güncellemeleri denetle… ve Girişte başlat'ın pencereleri (Mac'in ekranı gece kendiliğinden
+  kilitlendi; menüye tıklamak ekran ister). Yeni sayfanın PhoneBox güncellenince kendini yenilemesi telefonda
+  denenemedi (iPhone Yansıtma kilitli Mac'te çalışmıyor); mantığı JavaScriptCore testinde, `ready`'deki ad hub
+  testinde doğrulandı.
