@@ -4,15 +4,9 @@
 "status.portInUse" = "Port %d is in use";
 "status.usbUnavailable" = "Cannot see USB devices";
 
+"menu.settings" = "Settings…";
 "menu.showQR" = "Show QR Code…";
-"menu.mode" = "Send data";
-"menu.mode.cable" = "Only While the Cable Is Plugged In";
-"menu.mode.always" = "Always, Also over Wi-Fi";
-"menu.lockAndMusic" = "Lock and Music over Wi-Fi";
-"menu.claudeSessions" = "Claude Code Sessions";
-"menu.port" = "Port: %d…";
 "menu.launchAtLogin" = "Open at Login";
-"menu.resetPairing" = "Reset Pairing…";
 "menu.checkForUpdates" = "Check for Updates…";
 "menu.installUpdate" = "Install PhoneBox %@…";
 "menu.quit" = "Quit PhoneBox";
@@ -60,3 +54,67 @@
 "qr.instructions" = "Scan this code with the iPhone's camera. The dashboard opens in its browser.";
 "qr.copy" = "Copy Link";
 "qr.copied" = "Copied";
+
+"settings.connection" = "Connection";
+"settings.pairing" = "Pairing";
+"settings.claude" = "Claude Code";
+"settings.general" = "General";
+
+"settings.status.connected" = "iPhone connected";
+"settings.status.waitingHint" = "Plug in the iPhone, or scan the QR code in Pairing.";
+"settings.status.waitingForCableHint" = "In cable mode a phone on Wi-Fi gets no data. Plug in the cable, or choose “Always” below.";
+"settings.status.portInUseHint" = "Choose another port below.";
+"settings.phones.cable" = "%d connected · over the cable";
+"settings.phones.wifi" = "%d connected · over Wi-Fi";
+"settings.phones.both" = "%d connected · %d over the cable, %d over Wi-Fi";
+"settings.data" = "Data";
+"settings.sendData" = "Send data to the phone";
+"settings.sendData.caption" = "Always over the cable; over Wi-Fi only with “Always”.";
+"settings.mode.cable" = "While Plugged In";
+"settings.mode.always" = "Always";
+"settings.lockAndMusic" = "Lock and music over Wi-Fi";
+"settings.lockAndMusic.caption" = "A phone on Wi-Fi can lock the Mac and control the music. Other commands need the cable.";
+"settings.network" = "Network";
+"settings.port" = "Port";
+"settings.port.caption" = "After a change the phone has to scan the new QR code.";
+"settings.port.change" = "Change…";
+
+"settings.qr.enlarge" = "Show Larger…";
+"settings.phones" = "Paired phones";
+"settings.phones.now" = "Connected now: %@";
+"settings.phones.none" = "No phone connected now";
+"settings.reset" = "Reset pairing";
+"settings.reset.button" = "Reset…";
+
+"settings.claude.toggle" = "Show Claude Code sessions on the phone";
+"settings.claude.caption" = "Open sessions, and the ones waiting for you, on a page below the dashboard. Messages, questions and code never go to the phone.";
+"settings.claude.status" = "Status";
+"settings.claude.off" = "Off";
+"settings.claude.notInstalled" = "Hooks not installed";
+"settings.claude.installed" = "Hooks installed · sessions: %d";
+"settings.claude.waiting" = "waiting for you: %d";
+"settings.file" = "File";
+"settings.claude.fileCaption" = "PhoneBox adds only its own hooks; the file as it was before the first change is in settings.json.phonebox-backup.";
+"settings.claude.reveal" = "Show in Finder";
+
+"settings.updates" = "Updates";
+"settings.update.upToDate" = "Up to date";
+"settings.update.available" = "%@ is available";
+"settings.update.checking" = "Checking…";
+"settings.update.failed" = "Could not check";
+"settings.update.installing" = "Installing…";
+"settings.update.never" = "Not checked yet";
+"settings.update.checked" = "last checked %@";
+"settings.update.automatic" = "checks by itself every 12 hours";
+"settings.update.check" = "Check Now";
+"settings.update.install" = "Install…";
+"settings.ago.now" = "just now";
+"settings.ago.minutes" = "%d min ago";
+"settings.ago.hours" = "%d h ago";
+"settings.ago.days" = "%d d ago";
+"settings.about" = "About";
+"settings.github" = "Open on GitHub";
+"settings.license" = "MIT License";
+"settings.licenses" = "Licenses";
+"settings.licenses.caption" = "PhoneBox's license and the notices of the parts it uses";
+"settings.open" = "Open";

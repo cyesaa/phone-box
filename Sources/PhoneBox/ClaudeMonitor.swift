@@ -19,6 +19,10 @@ final class ClaudeMonitor {
     /// Called on the main thread after the sessions changed.
     var onChange: (() -> Void)?
     var sessions: [ClaudeSession] { state.list }
+    /// Every open session, also beyond the ones listed; the settings window counts them.
+    var sessionCount: Int { state.count }
+    /// The sessions waiting for the user (the list has those first).
+    var waitingCount: Int { state.list.filter { $0.state == .waiting }.count }
     var isRunning: Bool { source != nil }
 
     private let socketPath: String

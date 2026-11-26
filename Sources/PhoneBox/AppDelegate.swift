@@ -17,8 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hub: DashboardHub!
     private var server: DashboardServer!
     private var menuBar: MenuBarController!
-    private var streamingCount = 0
-    private var waitingForCableCount = 0
+    private var settingsModel: SettingsModel!
+    private var settingsWindow: SettingsWindowController!
+    private var phones = PhoneCounts()
     private var wakeObserver: NSObjectProtocol?
 
     override init() {
@@ -36,14 +37,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                            appName: "PhoneBox \(version)", hostName: Settings.computerName(), powerLimits: powerLimits,
                            build: Self.webBuild(webDirectory), commands: commandRunner)
         server = DashboardServer(webDirectory: webDirectory, hub: hub)
-        resumeClaudeSessions()
-        menuBar = MenuBarController(mode: settings.mode, lockAndMusicOverWiFi: settings.lockAndMusicOverWiFi,
-                                    claudeSessions: settings.claudeSessions, port: settings.port, updates: updates)
+        let claudeFailure = resumeClaudeSessions()
+        menuBar = MenuBarController(updates: updates)
+        settingsModel = SettingsModel(mode: settings.mode, lockAndMusic: settings.lockAndMusicOverWiFi, port: settings.port,
+                                      link: settings.personalURL(key: key), claudeOn: settings.claudeSessions,
+                                      version: version, checksAutomatically: updates.checksAutomatically)
+        settingsModel.claudeFailure = claudeFailure
+        settingsModel.actions = makeSettingsActions()
+        settingsWindow = SettingsWindowController(model: settingsModel)
+        // Open at Login and the Claude Code settings file tell nobody when they change: read each time the window
+        // comes to the front.
+        settingsWindow.onShow = { [weak self] in
+            self?.showValue(\.loginItem, LoginItem.state)
+            self?.refreshClaudeFile()
+        }
 
         hub.onStreamingChange = { [weak self] streaming in self?.sampler.setRunning(streaming) }
-        hub.onClientsChange = { [weak self] streaming, waiting in
-            self?.streamingCount = streaming
-            self?.waitingForCableCount = waiting
+        hub.onClientsChange = { [weak self] counts in
+            self?.phones = counts
             self?.refreshStatus()
         }
         hub.onAuthenticated = { [weak self] in self?.settings.hasEverPaired = true }
@@ -52,48 +63,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self, settings.claudeSessions else { return nil }
             return claudeMonitor.sessions
         }
+        claudeMonitor.onChange = { [weak self] in self?.refreshClaudeSessions() }
+        updates.onChange = { [weak self] in self?.refreshUpdate() }
         server.onStateChange = { [weak self] _ in self?.refreshStatus() }
 
+        menuBar.onShowSettings = { [weak self] in self?.settingsWindow.show() }
         menuBar.onShowQR = { [weak self] in self?.showQR() }
-        menuBar.onModeChange = { [weak self] mode in
-            self?.settings.mode = mode
-            self?.hub.mode = mode
-        }
-        menuBar.onLockAndMusicChange = { [weak self] on in
-            self?.settings.lockAndMusicOverWiFi = on
-            self?.hub.lockAndMusicOverWiFi = on
-        }
-        menuBar.onClaudeSessionsChange = { [weak self] on in self?.setClaudeSessions(on) }
-        menuBar.onPortChange = { [weak self] port in
-            // Saved only once the new port listens: a port in use leaves PhoneBox, and its phones, on the old one.
-            self?.server.move(to: port) { [weak self] moved in
-                guard let self else { return }
-                guard moved else { return portInUse(port) }
-                settings.port = port
-                menuBar.port = port
-                // The phone's link names the port: it has to scan the new code.
-                showQR()
-            }
-        }
-        menuBar.onResetPairing = { [weak self] in
-            guard let self else { return }
-            key = PairingStore.reset()
-            settings.hasEverPaired = false
-            hub.replaceKey(key)
-            showQR()
-        }
 
         usbWatcher.onChange = { [weak self] pluggedIn in self?.iPhoneChanged(pluggedIn: pluggedIn) }
         usbWatcher.onAvailabilityChange = { [weak self] _ in self?.refreshStatus() }
         usbWatcher.start()
         server.start(port: settings.port)
         updates.start()
+        refreshClaudeSessions()
+        refreshUpdate()
 
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.sampler.resetAfterWake() }
         }
+    }
+
+    /// Opening PhoneBox again while it runs (Finder, Launchpad, `open`) shows the settings window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        settingsWindow.show()
+        return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -106,20 +101,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// At launch (design §14 "Kurulum"): hooks the user deleted turn the feature off; hooks that run a PhoneBox that is
     /// gone (the app was moved), or miss events, are installed again for this one. Hooks of another PhoneBox that is
-    /// still there (a test copy) and a file PhoneBox cannot read are left as they are.
-    private func resumeClaudeSessions() {
-        guard settings.claudeSessions else { return }
+    /// still there (a test copy) and a file PhoneBox cannot read are left as they are. Returns why installing them again
+    /// failed, for the settings window.
+    private func resumeClaudeSessions() -> String? {
+        guard settings.claudeSessions else { return nil }
         let executable = Bundle.main.executablePath!
+        var failure: String?
         switch claudeHooks.launchCheck(executable: executable) {
         case .removed:
             settings.claudeSessions = false
-            return
+            return nil
         case .unreadable:
             Log.app.error("Could not read the Claude Code settings, or there are none; the hooks are left as they are")
         case .reinstall:
             do {
                 try claudeHooks.install(executable: executable)
             } catch {
+                failure = Self.reason(error)
                 Log.app.error("Could not install the Claude Code hooks again: \(Self.reason(error), privacy: .public)")
             }
         case .otherCopy:
@@ -128,17 +126,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             break
         }
         claudeMonitor.start()
+        return failure
     }
 
-    /// From the menu. On: the hooks first, and only if they are in place the feature. Off: the feature stops even when
-    /// the hooks cannot be removed.
-    private func setClaudeSessions(_ on: Bool) {
+    /// From the settings window. On: the hooks first, and only if they are in place the feature. Off: the feature stops
+    /// even when the hooks cannot be removed. Returns whether the feature is on, and why the file was left alone.
+    private func setClaudeSessions(_ on: Bool) -> (on: Bool, failure: String?) {
+        var failure: String?
         if on {
             do {
                 try claudeHooks.install(executable: Bundle.main.executablePath!)
                 settings.claudeSessions = true
                 claudeMonitor.start()
             } catch {
+                failure = Self.reason(error)
                 showClaudeSettingsFailure(error)
             }
         } else {
@@ -147,10 +148,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             do {
                 try claudeHooks.remove()
             } catch {
+                failure = Self.reason(error)
                 showClaudeSettingsFailure(error)
             }
         }
-        menuBar.claudeSessions = settings.claudeSessions
+        refreshClaudeFile()
+        return (settings.claudeSessions, failure)
     }
 
     private func showClaudeSettingsFailure(_ error: Error) {
@@ -191,7 +194,79 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         qrWindow.show(link: settings.personalURL(key: key))
     }
 
-    /// The port chosen in the menu is taken; PhoneBox stays where it is.
+    /// The flows behind the settings window's controls (they were the menu's until 0.4.0).
+    private func makeSettingsActions() -> SettingsActions {
+        var actions = SettingsActions()
+        actions.applyMode = { [weak self] mode in
+            self?.settings.mode = mode
+            self?.hub.mode = mode
+        }
+        actions.confirmLockAndMusic = { SettingsDialogs.confirmLockAndMusic() }
+        actions.applyLockAndMusic = { [weak self] on in
+            self?.settings.lockAndMusicOverWiFi = on
+            self?.hub.lockAndMusicOverWiFi = on
+        }
+        actions.confirmClaudeSessions = { SettingsDialogs.confirmClaudeSessions() }
+        actions.changeClaudeSessions = { [weak self] on in self?.setClaudeSessions(on) ?? (on: false, failure: nil) }
+        actions.revealClaudeSettings = { [weak self] in
+            guard let self else { return }
+            NSWorkspace.shared.activateFileViewerSelecting([claudeHooks.realURL()])
+        }
+        actions.askPort = { SettingsDialogs.askPort(current: $0) }
+        actions.movePort = { [weak self] port, completion in self?.movePort(to: port, completion: completion) }
+        actions.confirmReset = { SettingsDialogs.confirmReset() }
+        actions.resetPairing = { [weak self] in self?.resetPairing() ?? "" }
+        actions.copyLink = { link in
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(link, forType: .string)
+        }
+        actions.showQR = { [weak self] in self?.showQR() }
+        actions.toggleLaunchAtLogin = { LoginItem.toggle() }
+        actions.openLoginItems = { LoginItem.openSystemSettings() }
+        actions.checkForUpdates = { [weak self] in self?.updates.check(userInitiated: true) }
+        actions.installUpdate = { [weak self] in self?.updates.installWithConfirmation() }
+        actions.openRepository = { NSWorkspace.shared.open(UpdateCheck.repositoryURL) }
+        actions.openLicenses = { Self.openLicenses() }
+        return actions
+    }
+
+    /// Saved only once the new port listens: a port in use leaves PhoneBox, and its phones, on the old one.
+    private func movePort(to port: UInt16, completion: @escaping @MainActor (String?) -> Void) {
+        server.move(to: port) { [weak self] moved in
+            guard let self else { return }
+            guard moved else {
+                portInUse(port)
+                return completion(nil)
+            }
+            settings.port = port
+            completion(settings.personalURL(key: key))
+            // The phone's link names the port: it has to scan the new code.
+            showQR()
+        }
+    }
+
+    /// A new pairing key: every phone has to scan the new QR code. Returns the new link.
+    private func resetPairing() -> String {
+        key = PairingStore.reset()
+        settings.hasEverPaired = false
+        hub.replaceKey(key)
+        showQR()
+        return settings.personalURL(key: key)
+    }
+
+    /// The bundled licence and notices, in TextEdit (a .md file may have no app of its own).
+    private static func openLicenses() {
+        let files = ["LICENSE", "THIRD_PARTY_NOTICES.md"].compactMap { Bundle.main.url(forResource: $0, withExtension: nil) }
+        guard !files.isEmpty else { return }
+        let workspace = NSWorkspace.shared
+        if let textEdit = workspace.urlForApplication(withBundleIdentifier: "com.apple.TextEdit") {
+            workspace.open(files, withApplicationAt: textEdit, configuration: NSWorkspace.OpenConfiguration())
+        } else {
+            workspace.activateFileViewerSelecting(files)
+        }
+    }
+
+    /// The port chosen in the settings is taken; PhoneBox stays where it is.
     private func portInUse(_ port: UInt16) {
         // Shown from the run loop: run from the listener's callback (a main-queue block), a modal alert would hold up
         // every other main-queue block, the phones' connections among them, until it is closed.
@@ -223,19 +298,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// The menu's status line and the settings window's status row.
     private func refreshStatus() {
-        let status: String
-        if case let .failed(port, _) = server.state {
-            status = L10n.statusPortInUse(port)
-        } else if streamingCount > 0 {
-            status = L10n.statusStreaming(streamingCount)
-        } else if waitingForCableCount > 0 {
-            status = L10n.statusWaitingForCable
-        } else if !usbWatcher.isAvailable {
-            status = L10n.statusUSBUnavailable
-        } else {
-            status = L10n.statusWaiting
-        }
-        menuBar.update(status: status, active: streamingCount > 0)
+        var portInUse: UInt16?
+        if case let .failed(port, _) = server.state { portInUse = port }
+        let status = ConnectionStatus.decide(portInUse: portInUse, phones: phones, usbAvailable: usbWatcher.isAvailable)
+        menuBar.update(status: SettingsText.menuLine(status), active: status.isActive)
+        showValue(\.status, status)
+        showValue(\.phones, phones)
+    }
+
+    private func refreshClaudeSessions() {
+        let on = settings.claudeSessions
+        showValue(\.claudeSessions, on ? claudeMonitor.sessionCount : 0)
+        showValue(\.claudeWaiting, on ? claudeMonitor.waitingCount : 0)
+    }
+
+    /// Whether PhoneBox's hooks are in ~/.claude/settings.json, and whether the file is there at all.
+    private func refreshClaudeFile() {
+        showValue(\.claudeHooksInstalled, !claudeHooks.installedCommands().isEmpty)
+        showValue(\.claudeSettingsExists, FileManager.default.fileExists(atPath: claudeHooks.realURL().path))
+    }
+
+    private func refreshUpdate() {
+        showValue(\.update, updates.status)
+        showValue(\.availableUpdate, updates.availableRelease?.version.description)
+        showValue(\.lastChecked, updates.lastChecked)
+    }
+
+    /// Sets what the settings window shows only when it changed: every set redraws the window.
+    private func showValue<Value: Equatable>(_ keyPath: ReferenceWritableKeyPath<SettingsModel, Value>, _ value: Value) {
+        guard let settingsModel, settingsModel[keyPath: keyPath] != value else { return }
+        settingsModel[keyPath: keyPath] = value
     }
 }

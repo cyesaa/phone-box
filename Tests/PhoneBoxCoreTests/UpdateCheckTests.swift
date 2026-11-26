@@ -78,6 +78,7 @@ struct UpdateCheckTests {
     @Test func pointsAtThisRepository() {
         #expect(UpdateCheck.latestReleaseURL.absoluteString == "https://api.github.com/repos/cyesaa/phone-box/releases/latest")
         #expect(UpdateCheck.installCommand == "curl -fsSL https://raw.githubusercontent.com/cyesaa/phone-box/main/install.sh | bash")
+        #expect(UpdateCheck.repositoryURL.absoluteString == "https://github.com/cyesaa/phone-box")
     }
 
     /// An app opened by `PHONEBOX_VERSION=0.1.0 … | bash` or a test install inherits those settings; the update must not

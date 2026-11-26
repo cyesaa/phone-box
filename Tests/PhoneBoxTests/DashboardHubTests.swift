@@ -155,6 +155,23 @@ struct DashboardHubTests {
         #expect(streaming == [true])
     }
 
+    /// The settings window says how many phones get data, and whether over the cable or over Wi-Fi.
+    @Test func reportsThePhonesOnTheCableAndOnWiFi() {
+        let hub = makeHub(mode: .cable)
+        var counts: [PhoneCounts] = []
+        hub.onClientsChange = { counts.append($0) }
+        let wifi = connect(hub, onUSB: false)
+        #expect(counts.last == PhoneCounts(onCable: 0, overWiFi: 0, waitingForCable: 1))
+        _ = connect(hub, onUSB: true)
+        #expect(counts.last == PhoneCounts(onCable: 1, overWiFi: 0, waitingForCable: 1))
+        #expect(counts.last?.streaming == 1)
+        hub.mode = .always
+        #expect(counts.last == PhoneCounts(onCable: 1, overWiFi: 1, waitingForCable: 0))
+        #expect(counts.last?.streaming == 2)
+        hub.closed(wifi)
+        #expect(counts.last == PhoneCounts(onCable: 1, overWiFi: 0, waitingForCable: 0))
+    }
+
     @Test func lockAndMusicOverWiFiOpensOnlyThoseToWiFiPhones() {
         let hub = makeHub(mode: .always)
         let wifi = connect(hub, onUSB: false)

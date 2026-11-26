@@ -62,6 +62,17 @@ struct AccessPolicyTests {
         }
     }
 
+    /// The settings window's "Wi-Fi'den kilit ve müzik" switch can be used only where the setting changes anything.
+    @Test func lockAndMusicOverWiFiIsOfferedOnlyWhereItMatters() {
+        #expect(!AccessMode.cable.offersLockAndMusicOverWiFi)
+        #expect(AccessMode.always.offersLockAndMusicOverWiFi)
+        for mode in AccessMode.allCases {
+            let off = AccessPolicy.decide(mode: mode, lockAndMusicOverWiFi: false, clientOnUSB: false, authenticated: true)
+            let on = AccessPolicy.decide(mode: mode, lockAndMusicOverWiFi: true, clientOnUSB: false, authenticated: true)
+            #expect((off != on) == mode.offersLockAndMusicOverWiFi, "\(mode)")
+        }
+    }
+
     @Test func reasonsMatchTheProtocol() {
         #expect(Access.onCable.reason == "ok")
         #expect(Access.overWiFi.reason == "ok")

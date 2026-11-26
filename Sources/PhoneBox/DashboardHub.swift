@@ -24,6 +24,17 @@ protocol CommandRunning: AnyObject {
     func run(_ command: Command, completion: @escaping @MainActor (CommandResult) -> Void)
 }
 
+/// The authenticated phones, for the menu bar and the settings window: the ones receiving data, over the cable or over
+/// Wi-Fi, and the ones on Wi-Fi waiting for the cable (cable mode).
+struct PhoneCounts: Equatable {
+    var onCable = 0
+    var overWiFi = 0
+    var waitingForCable = 0
+
+    /// Phones receiving data.
+    var streaming: Int { onCable + overWiFi }
+}
+
 /// Keeps track of the phones connected over WebSocket (design §5): the protocol session of each, whether it
 /// came in over the iPhone's USB link, what it may do, who gets the snapshots, and the commands they send.
 @MainActor
@@ -68,8 +79,8 @@ final class DashboardHub {
 
     /// True while at least one phone may receive snapshots: the sampler runs only then.
     var onStreamingChange: ((Bool) -> Void)?
-    /// Counts for the menu bar: phones receiving data, phones waiting for the cable.
-    var onClientsChange: ((_ streaming: Int, _ waitingForCable: Int) -> Void)?
+    /// Counts for the menu bar and the settings window.
+    var onClientsChange: ((PhoneCounts) -> Void)?
     /// A phone authenticated for the first time with this key.
     var onAuthenticated: (() -> Void)?
     var onConnectionClosed: ((any PhoneConnection) -> Void)?
@@ -229,8 +240,14 @@ final class DashboardHub {
 
     private func changed(wasStreaming: Bool) {
         if isStreaming != wasStreaming { onStreamingChange?(isStreaming) }
-        let streaming = clients.values.filter { $0.access.streaming }.count
-        let waiting = clients.values.filter { $0.access.reason == Access.notOnCable.reason }.count
-        onClientsChange?(streaming, waiting)
+        var counts = PhoneCounts()
+        for client in clients.values {
+            if client.access.streaming {
+                if client.access.cable { counts.onCable += 1 } else { counts.overWiFi += 1 }
+            } else if client.access.reason == Access.notOnCable.reason {
+                counts.waitingForCable += 1
+            }
+        }
+        onClientsChange?(counts)
     }
 }

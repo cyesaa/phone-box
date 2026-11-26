@@ -2,6 +2,10 @@
 public enum AccessMode: String, Codable, Sendable, CaseIterable {
     case cable
     case always
+
+    /// "Lock and Music over Wi-Fi" changes something only in "always" mode: in cable mode a phone on Wi-Fi gets no data
+    /// at all, so the settings window dims the switch.
+    public var offersLockAndMusicOverWiFi: Bool { self == .always }
 }
 
 /// What one phone may do right now.

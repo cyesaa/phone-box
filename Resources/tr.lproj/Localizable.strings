@@ -4,15 +4,9 @@
 "status.portInUse" = "Port %d kullanımda";
 "status.usbUnavailable" = "USB aygıtları görülemiyor";
 
+"menu.settings" = "Ayarlar…";
 "menu.showQR" = "QR kodunu göster…";
-"menu.mode" = "Veri gönder";
-"menu.mode.cable" = "Sadece kablo takılıyken";
-"menu.mode.always" = "Her zaman, Wi-Fi'de de";
-"menu.lockAndMusic" = "Wi-Fi'den Kilit ve Müzik";
-"menu.claudeSessions" = "Claude Code Oturumları";
-"menu.port" = "Port: %d…";
 "menu.launchAtLogin" = "Girişte başlat";
-"menu.resetPairing" = "Eşleştirmeyi sıfırla…";
 "menu.checkForUpdates" = "Güncellemeleri denetle…";
 "menu.installUpdate" = "PhoneBox %@ sürümünü yükle…";
 "menu.quit" = "PhoneBox'tan çık";
@@ -60,3 +54,67 @@
 "qr.instructions" = "Bu kodu iPhone'un kamerasıyla okut. Dashboard telefonun tarayıcısında açılır.";
 "qr.copy" = "Bağlantıyı kopyala";
 "qr.copied" = "Kopyalandı";
+
+"settings.connection" = "Bağlantı";
+"settings.pairing" = "Eşleştirme";
+"settings.claude" = "Claude Code";
+"settings.general" = "Genel";
+
+"settings.status.connected" = "iPhone bağlı";
+"settings.status.waitingHint" = "iPhone'u kabloyla tak ya da Eşleştirme'deki QR kodunu okut.";
+"settings.status.waitingForCableHint" = "Kablo kipinde Wi-Fi'deki telefon veri almaz. Kabloyu tak ya da aşağıda “Her zaman”ı seç.";
+"settings.status.portInUseHint" = "Aşağıdan başka bir port seç.";
+"settings.phones.cable" = "%d cihaz · kabloyla";
+"settings.phones.wifi" = "%d cihaz · Wi-Fi'den";
+"settings.phones.both" = "%d cihaz · %d kabloyla, %d Wi-Fi'den";
+"settings.data" = "Veri";
+"settings.sendData" = "Telefona veri gönder";
+"settings.sendData.caption" = "Kabloda her zaman; Wi-Fi'de yalnızca “Her zaman” seçiliyse.";
+"settings.mode.cable" = "Kablo takılıyken";
+"settings.mode.always" = "Her zaman";
+"settings.lockAndMusic" = "Wi-Fi'den kilit ve müzik";
+"settings.lockAndMusic.caption" = "Wi-Fi'deki telefon Mac'i kilitleyebilir ve müziği değiştirebilir. Diğer komutlar yalnızca kabloyla.";
+"settings.network" = "Ağ";
+"settings.port" = "Port";
+"settings.port.caption" = "Değişince telefon yeni QR kodunu okutmalı.";
+"settings.port.change" = "Değiştir…";
+
+"settings.qr.enlarge" = "Büyüt…";
+"settings.phones" = "Eşleşmiş telefonlar";
+"settings.phones.now" = "Şu an bağlı: %@";
+"settings.phones.none" = "Şu an bağlı telefon yok";
+"settings.reset" = "Eşleştirmeyi sıfırla";
+"settings.reset.button" = "Sıfırla…";
+
+"settings.claude.toggle" = "Claude Code oturumlarını telefonda göster";
+"settings.claude.caption" = "Panonun altındaki sayfada açık oturumlar ve seni bekleyenler. Mesajlar, sorular ve kod telefona gitmez.";
+"settings.claude.status" = "Durum";
+"settings.claude.off" = "Kapalı";
+"settings.claude.notInstalled" = "Hook'lar kurulu değil";
+"settings.claude.installed" = "Hook'lar kurulu · %d oturum";
+"settings.claude.waiting" = "%d seni bekliyor";
+"settings.file" = "Dosya";
+"settings.claude.fileCaption" = "PhoneBox yalnızca kendi hook'larını ekler; ilk değişiklikten önceki hâli settings.json.phonebox-backup'ta.";
+"settings.claude.reveal" = "Finder'da göster";
+
+"settings.updates" = "Güncelleme";
+"settings.update.upToDate" = "Güncel";
+"settings.update.available" = "%@ sürümü var";
+"settings.update.checking" = "Denetleniyor…";
+"settings.update.failed" = "Denetlenemedi";
+"settings.update.installing" = "Yükleniyor…";
+"settings.update.never" = "Henüz denetlenmedi";
+"settings.update.checked" = "son denetim %@";
+"settings.update.automatic" = "12 saatte bir kendiliğinden denetler";
+"settings.update.check" = "Şimdi denetle";
+"settings.update.install" = "Yükle…";
+"settings.ago.now" = "az önce";
+"settings.ago.minutes" = "%d dk önce";
+"settings.ago.hours" = "%d sa önce";
+"settings.ago.days" = "%d gün önce";
+"settings.about" = "Hakkında";
+"settings.github" = "GitHub'da aç";
+"settings.license" = "MIT Lisansı";
+"settings.licenses" = "Lisanslar";
+"settings.licenses.caption" = "PhoneBox'ın lisansı ve kullandığı bileşenlerin bildirimleri";
+"settings.open" = "Aç";

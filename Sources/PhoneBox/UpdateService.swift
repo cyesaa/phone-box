@@ -25,6 +25,9 @@ final class UpdateService {
     private(set) var status: Status = .idle {
         didSet { if status != oldValue { onChange?() } }
     }
+    /// When the last check got an answer or failed; the settings window shows it.
+    private(set) var lastChecked: Date?
+    /// Called on the main thread after `status` (and with it `lastChecked`) changed.
     var onChange: (() -> Void)?
     let currentVersion: AppVersion?
     private let session: URLSession
@@ -51,7 +54,7 @@ final class UpdateService {
         UserDefaults.standard.string(forKey: Self.installOverrideKey) ?? UpdateCheck.installCommand
     }
 
-    private var checksAutomatically: Bool {
+    var checksAutomatically: Bool {
         UserDefaults.standard.object(forKey: Self.automaticKey) as? Bool ?? true
     }
 
@@ -114,6 +117,8 @@ final class UpdateService {
         guard let currentVersion else { return }
         let userInitiated = userInitiated || answerUser
         answerUser = false
+        // Before `status`, whose change tells the settings window.
+        lastChecked = Date()
         if !failed { lastFound = release }
         if failed {
             Log.app.notice("Update check failed (HTTP \(code, privacy: .public))")

@@ -65,6 +65,11 @@ public enum UpdateCheck {
     public static let launchDelay: TimeInterval = 15
     public static let interval: TimeInterval = 12 * 60 * 60
 
+    /// The repository's page, opened from the settings window's "About".
+    public static var repositoryURL: URL {
+        URL(string: "https://github.com/\(repository)")!
+    }
+
     public static var latestReleaseURL: URL {
         URL(string: "https://api.github.com/repos/\(repository)/releases/latest")!
     }
