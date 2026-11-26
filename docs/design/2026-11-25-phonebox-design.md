@@ -294,7 +294,8 @@ ekran yüksekliğine göre ayarlanır, iPhone SE'den Pro Max'e kadar her şey ka
     (`commands.js`). Sayfa herhangi bir saniyede en çok 9 komut gönderir (Mac'in sınırı 10, bölüm 5); onuncusu
     gönderilmez, "Olmadı" der.
   - Panel ve onay penceresi açıldıktan ya da kapandıktan sonra 0,4 sn boyunca dokunuşlar yok sayılır (panelin ve
-    onayın düğmeleri, arka planları ve alttaki komutlar); "⋯" menüsünün komutları da menü açıldıktan sonra 0,4 sn.
+    onayın düğmeleri, arka planları ve alttaki komutlar); "⋯" menüsünün komutları da menü açıldıktan sonra 0,4 sn,
+    şerit de menü kapandıktan sonra 0,4 sn.
     Pencereler 0,25–0,35 sn'de belirip kaybolur ama dokunuşu hemen alır ya da hemen geçirir; böylece çift dokunuşun
     ikincisi kullanıcının henüz görmediği bir düğmeye (menüdeki "Uyut"un üstündeki onay düğmesine, uygulama
     satırlarının üstündeki "Kapat"a) basamaz. Kapalı panel ve onay `inert`tir: klavye ve VoiceOver da onlara ulaşmaz.

@@ -113,8 +113,10 @@
   });
 
   // ---- "⋯" menu: opens above its button.
-  /// When it last opened (`performance.now()`): controls.js ignores a tap on its commands that comes too soon after.
+  /// When it last opened and closed (`performance.now()`): controls.js ignores a tap on its commands that comes too
+  /// soon after it opened, and a tap on the strip that comes too soon after it closed.
   let menuOpenedAt = -Infinity;
+  let menuClosedAt = -Infinity;
 
   function openMenu() {
     const menu = $("menu");
@@ -127,6 +129,7 @@
   }
 
   function closeMenu() {
+    if (!$("menu").hidden) menuClosedAt = global.performance.now();
     $("menu").hidden = true;
     $("menu-backdrop").hidden = true;
   }
@@ -168,6 +171,9 @@
     setup, openGuide, closeMenu, hideStart, isStarted: () => started,
     get menuOpenedAt() {
       return menuOpenedAt;
+    },
+    get menuClosedAt() {
+      return menuClosedAt;
     },
   };
 })(typeof window !== "undefined" ? window : globalThis);

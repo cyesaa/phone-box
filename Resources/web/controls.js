@@ -55,9 +55,11 @@
       return Boolean(this.access && this.access.commands) && this.commands.canSend();
     }
 
-    /// True just after the panel or the confirmation opened or closed (`settleTaps`).
+    /// True just after the panel or the confirmation opened or closed, or the "⋯" menu closed (`settleTaps`): the
+    /// second tap of a double tap would land on something the user has not seen.
     calm() {
-      return global.performance.now() < this.calmUntil;
+      const now = global.performance.now();
+      return now < this.calmUntil || now - global.PhoneBox.ui.menuClosedAt < settleTaps;
     }
 
     render() {
@@ -250,9 +252,11 @@
           // So soon after the menu opened, this is the second tap of a double tap on "⋯": it closes nothing and sends
           // nothing.
           if (global.performance.now() - global.PhoneBox.ui.menuOpenedAt < settleTaps) return;
-          global.PhoneBox.ui.closeMenu();
           const name = item.dataset.command;
-          if (!this.ready(name)) return;
+          // Checked before the menu closes, which starts a calm period of its own.
+          const go = this.ready(name);
+          global.PhoneBox.ui.closeMenu();
+          if (!go) return;
           if (name === "sleep") {
             this.confirm(t.confirmSleepTitle, t.confirmSleepText, t.sleep, () => this.run(name, {}, done[name]));
           } else {
