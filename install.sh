@@ -147,6 +147,21 @@ install() {
   echo "    If macOS asks whether PhoneBox may accept incoming connections, allow it: that is how the iPhone reaches it."
 }
 
+# Takes the Claude Code hooks of the PhoneBox in $1 (an app bundle) out of ~/.claude/settings.json; quietly, and a
+# failure does not stop the uninstall. Only PhoneBox 0.3.0 and later know --remove-claude-hooks: an older one would
+# start the app instead (and never installed hooks), so it is not asked.
+remove_claude_hooks() {
+  local version major minor
+  version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$1/Contents/Info.plist" 2>/dev/null || true)"
+  major="${version%%.*}"
+  minor="${version#*.}"
+  minor="${minor%%.*}"
+  case "$major" in '' | *[!0-9]*) return 0 ;; esac
+  case "$minor" in '' | *[!0-9]*) return 0 ;; esac
+  if [ "$major" -eq 0 ] && [ "$minor" -lt 3 ]; then return 0; fi
+  "$1/Contents/MacOS/PhoneBox" --remove-claude-hooks >/dev/null 2>&1 || true
+}
+
 uninstall() {
   local removed=0 dir dirs
   # With PHONEBOX_DEST (a test install) only that copy goes; settings, the pairing key and permissions stay.
@@ -160,6 +175,8 @@ uninstall() {
   done
   for dir in "${dirs[@]}"; do
     [ -d "$dir/$APP" ] || continue
+    # A test install leaves the user's settings alone, these too.
+    [ -n "${PHONEBOX_DEST:-}" ] || remove_claude_hooks "$dir/$APP"
     rm -rf "${dir:?}/$APP"
     say "Removed $dir/$APP"
     removed=1
