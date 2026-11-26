@@ -24,7 +24,7 @@
       this.onConfirm = null;
       /// The app whose panel is open.
       this.app = null;
-      this.throttle =new global.PhoneBox.Throttle(250, (level) => this.run("volume", { level }, null));
+      this.throttle = new global.PhoneBox.Throttle(250, (level) => this.run("volume", { level }, null));
       this.wire();
       this.render();
     }
