@@ -3,7 +3,8 @@ import Foundation
 /// Messages from the Mac to the phone (design §5). Every message carries `"v":1`.
 public enum ServerMessage: Equatable, Sendable {
     case hello(nonce: String, app: String)
-    case ready(mode: AccessMode, host: String, powerLimits: PowerLimits, access: Access)
+    /// `build` names the dashboard's files (`WebBuild`); an empty one is left out.
+    case ready(mode: AccessMode, host: String, powerLimits: PowerLimits, access: Access, build: String = "")
     case access(Access)
     case snapshot(Snapshot)
     case ack(seq: Int, ok: Bool, error: String?)
@@ -28,8 +29,8 @@ public enum ServerMessage: Equatable, Sendable {
 
 extension ServerMessage: Encodable {
     private enum Keys: String, CodingKey {
-        case v, type, nonce, app, mode, host, limits, access, streaming, commands, cable, reason, t, cpu, mem, gpu, temp, power, net, disk,
-             battery, apps, media, audio, phone, seq, ok, error
+        case v, type, nonce, app, mode, host, limits, access, build, streaming, commands, cable, reason, t, cpu, mem, gpu, temp, power,
+             net, disk, battery, apps, media, audio, phone, seq, ok, error
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -40,12 +41,13 @@ extension ServerMessage: Encodable {
             try container.encode("hello", forKey: .type)
             try container.encode(nonce, forKey: .nonce)
             try container.encode(app, forKey: .app)
-        case let .ready(mode, host, powerLimits, access):
+        case let .ready(mode, host, powerLimits, access, build):
             try container.encode("ready", forKey: .type)
             try container.encode(mode, forKey: .mode)
             try container.encode(host, forKey: .host)
             try container.encode(powerLimits, forKey: .limits)
             try container.encode(access, forKey: .access)
+            if !build.isEmpty { try container.encode(build, forKey: .build) }
         case let .access(access):
             try container.encode("access", forKey: .type)
             try container.encode(access.streaming, forKey: .streaming)

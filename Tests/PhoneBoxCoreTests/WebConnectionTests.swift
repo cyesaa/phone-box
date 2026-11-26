@@ -58,6 +58,14 @@ struct WebConnectionTests {
 
     func string(_ code: String) -> String? { context.evaluateScript(code)?.toString() }
 
+    @Test func reloadsOnlyWhenALaterReadyNamesOtherFiles() {
+        #expect(string("""
+            var watch = new PhoneBox.BuildWatch();
+            [watch.changed("0123456789ab"), watch.changed("0123456789ab"), watch.changed(undefined), watch.changed(""),
+             watch.changed("ba9876543210")].join(",")
+            """) == "false,false,false,false,true")
+    }
+
     @Test func backsOffOneTwoFiveSecondsAndKeepsTheOfflineCardUp() {
         let result = string("""
             for (var i = 0; i < 5; i += 1) { var count = sockets.length; fail(last()); while (sockets.length === count) advance(100); }

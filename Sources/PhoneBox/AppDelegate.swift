@@ -29,9 +29,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
         // A Mac with a battery reports its whole power draw; a desktop Mac only the GPU's.
         let powerLimits = PowerLimits.forChip(Settings.chipName(), wholeMac: BatteryCollector.hasInternalBattery())
-        hub = DashboardHub(mode: settings.mode, key: key, appName: "PhoneBox \(version)", hostName: Settings.computerName(),
-                           powerLimits: powerLimits, commands: commandRunner)
         let webDirectory = Bundle.main.resourceURL!.appendingPathComponent("web", isDirectory: true)
+        hub = DashboardHub(mode: settings.mode, key: key, appName: "PhoneBox \(version)", hostName: Settings.computerName(),
+                           powerLimits: powerLimits, build: Self.webBuild(webDirectory), commands: commandRunner)
         server = DashboardServer(webDirectory: webDirectory, hub: hub)
         menuBar = MenuBarController(mode: settings.mode, port: settings.port, updates: updates)
 
@@ -83,6 +83,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Stops the sampler and with it the media adapter's child process, which would otherwise outlive the app
         // until its next write.
         sampler.setRunning(false)
+    }
+
+    /// The name of the dashboard files in `directory` (`WebBuild`): an update changes it, and a page left open reloads.
+    private static func webBuild(_ directory: URL) -> String {
+        var files: [String: Data] = [:]
+        let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey])
+        while let url = enumerator?.nextObject() as? URL {
+            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true,
+                  let data = try? Data(contentsOf: url)
+            else { continue }
+            files[String(url.path.dropFirst(directory.path.count))] = data
+        }
+        return WebBuild.fingerprint(files)
     }
 
     private func showQR() {

@@ -14,6 +14,13 @@ struct ServerMessageTests {
             == #"{"access":{"cable":false,"commands":false,"reason":"not-on-cable","streaming":false},"host":"Eren's MacBook Pro","limits":{"power":[15,35.5]},"mode":"cable","type":"ready","v":1}"#)
     }
 
+    @Test func readyNamesTheDashboardsFilesWhenItKnowsThem() {
+        let ready = ServerMessage.ready(mode: .always, host: "Mac", powerLimits: PowerLimits(start: 15, full: 35),
+                                        access: .overWiFi, build: "0123456789ab")
+        #expect(ready.json()
+            == #"{"access":{"cable":false,"commands":false,"reason":"ok","streaming":true},"build":"0123456789ab","host":"Mac","limits":{"power":[15,35]},"mode":"always","type":"ready","v":1}"#)
+    }
+
     @Test func encodesAccessFlat() {
         #expect(ServerMessage.access(.onCable).json()
             == #"{"cable":true,"commands":true,"reason":"ok","streaming":true,"type":"access","v":1}"#)

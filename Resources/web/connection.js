@@ -258,7 +258,26 @@
     }
   }
 
+  /// Remembers which PhoneBox files the page runs (the `build` of its first `ready`). A later `ready` that names
+  /// other files means PhoneBox was updated while the page stayed open: the page has to load the new ones.
+  class BuildWatch {
+    constructor() {
+      this.build = null;
+    }
+
+    /// True when the page should reload. A `ready` without a build (an older Mac side) changes nothing.
+    changed(build) {
+      if (typeof build !== "string" || build === "") return false;
+      if (this.build === null) {
+        this.build = build;
+        return false;
+      }
+      return build !== this.build;
+    }
+  }
+
   global.PhoneBox = global.PhoneBox || {};
   global.PhoneBox.readKey = readKey;
   global.PhoneBox.Connection = Connection;
+  global.PhoneBox.BuildWatch = BuildWatch;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -9,6 +9,7 @@
   const view = new PB.View(t, format);
   // 60 s on screen, plus 3 s that scroll out past the left edge (the graph runs a second or two behind the Mac).
   const history = new PB.History(63);
+  const builds = new PB.BuildWatch();
   const selectedKey = "phonebox-metric";
 
   global.document.documentElement.lang = language;
@@ -63,6 +64,11 @@
     },
     onStale: (stale) => view.setStale(stale),
     onReady: (ready) => {
+      // PhoneBox was updated while this page stayed open: load its new files (the page then asks for "Start" again).
+      if (builds.changed(ready.build)) {
+        global.location.reload();
+        return;
+      }
       view.setHost(ready.host);
       view.setLimits(ready.limits && ready.limits.power);
     },
