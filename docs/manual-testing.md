@@ -235,3 +235,21 @@ Mac'te:
   kilitlendi; menüye tıklamak ekran ister). Yeni sayfanın PhoneBox güncellenince kendini yenilemesi telefonda
   denenemedi (iPhone Yansıtma kilitli Mac'te çalışmıyor); mantığı JavaScriptCore testinde, `ready`'deki ad hub
   testinde doğrulandı.
+
+### 2026-11-26 — 0.1.1 güncellemesi (yayın v0.1.1), MacBook Pro M4 / macOS 27.2, iPhone iOS 27
+
+- Geçti: menüden "Güncellemeleri denetle…" 0.1.1'i buldu, "Yükle" kurulum betiğini çalıştırdı, PhoneBox kapanıp
+  `/Applications`'tan 0.1.1 olarak açıldı; telefon 2 sn sonra yeniden bağlandı, sayfa kendini yenileyip "Başlat"ı
+  istedi (kullanıcı). Girişte başlat `/Applications/PhoneBox.app`'i göstermeye devam etti.
+- Geçti: kurulum betiği deneme klasörüne (`/tmp` kısayolu ve sondaki `/` ile) kurarken yalnızca oradan çalışan sahte bir
+  PhoneBox sürecini kapattı, `/Applications`'takine dokunmadı.
+
+### 2026-11-26 — 0.2.0 adayı (main 79f5c16), MacBook Pro M4 / macOS 27.2, iPhone iOS 27
+
+- Geçti: "Wi-Fi'den Kilit ve Müzik" açıldı (ayar kaydedildi); telefon kablodan çıkınca Wi-Fi'den (en0) bağlandı ve
+  müzik komutları Mac'te çalıştı (kayıtta "Running media"); kullanıcı ses, sessiz, Ekranı kapat, Uyut ve uygulama
+  kapatmanın soluk kaldığını ve hepsinin beklendiği gibi çalıştığını söyledi.
+- Görülmedi: Wi-Fi'den Kilitle (kayıtta yok; kullanıcı "hepsi çalışıyor" dedi) ve 30 sn içinde ikinci Kilitle.
+- Bulunan ve düzeltilen: Ana Ekran uygulamasında telefon yan çevrilince sayfa ekranın altına uzanmıyordu (altta dikey
+  durum çubuğu kadar boş şerit, Pro Max). `screen.js` tam ekran katmanlara ekranın yüksekliğini verdi (19c7bc3);
+  telefon birkaç kez çevrildikten sonra sayfa ekranı dolduruyor (kullanıcı).
