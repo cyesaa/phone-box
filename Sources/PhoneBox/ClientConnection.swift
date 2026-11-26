@@ -175,8 +175,10 @@ final class ClientConnection {
     private func fileResponse(path: String, range: String?) -> Data {
         let name = path == "/" ? "index.html" : String(path.dropFirst())
         guard !name.isEmpty, !name.contains("/"), !name.hasPrefix("."),
-              let body = try? Data(contentsOf: webDirectory.appendingPathComponent(name))
+              let file = try? Data(contentsOf: webDirectory.appendingPathComponent(name))
         else { return HTTPResponse.notFound }
+        // The page reads the build it was served with from index.html (design §5).
+        let body = name == "index.html" ? WebBuild.stamp(file, build: hub?.build ?? "") : file
         return HTTPResponse.file(body, name: name, range: range)
     }
 

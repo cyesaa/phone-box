@@ -52,8 +52,8 @@ final class DashboardHub {
     private let hostName: String
     /// Where the page's power tile turns red, for this Mac's chip.
     private let powerLimits: PowerLimits
-    /// The dashboard files' name (`WebBuild`), sent in `ready`.
-    private let build: String
+    /// The dashboard files' name (`WebBuild`), sent in `ready` and stamped into the index.html that is served.
+    let build: String
     private let commands: any CommandRunning
     private let usbInterfaces: () -> Set<String>
     private var clients: [ObjectIdentifier: Client] = [:]

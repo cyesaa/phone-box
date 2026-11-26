@@ -14,4 +14,19 @@ public enum WebBuild {
         }
         return hasher.finalize().prefix(6).map { String(format: "%02x", $0) }.joined()
     }
+
+    /// The tag in index.html that carries the build. It is empty in the files on disk, which the fingerprint is taken
+    /// from; the build goes in only as index.html is served.
+    public static let emptyTag = #"<meta name="phonebox-build" content="">"#
+
+    /// index.html as it is served: the empty tag carries `build`, so the page knows which files it runs even before
+    /// its first `ready`. Only a build of 12 lowercase hex digits is stamped; anything else leaves the HTML as it is.
+    public static func stamp(_ html: Data, build: String) -> Data {
+        guard build.count == 12, build.allSatisfy({ "0123456789abcdef".contains($0) }),
+              let range = html.range(of: Data(emptyTag.utf8))
+        else { return html }
+        var stamped = html
+        stamped.replaceSubrange(range, with: Data(#"<meta name="phonebox-build" content="\#(build)">"#.utf8))
+        return stamped
+    }
 }

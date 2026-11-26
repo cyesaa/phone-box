@@ -258,11 +258,13 @@
     }
   }
 
-  /// Remembers which PhoneBox files the page runs (the `build` of its first `ready`). A later `ready` that names
-  /// other files means PhoneBox was updated while the page stayed open: the page has to load the new ones.
+  /// Remembers which PhoneBox files the page runs: the build the Mac stamped into index.html, else the `build` of the
+  /// first `ready`. A `ready` that names other files means PhoneBox was updated while the page stayed open, or between
+  /// serving the page and its first `ready`: the page has to load the new ones.
   class BuildWatch {
-    constructor() {
-      this.build = null;
+    /// `own`: the build from index.html; empty or missing when the Mac did not stamp one.
+    constructor(own) {
+      this.build = typeof own === "string" && own !== "" ? own : null;
     }
 
     /// True when the page should reload. A `ready` without a build (an older Mac side) changes nothing.

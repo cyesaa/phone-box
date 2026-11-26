@@ -66,6 +66,23 @@ struct WebConnectionTests {
             """) == "false,false,false,false,true")
     }
 
+    @Test func aPageThatKnowsItsBuildReloadsOnTheFirstReadyThatNamesOthers() {
+        #expect(string("""
+            var same = new PhoneBox.BuildWatch("0123456789ab"), other = new PhoneBox.BuildWatch("0123456789ab");
+            [same.changed("0123456789ab"), same.changed("0123456789ab"), same.changed(undefined),
+             other.changed("ba9876543210")].join(",")
+            """) == "false,false,false,true")
+    }
+
+    @Test func aPageWithoutItsBuildGoesByTheFirstReady() {
+        #expect(string("""
+            var empty = new PhoneBox.BuildWatch(""), missing = new PhoneBox.BuildWatch(null),
+                none = new PhoneBox.BuildWatch();
+            [empty.changed("0123456789ab"), empty.changed("ba9876543210"), missing.changed("0123456789ab"),
+             missing.changed("0123456789ab"), none.changed("0123456789ab"), none.changed("ba9876543210")].join(",")
+            """) == "false,true,false,false,false,true")
+    }
+
     @Test func backsOffOneTwoFiveSecondsAndKeepsTheOfflineCardUp() {
         let result = string("""
             for (var i = 0; i < 5; i += 1) { var count = sockets.length; fail(last()); while (sockets.length === count) advance(100); }

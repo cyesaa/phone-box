@@ -9,7 +9,8 @@
   const view = new PB.View(t, format);
   // 60 s on screen, plus 3 s that scroll out past the left edge (the graph runs a second or two behind the Mac).
   const history = new PB.History(63);
-  const builds = new PB.BuildWatch();
+  const buildTag = global.document.querySelector('meta[name="phonebox-build"]');
+  const builds = new PB.BuildWatch(buildTag && buildTag.getAttribute("content"));
   const selectedKey = "phonebox-metric";
 
   global.document.documentElement.lang = language;
