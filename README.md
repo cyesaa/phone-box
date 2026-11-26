@@ -57,6 +57,7 @@ kendiliğinden açılması için isteğe bağlı bir Kestirmeler otomasyonu da o
 | Durum satırı | "iPhone bağlı · 1 cihaz", "Telefon Wi-Fi'de: kabloyu tak" gibi |
 | QR kodunu göster… | Eşleştirme bağlantısı; başka bir telefonu eklemek için |
 | Veri gönder | **Sadece kablo takılıyken** (varsayılan) ya da **Her zaman, Wi-Fi'de de** |
+| Wi-Fi'den Kilit ve Müzik | Yalnız "Her zaman" modunda: Wi-Fi'deki telefon da Mac'i kilitleyebilir ve müziği oynatıp duraklatabilir, değiştirebilir (varsayılan kapalı; açarken sorar) |
 | Port: 4747… | Dashboard'un portu; değiştirince yeni QR kodu okutulur, sayfa Ana Ekrana yeniden eklenir, eski simge silinir |
 | Girişte başlat | Mac açılınca PhoneBox da açılır |
 | Eşleştirmeyi sıfırla… | Yeni anahtar: eşleşmiş bütün telefonların bağlantısı kesilir |
@@ -66,8 +67,10 @@ kendiliğinden açılması için isteğe bağlı bir Kestirmeler otomasyonu da o
 
 - Eşleştirme anahtarı QR kodundaki bağlantının `#` sonrasında durur ve hiçbir zaman sunucuya gönderilmez. Telefon
   her bağlantıda bu anahtarla kimliğini kanıtlar; her komut da bu anahtarla imzalanır.
-- Komutlar (uygulama kapatma, medya, ses, kilitleme, uyutma) **yalnızca kablodan** kabul edilir; Wi-Fi'deki bir
-  telefon sadece izler.
+- Komutlar (uygulama kapatma, medya, ses, kilitleme, uyutma) **kablodan** kabul edilir; Wi-Fi'deki bir telefon
+  sadece izler. Menüden **Wi-Fi'den Kilit ve Müzik**'i açarsan Wi-Fi'deki telefon Mac'i kilitleyebilir ve müziği
+  oynatıp duraklatabilir, değiştirebilir. O zaman aynı Wi-Fi ağını ele geçiren biri de aynısını yapabilir: ekranı
+  kilitler ya da şarkı atlatır. Ses, ekranı kapatma, uygulama kapatma ve uyutma yine yalnızca kablodan çalışır.
 - Sayfa düz HTTP ile sunulur. "Her zaman" modunda aynı Wi-Fi'deki biri CPU değerlerini ve uygulama adlarını görebilir;
   bu yüzden varsayılan mod "sadece kablo takılıyken"dir.
 - PhoneBox internete yalnızca güncellemeleri denetlemek için çıkar (GitHub, günde iki kez). Kapatmak için:
@@ -94,8 +97,8 @@ Uygulamayı, ayarlarını, eşleştirme anahtarını ve kayıtlarını siler. Te
 - **QR kodu okuttum ama sayfa açılmıyor:** iPhone ile Mac aynı ağda olmalı ya da iPhone kabloyla takılı olmalı.
   macOS PhoneBox'ın gelen bağlantıları kabul etmesini sorduysa izin ver (Sistem Ayarları → Ağ → Güvenlik Duvarı).
 - **"Port 4747 kullanımda":** menüden başka bir port seç, yeni QR kodunu okut, sayfayı Ana Ekrana yeniden ekle ve eski simgeyi sil (eski simge eski portu açar).
-- **Müzik, ses ya da uygulama komutları çalışmıyor:** komutlar yalnızca kablodan çalışır; kablonun takılı olduğuna
-  bak.
+- **Müzik, ses ya da uygulama komutları çalışmıyor:** komutlar kablodan çalışır; kablonun takılı olduğuna bak.
+  Wi-Fi'de yalnız kilit ve müzik çalışabilir, o da menüde "Wi-Fi'den Kilit ve Müzik" açıksa.
 - **Ekran kararıyor:** dashboard'u açtıktan sonra "Başlat"a dokun. Olmazsa Ayarlar → Ekran ve Parlaklık → Otomatik
   Kilit'i "Asla" yap.
 - **Telefonu yan çevirince sayfa dönmüyor:** iPhone'da Dikey Yön Kilidi açık. Denetim Merkezi'ni aç (sağ üst köşeden
@@ -183,6 +186,7 @@ automation that opens the dashboard when the cable is plugged in.
 | Status line | e.g. "iPhone connected · 1", "Phone on Wi-Fi: plug in the cable" |
 | Show QR Code… | The pairing link, to add another phone |
 | Send data | **Only While the Cable Is Plugged In** (default) or **Always, Also over Wi-Fi** |
+| Lock and Music over Wi-Fi | Only in "Always" mode: a phone on Wi-Fi can also lock the Mac and play, pause or skip music (off by default; asks first) |
 | Port: 4747… | The dashboard's port; after a change scan the new QR code, add the page to the Home Screen again and delete the old icon |
 | Open at Login | PhoneBox starts with the Mac |
 | Reset Pairing… | A new key: every paired phone is disconnected |
@@ -192,8 +196,10 @@ automation that opens the dashboard when the cable is plugged in.
 
 - The pairing key sits after the `#` of the QR code's link and is never sent to a server. The phone proves itself with
   it on every connection, and every command is signed with it.
-- Commands (quitting apps, media, volume, lock, sleep) are accepted **only over the cable**; a phone on Wi-Fi only
-  watches.
+- Commands (quitting apps, media, volume, lock, sleep) are accepted **over the cable**; a phone on Wi-Fi only
+  watches, unless you turn on **Lock and Music over Wi-Fi** in the menu: then it can also lock the Mac and play, pause
+  or skip music. So could someone who takes over the same Wi-Fi network: lock the screen or skip a song. Volume,
+  display off, quitting apps and sleep still work only over the cable.
 - The page is served over plain HTTP. In "Always" mode someone on the same Wi-Fi could see the CPU figures and app
   names, which is why the default is "only while the cable is plugged in".
 - PhoneBox goes online only to check for updates (GitHub, twice a day). To turn that off:
@@ -220,7 +226,8 @@ This removes the app, its settings, the pairing key and its logs. Delete the Hom
 - **The QR code opens nothing:** the iPhone has to be on the Mac's network or plugged into it. If macOS asked whether
   PhoneBox may accept incoming connections, allow it (System Settings → Network → Firewall).
 - **"Port 4747 is in use":** choose another port in the menu, scan the new QR code, add the page to the Home Screen again and delete the old icon (the old one opens the old port).
-- **Music, volume or app commands do nothing:** commands work only over the cable; check that it is plugged in.
+- **Music, volume or app commands do nothing:** commands work over the cable; check that it is plugged in. On Wi-Fi
+  only lock and music can work, and only with "Lock and Music over Wi-Fi" on in the menu.
 - **The screen goes dark:** tap "Start" after opening the dashboard. If it still does, set Settings → Display &
   Brightness → Auto-Lock to "Never".
 - **The page doesn't turn when you turn the phone sideways:** Portrait Orientation Lock is on. Open Control Center

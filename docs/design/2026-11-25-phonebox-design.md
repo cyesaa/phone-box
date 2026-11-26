@@ -91,7 +91,7 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 | Sampler | Saniyede bir collector'ları çağırıp `Snapshot` üretir; sadece izinli bir istemci varken çalışır | `start()`, `stop()`, `onSnapshot` | Collectors, Core hesapları |
 | USBWatcher | `/var/run/usbmuxd` soketini dinler; iPhone takıldı/çıktı olayları (QR penceresini açmak için) | `isIPhoneAttached`, `onChange`, `isAvailable` | usbmuxd |
 | USBLinks | Hangi ağ arayüzlerinin iPhone'un USB NCM bağlantısı olduğunu bilir (`AppleUSBNCM*` üzerindeki `anri*`/`en*`); arayüz adı ve numarası takıştan takışa değişir | `isUSB(interfaceName) -> Bool`, `onChange` | IOKit, `getifaddrs` |
-| AccessPolicy | Veri akışı ve komut iznine karar verir | `decide(mode, clientOnUSB, authenticated) -> Access` | Saf (Core) |
+| AccessPolicy | Veri akışı ve komut iznine karar verir | `decide(mode, lockAndMusicOverWiFi, clientOnUSB, authenticated) -> Access` | Saf (Core) |
 | Pairing | 32 baytlık anahtarı üretir ve `~/Library/Application Support/PhoneBox/pairing-key` dosyasında (`0600`, klasör `0700`) saklar, sıfırlar; kişisel bağlantıyı kurar. Keychain değil: ad-hoc imzalı uygulama her güncellemeden sonra Anahtar Zinciri şifresi sorardı | `loadOrCreate() -> (key, created)`, `reset()` | Dosya |
 | Server | Tek portta dosyaları (Range destekli) ve `/ws` WebSocket'ini sunar; kimlik doğrulama; en fazla 4 istemci; her istemcinin hangi arayüzden geldiğini kaydeder | `start(port)`, `broadcast`, `onCommand` | Network.framework, CryptoKit, Core protokolü |
 | CommandRunner | Komutları çalıştırır, sonuç döner | `run(Command) -> CommandResult` | AppKit, CoreAudio, mediaremote-adapter, pmset |
@@ -123,8 +123,8 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 |---|---|---|
 | Mac → telefon | `{"type":"hello","nonce":"<32 hex>","app":"PhoneBox 0.1.0"}` | Bağlantıya özgü rastgele sayı |
 | telefon → Mac | `{"type":"auth","mac":"<HMAC-SHA256(k, "auth:"+nonce) hex>"}` | Yanlışsa bağlantı 4001 ile kapanır (sayfa durur, "Eşleşmedi"); 5 sn içinde gelmezse 4003 ile kapanır (sayfa yeniden dener; telefon kilitliyken açılan bir bağlantı böyle kapanabilir) |
-| Mac → telefon | `{"type":"ready","mode":"cable"\|"always","host":"<Mac'in adı>","limits":{"power":[15,35]},"access":{"streaming":bool,"commands":bool,"cable":bool,"reason":"…"},"build":"<12 hex>"}` | Kimlik doğrulandı; `host` bilgisayarın adı ("⋯" menüsünün başlığında görünür); `limits.power` güç kutusunun kızarmaya başladığı ve kıpkırmızı olduğu watt (bölüm 8, Mac çipine göre seçer); `access` alanı bir alttaki `access` mesajıyla aynı; `build` sayfa dosyalarının adı (`WebBuild`: yolların, boyların ve içeriklerin SHA-256'sının ilk 12 hanesi). Sayfa ilk `ready`'deki adı hatırlar; sonraki bir `ready` başka ad getirirse (PhoneBox güncellendi) kendini yeniden yükler ve "Başlat" yeniden ister. Sayfa kendi adını index.html'den de alır (Mac sunarken `<meta name="phonebox-build">` etiketine damgalar), böylece daha ilk `ready` başka ad getirse de yeniden yüklenir |
-| Mac → telefon | `{"type":"access","streaming":bool,"commands":bool,"cable":bool,"reason":"ok"\|"not-on-cable"}` | Erişim değiştiğinde; `cable` bu bağlantının USB'den gelip gelmediği ("kablo" / "Wi-Fi") |
+| Mac → telefon | `{"type":"ready","mode":"cable"\|"always","host":"<Mac'in adı>","limits":{"power":[15,35]},"access":{"streaming":bool,"commands":["…"],"cable":bool,"reason":"…"},"build":"<12 hex>"}` | Kimlik doğrulandı; `host` bilgisayarın adı ("⋯" menüsünün başlığında görünür); `limits.power` güç kutusunun kızarmaya başladığı ve kıpkırmızı olduğu watt (bölüm 8, Mac çipine göre seçer); `access` alanı bir alttaki `access` mesajıyla aynı; `build` sayfa dosyalarının adı (`WebBuild`: yolların, boyların ve içeriklerin SHA-256'sının ilk 12 hanesi). Sayfa ilk `ready`'deki adı hatırlar; sonraki bir `ready` başka ad getirirse (PhoneBox güncellendi) kendini yeniden yükler ve "Başlat" yeniden ister. Sayfa kendi adını index.html'den de alır (Mac sunarken `<meta name="phonebox-build">` etiketine damgalar), böylece daha ilk `ready` başka ad getirse de yeniden yüklenir |
+| Mac → telefon | `{"type":"access","streaming":bool,"commands":["…"],"cable":bool,"reason":"ok"\|"not-on-cable"}` | Erişim değiştiğinde; `commands` telefonun gönderebileceği komutların adları (bölüm 7): kablodan hepsi, Wi-Fi'den "Wi-Fi'den Kilit ve Müzik" açıkken `["media","lock"]`, değilse `[]` (aşağıda AccessPolicy); `cable` bu bağlantının USB'den gelip gelmediği ("kablo" / "Wi-Fi") |
 | Mac → telefon | `{"type":"snapshot","t":<ms>, ...}` | Saniyede bir (bölüm 6) |
 | telefon → Mac | `{"type":"cmd","seq":n,"name":"…","args":"<JSON metni>","mac":"<HMAC(k, "cmd:"+nonce+":"+seq+":"+name+":"+args) hex>"}` | `args` bir metin; imza tam bu metin üzerinden atılır, sonra çözülür |
 | Mac → telefon | `{"type":"ack","seq":n,"ok":true}` / `{"ok":false,"error":"not-allowed"\|"app-changed"\|"unsupported"\|"failed"}` | Her komuta cevap |
@@ -132,26 +132,35 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 Kurallar:
 - `seq` her bağlantıda kesin olarak artmalı; artmayan `seq` reddedilir (tekrar saldırısı).
 - `v` tam olarak tamsayı `1`, `seq` pozitif bir JSON tamsayısı olmalı (`true`, `1.0`, negatif sayı geçersiz); `name`
-  bölüm 7'deki adlardan biri olmalı ve `args` o komutun biçimine uymalı. İmzası doğru ama bilinmeyen ad ya da biçim
-  `ack` ile `unsupported` döner; bozuk JSON ve tip hataları bağlantıyı kapatır (1008).
+  bağlantının `access.commands` listesinde olmalı ve `args` o komutun biçimine uymalı. İmzası doğru ama listede
+  olmayan ad (bilinmeyen ad da) `ack` ile `not-allowed`, listedeki adın bozuk biçimi `unsupported` döner; bozuk JSON
+  ve tip hataları bağlantıyı kapatır (1008).
 - WebSocket yükseltmesinde `Origin` başlığı varsa `http://` + `Host` başlığıyla aynı olmalı; değilse 403 (başka bir
   sitenin sayfası tarayıcı üzerinden bağlanamaz).
 - Saniyede 10'dan fazla komut, bozuk JSON ya da yanlış imza → bağlantı kapanır.
-- Anahtar ağ üzerinden hiç gitmez. Metrikler şifresiz akar; aynı ağdakiler görebilir ama komut gönderemez.
-  Bu açık bilerek kabul edilmiştir.
+- Anahtar ağ üzerinden hiç gitmez. Metrikler şifresiz akar; aynı ağdakiler görebilir ama anahtar olmadan komut
+  gönderemez. Bu açık bilerek kabul edilmiştir.
 
 ### AccessPolicy
 
-| Mod | İstemcinin bağlantısı | Veri | Komut |
-|---|---|---|---|
-| Kablo takılıyken (varsayılan) | Yerel ucu, iPhone USB arayüzündeki kapsamlı bir IPv6 link-local adres (`fe80::…%anri1`/`%en8`); IPv4 hiçbir zaman sayılmaz | İzinli | İzinli |
-| Kablo takılıyken | Wi-Fi ya da başka bir arayüzden | Kapalı, `reason: not-on-cable` | Kapalı |
-| Her zaman | Kablodan | İzinli | İzinli |
-| Her zaman | Wi-Fi ya da başka bir arayüzden | İzinli | **Kapalı** (`commands: false`) |
+`AccessPolicy.decide(mode, lockAndMusicOverWiFi, clientOnUSB, authenticated)`; `lockAndMusicOverWiFi` menüdeki
+"Wi-Fi'den Kilit ve Müzik" ayarıdır (varsayılan kapalı).
 
-Komutlar her iki modda da yalnızca kablodan gelen istemcilere açıktır (kullanıcı kararı, 2026-11-25): sayfa düz
-HTTP ile sunulduğu için aynı ağdaki aktif bir saldırgan sahte sayfa sunup anahtarı ele geçirebilir; kablo ise sadece
-Mac'e takılı ve ona güvenen iPhone'dan gelebilir. Wi-Fi'deki telefon verileri görür, komut düğmeleri kapalı görünür.
+| Mod | İstemcinin bağlantısı | Veri | Komut (`commands`) |
+|---|---|---|---|
+| Kablo takılıyken (varsayılan) | Yerel ucu, iPhone USB arayüzündeki kapsamlı bir IPv6 link-local adres (`fe80::…%anri1`/`%en8`); IPv4 hiçbir zaman sayılmaz | İzinli | Hepsi |
+| Kablo takılıyken | Wi-Fi ya da başka bir arayüzden | Kapalı, `reason: not-on-cable` | Kapalı (`[]`), ayar ne olursa olsun |
+| Her zaman | Kablodan | İzinli | Hepsi |
+| Her zaman | Wi-Fi ya da başka bir arayüzden | İzinli | Ayar kapalıyken **kapalı** (`[]`); açıkken yalnız kilit ve medya (`["media","lock"]`) |
+
+Komutlar her iki modda da kablodan gelen istemcilere açıktır, Wi-Fi'den gelenlere kapalıdır (kullanıcı kararı,
+2026-11-25): sayfa düz HTTP ile sunulduğu için aynı ağdaki aktif bir saldırgan sahte sayfa sunup anahtarı ele
+geçirebilir; kablo ise sadece Mac'e takılı ve ona güvenen iPhone'dan gelebilir. Tek istisna "Wi-Fi'den Kilit ve
+Müzik" ayarıdır (kullanıcı kararı, 2026-11-26, 0.2.0): açıkken "Her zaman" modunda Wi-Fi'deki telefon Mac'i
+kilitleyebilir ve müziği oynatıp duraklatabilir, sonrakine ya da öncekine geçebilir. Risk bilerek kabul edildi: anahtarı
+ele geçiren biri en kötü ihtimalle ekranı kilitler ya da şarkı atlatır; ses, sessiz, ekranı kapatma, uygulama kapatma
+ve uyutma yine yalnız kablodan gelir. Wi-Fi'deki telefon verileri görür; izinli olmayan komutların düğmeleri soluk
+görünür.
 
 Kimlik doğrulamamış bir bağlantı hiçbir durumda veri almaz. USB bağlantısı yalnızca bu Mac'e kabloyla takılı ve
 Mac'e güvenen bir iPhone'dan gelebilir; bu yüzden kablo modu gerçekten "kabloyla bağlı telefon" demektir.
@@ -159,7 +168,9 @@ Erişim kapanınca bağlantı açık kalır. Kablo çıkınca USB üzerindeki ba
 bağlanırsa kablo modunda "Kabloyu tak" görür. Bir iPhone takılınca (her iki modda) sunucu Wi-Fi'deki kimliği
 doğrulanmış istemcileri 4002 koduyla kapatır; sayfa hemen yeniden bağlanır ve takılı telefon bu sefer USB üzerinden
 gelir (iOS'un kablo varken USB adresini seçtiği spike'ta görüldü; Wi-Fi açıkken bu sıralama elle testte doğrulanır).
-"Her zaman" modunda komutlar ancak böyle açılır; takılı olmayan başka bir cihaz bir kez yeniden bağlanır.
+"Her zaman" modunda bütün komutlar ancak böyle açılır; takılı olmayan başka bir cihaz bir kez yeniden bağlanır.
+Mod ya da "Wi-Fi'den Kilit ve Müzik" değişince kimliği doğrulanmış her istemcinin erişimi yeniden hesaplanır; erişimi
+değişene `access` gönderilir.
 
 ### Yeniden bağlanma
 
@@ -214,6 +225,10 @@ Okunamayan değer JSON'a hiç yazılmaz (alan yok); dashboard "—" gösterir.
 | `sleep` | `{}` | `pmset sleepnow` | Evet |
 
 - Onay sütunu kullanıcı kararıdır (2026-11-25): sadece geri alınamayan "Zorla kapat" ve "Uyut" onay ister.
+- Kablodan bütün komutlar gelir. Wi-Fi'den yalnız `media` ve `lock` gelebilir, o da "Her zaman" modunda "Wi-Fi'den
+  Kilit ve Müzik" açıkken (kullanıcı kararı, 2026-11-26; bölüm 5): ikisi zararsızdır, sahte sayfayla anahtarı alan
+  biri ekranı kilitler ya da şarkı atlatır, o kadar. Ses ve sessiz, ekranı kapatma, uygulama kapatma (normal ve zorla)
+  ve uyutma yine yalnız kablodan gelir. Adlar tek yerde durur (`Command.allNames`, `Command.wifiNames`).
 - `quitApp` sadece `activationPolicy == .regular` olan uygulamalarda çalışır; Finder ve PhoneBox hariçtir (uygulama
   listesindeki `quittable` da aynı kuralla hesaplanır). Telefonun listesi 10 sn'ye kadar eski olabilir ve aynı paketin
   örnekleri tek satırdır; bu yüzden telefon `pid` göndermez: Mac uygulamayı `bundleId` ile bulur ve kapatılabilir
@@ -287,7 +302,7 @@ ekran yüksekliğine göre ayarlanır, iPhone SE'den Pro Max'e kadar her şey ka
     klavyesine ya da trackpad'ine dokunarak uyandırılacağını, sonra dashboard'un kendiliğinden bağlanacağını söyler.
   - Komuttan sonra üstte 2 sn bildirim. Başarıda yeşil tik yalnız uygulama ve "⋯" komutlarında ("Code kapatıldı",
     "Mac kilitlendi"); medya, ses ve sessizde başarı zaten ekranda görünür, bildirim çıkmaz. Hatada her zaman kırmızı
-    ve sebep (`not-allowed` → "Komutlar sadece kabloyla çalışır", `app-changed` → "Uygulama değişmiş, liste
+    ve sebep (`not-allowed` → "Bu komut sadece kabloyla çalışır", `app-changed` → "Uygulama değişmiş, liste
     yenilendi", `unsupported` → ses komutlarında "Bu çıkışta ses kontrolü yok", diğerlerinde "Bu komut
     desteklenmiyor", `failed` ya da 5 sn içinde cevap gelmemesi → "Olmadı").
   - Komutlar numaralanır (`seq` sayfa açık kaldıkça hep artar) ve imzalanır; cevap (`ack`) numarasıyla eşlenir
@@ -299,10 +314,14 @@ ekran yüksekliğine göre ayarlanır, iPhone SE'den Pro Max'e kadar her şey ka
     Pencereler 0,25–0,35 sn'de belirip kaybolur ama dokunuşu hemen alır ya da hemen geçirir; böylece çift dokunuşun
     ikincisi kullanıcının henüz görmediği bir düğmeye (menüdeki "Uyut"un üstündeki onay düğmesine, uygulama
     satırlarının üstündeki "Kapat"a) basamaz. Kapalı panel ve onay `inert`tir: klavye ve VoiceOver da onlara ulaşmaz.
-  - `access.commands` false iken (Wi-Fi) şerit, panel düğmeleri ve menüdeki komutlar soluk; dokununca "Komutlar
-    sadece kabloyla çalışır".
+  - Her kontrol kendi komutuna bakar: komutu `access.commands` listesindeyse ve bağlantı komut gönderebiliyorsa
+    çalışır. Medya düğmeleri `media`, ses kaydırıcısı `volume`, sessiz `mute`, panelin "Kapat" ve "Zorla kapat"ı
+    `quitApp`, "⋯" menüsünün Kilitle, Ekranı kapat ve Uyut'u `lock`, `displaySleep`, `sleep`. İzinli olmayan kontrol
+    soluk; dokununca hiçbir şey gönderilmez, "Bu komut sadece kabloyla çalışır" der (`not-allowed` cevabı da aynısını
+    söyler). Kabloda hepsi açık; Wi-Fi'de ayar kapalıyken hepsi, açıkken medya düğmeleri ve Kilitle dışındakiler soluk.
 - **Bağlantı göstergesi:** saat başlığında telefonun pilinin yanında renkli nokta: yeşil kabloda, turuncu Wi-Fi'de
-  (yanında "Wi-Fi" yazar, komutlar kapalı), gri bağlanıyor. Mac'in adı (`ready.host`) "⋯" menüsünün başlığındadır.
+  (yanında "Wi-Fi" yazar; komutlardan en çok kilit ve müzik açık), gri bağlanıyor. Mac'in adı (`ready.host`) "⋯"
+  menüsünün başlığındadır.
 - **Durumlar:** veri gelmezse değerler donar ve soluklaşır, ortada küçük bir kart çıkar: "Kabloyu tak" (kablo
   modunda telefon Wi-Fi'de) · "Mac'e ulaşılamıyor" (arka planda yeniden dener) · "Eşleşmedi" ("Mac'teki QR kodunu
   okut, açılan sayfayı yeniden Ana Ekrana Ekle, eski simgeyi sil"). Okunamayan metrik "—".
@@ -452,7 +471,7 @@ parçaları JavaScriptCore'da doğrudan çalıştırabilir. İki yön için tek 
 | `chart.js` | grafik ölçeği (saf) ve her karede `<canvas>` çizimi (kızarma, sınır çizgisi, nabız) | ölçek JavaScriptCore'da, çizim gözle |
 | `connection.js` | bağlantı, eşleşme, yeniden bağlanma (bugünkü `app.js`'ten) | gözle / telefonda |
 | `commands.js` | komut imzası, `seq`, cevap eşleme, 5 sn zaman aşımı, saniyede en çok 9 komut, ses kaydırıcısının hız sınırı | imza (Swift'in `MessageAuth`'u ile), eşleme ve hız sınırları JavaScriptCore'da |
-| `controls.js` | kontrol şeridi, uygulama paneli, "⋯" komutları, onay, bildirim, çift dokunuş kalkanı | gözle |
+| `controls.js` | kontrol şeridi, uygulama paneli, "⋯" komutları, onay, bildirim, çift dokunuş kalkanı | hangi kontrolün `access.commands`'a göre gönderip soluk kaldığı JavaScriptCore'da (sahte sayfayla), gerisi gözle |
 | `view.js` | halkalar, kutucuklar, liste (satır kayması), şarkı kartı, saat başlığı, telefonun pili, alarm ve kenar ışığı, durumlar | gözle |
 | `ui.js` | ekranı açık tutma, "⋯" menüsünün açılıp kapanması, rehber, Başlat ekranı, OLED kayması | gözle |
 | `app.js` | parçaları birbirine bağlar | — |
@@ -473,6 +492,11 @@ Simge telefon çizimi: gri = izinli istemci yok, yeşil = en az bir istemci veri
 - Durum satırı (ör. "iPhone bağlı · 1 cihaz", "Port 4747 kullanımda", "USB algılanamıyor")
 - QR kodu göster
 - Mod: ● Kablo takılıyken / ○ Her zaman
+- Wi-Fi'den Kilit ve Müzik (iki mod öğesinin hemen altında; açıkken işaretli, varsayılan kapalı): yalnız "Her zaman"
+  modunda seçilebilir, kablo modunda Wi-Fi'deki telefon hiç veri almadığı için soluktur. Açarken bir uyarı sorar
+  ("Wi-Fi'den kilit ve müzik açılsın mı?": Wi-Fi ağını ele geçiren biri de aynısını yapabilir; ses, ekranı kapatma,
+  uygulama kapatma ve uyutma yine kablo ister; "İzin ver" / "Vazgeç"); kapatırken sormaz. Değişince erişimi değişen
+  telefonlara mod değişimindeki gibi yeni `access` gider (bölüm 5).
 - Port: 4747…: 1024–65535 arası bir sayı sorar (`PortChoice`); geçersizse sebebini söyleyip yeniden sorar. Yeni port
   eski port dinlenirken açılır; hazır olunca eski dinleyici durur, onun kabul ettiği bağlantılar kapanır (1001), port
   kaydedilir ve telefonun bağlantısı portu içerdiği için QR penceresi açılır. Kullanımdaki bir port reddedilir: bir
@@ -608,6 +632,7 @@ docs/design/2026-11-25-phonebox-design.md   docs/spike-results.md   docs/manual-
   dinleyicilere karşı güvende.
 - **Aynı ağdaki aktif saldırgan (Plan 2 son incelemesi):** sayfa düz HTTP ve `.local` adla sunulduğu için mDNS/ARP
   sahteciliği yapan biri değiştirilmiş bir sayfa sunup anahtarı alabilir ya da kimlik doğrulamayı aktarabilir. Bu yüzden
-  komutlar her iki modda da yalnızca kablodan (USB) gelen istemcilere açıktır (bölüm 5, AccessPolicy). Böyle bir
-  saldırgan "Her zaman" modunda yine de metrikleri görebilir.
+  komutlar her iki modda da kablodan (USB) gelen istemcilere açıktır; Wi-Fi'den yalnız kullanıcı "Wi-Fi'den Kilit ve
+  Müzik"i açtıysa kilit ve medya gelir (bölüm 5, AccessPolicy). Böyle bir saldırgan "Her zaman" modunda yine de
+  metrikleri görebilir; ayar açıksa Mac'i kilitleyebilir ve müziği değiştirebilir.
 - **Safari depolama temizliği:** anahtar kişisel bağlantıda durduğu için etkilenmez; bozulursa QR yeniden okutulur.
