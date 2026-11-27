@@ -47,6 +47,57 @@ public enum HTTPRequestParser {
     }
 }
 
+/// Design §5: every request, a file or the WebSocket, must name this Mac in `Host`: its `<LocalHostName>.local`
+/// name, an IP address (IPv4, or IPv6 in brackets with or without a zone) or `localhost`, on any port, in any case.
+/// A web page whose own name someone's DNS points at the Mac (DNS rebinding: `evil.example` → the Mac's address)
+/// sends its own name and is refused, so it cannot reach the dashboard, or hold one of its places, through the
+/// phone's browser.
+public enum RequestHost {
+    public static func isAllowed(_ host: String?, localHostName: String) -> Bool {
+        guard let host, !host.isEmpty else { return false }
+        if host.hasPrefix("[") {
+            guard let close = host.firstIndex(of: "]") else { return false }
+            let rest = host[host.index(after: close)...]
+            guard rest.isEmpty || isPort(rest) else { return false }
+            return isIPv6(host[host.index(after: host.startIndex)..<close])
+        }
+        var name = host[...]
+        if let colon = host.lastIndex(of: ":") {
+            guard isPort(host[colon...]) else { return false }
+            name = host[..<colon]
+        }
+        let lowered = name.lowercased()
+        return lowered == "localhost" || lowered == localHostName.lowercased() + ".local" || isIPv4(name)
+    }
+
+    /// `:` and 1 to 5 digits.
+    private static func isPort(_ text: Substring) -> Bool {
+        let digits = text.dropFirst()
+        return text.first == ":" && (1...5).contains(digits.count) && digits.allSatisfy { $0.isASCII && $0.isNumber }
+    }
+
+    /// Four decimal parts of 0…255.
+    private static func isIPv4(_ text: Substring) -> Bool {
+        let parts = text.split(separator: ".", omittingEmptySubsequences: false)
+        return parts.count == 4 && parts.allSatisfy { part in
+            (1...3).contains(part.count) && part.allSatisfy { $0.isASCII && $0.isNumber } && Int(part)! <= 255
+        }
+    }
+
+    /// An IPv6 address, optionally with a zone (`%en8`, or `%25en8` as a URL writes it).
+    private static func isIPv6(_ text: Substring) -> Bool {
+        var address = text
+        if let percent = text.firstIndex(of: "%") {
+            let zone = text[text.index(after: percent)...]
+            let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~%")
+            guard !zone.isEmpty, zone.allSatisfy(allowed.contains) else { return false }
+            address = text[..<percent]
+        }
+        var bytes = in6_addr()
+        return inet_pton(AF_INET6, String(address), &bytes) == 1
+    }
+}
+
 /// Design §5: browsers always send `Origin` with a WebSocket upgrade. Only the dashboard's own page, loaded from
 /// the address the phone used, may connect; a page from another site cannot reach the Mac through the browser.
 public enum WebSocketOrigin {

@@ -8,6 +8,8 @@ protocol PhoneConnection: AnyObject {
     var interfaceName: String? { get }
     /// True when the local end is a scoped IPv6 link-local address, which is how the iPhone's USB link looks.
     var arrivedOnScopedLinkLocal: Bool { get }
+    /// The address of the other end, without the port: sockets that have not authenticated are counted per address.
+    var remoteAddress: String? { get }
     /// When the last frame of any kind arrived, on a monotonic clock that counts sleep.
     var lastInboundAt: ContinuousClock.Instant { get }
     func send(_ message: ServerMessage)
@@ -39,7 +41,14 @@ struct PhoneCounts: Equatable {
 /// came in over the iPhone's USB link, what it may do, who gets the snapshots, and the commands they send.
 @MainActor
 final class DashboardHub {
+    /// Phones that have authenticated (design §9); the phone on the cable is always taken, even beyond.
     static let maxClients = 4
+    /// WebSockets that have not authenticated yet, from one address and in all (one on the cable is not counted): a
+    /// device without the key can hold only these, never the places of the phones that have it.
+    static let maxPendingPerAddress = 2
+    static let maxPending = 8
+    /// Close code for a phone that authenticated while `maxClients` others had: the page tries again later.
+    static let busyCode: UInt16 = 1013
     static let authTimeout: TimeInterval = 5
     /// Close code that tells the page to reconnect at once (to come back over the cable).
     static let reconnectCode: UInt16 = 4002
@@ -140,11 +149,30 @@ final class DashboardHub {
         }
     }
 
-    var canAccept: Bool { clients.count < Self.maxClients }
+    /// Whether a new WebSocket may open: always over the iPhone's USB link; otherwise while fewer than `maxClients`
+    /// phones have authenticated and the sockets still waiting to authenticate stay under their limits.
+    func canAccept(_ connection: any PhoneConnection) -> Bool {
+        if isOnUSB(connection) { return true }
+        guard clients.values.filter({ $0.session.isAuthenticated }).count < Self.maxClients else { return false }
+        let pending = clients.values.filter { !$0.session.isAuthenticated && !$0.onUSB }
+        let fromThere = pending.filter { $0.connection.remoteAddress == connection.remoteAddress }
+        return pending.count < Self.maxPending && fromThere.count < Self.maxPendingPerAddress
+    }
+
+    /// Whether `interfaceName` is the iPhone's USB link, for the server's own limits.
+    func isUSBLink(_ interfaceName: String) -> Bool {
+        usbInterfaces().contains(interfaceName)
+    }
+
+    /// The local end is a scoped IPv6 link-local address on an interface IOKit puts on an iPhone.
+    private func isOnUSB(_ connection: any PhoneConnection) -> Bool {
+        connection.arrivedOnScopedLinkLocal && (connection.interfaceName.map(isUSBLink) ?? false)
+    }
+
     private var isStreaming: Bool { clients.values.contains { $0.access.streaming } }
 
     func opened(_ connection: any PhoneConnection) {
-        let onUSB = connection.arrivedOnScopedLinkLocal && (connection.interfaceName.map(usbInterfaces().contains) ?? false)
+        let onUSB = isOnUSB(connection)
         let session = Session(nonce: Session.makeNonce())
         clients[ObjectIdentifier(connection)] = Client(connection: connection, session: session, onUSB: onUSB, access: .unauthenticated)
         Log.server.info("Phone connected on \(connection.interfaceName ?? "?", privacy: .public) (scoped link-local: \(connection.arrivedOnScopedLinkLocal), USB: \(onUSB))")
@@ -166,6 +194,14 @@ final class DashboardHub {
         clients[id] = client
         switch outcome {
         case .authenticated:
+            // Several sockets may have been waiting while fewer phones had authenticated.
+            let others = clients.filter { $0.key != id && $0.value.session.isAuthenticated }.count
+            if !client.onUSB, others >= Self.maxClients {
+                Log.server.notice("Turning a phone away: \(Self.maxClients) phones are connected")
+                clients[id] = nil
+                connection.close(code: Self.busyCode, reason: "too many phones")
+                return
+            }
             let wasStreaming = isStreaming
             connection.markAuthenticated()
             authentications += 1

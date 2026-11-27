@@ -49,10 +49,20 @@ final class BoundSocket {
 struct DashboardServerTests {
     let runner = FakeRunner()
 
-    func makeServer(retryDelay: TimeInterval = 30) -> DashboardServer {
+    func makeServer(retryDelay: TimeInterval = 30,
+                    usbInterfaces: @escaping () -> Set<String> = { [] }) -> DashboardServer {
         let hub = DashboardHub(mode: .cable, key: PairingKey.generate(), appName: "PhoneBox test", hostName: { "Test Mac" },
-                               commands: runner, usbInterfaces: { [] })
-        return DashboardServer(webDirectory: URL(fileURLWithPath: "/nonexistent"), hub: hub, retryDelay: retryDelay)
+                               commands: runner, usbInterfaces: usbInterfaces)
+        return DashboardServer(webDirectory: URL(fileURLWithPath: "/nonexistent"), hub: hub, retryDelay: retryDelay,
+                               localHostName: { "Test-Mac" })
+    }
+
+    /// The first line of the answer to `request`, sent from 127.0.0.1.
+    func statusLine(_ port: UInt16, _ request: String) async throws -> String {
+        let client = try #require(TestClient(port: port))
+        client.send(request)
+        _ = try await client.read(until: { _ in client.ended })
+        return String(decoding: client.received, as: UTF8.self).components(separatedBy: "\r\n").first ?? ""
     }
 
     /// Waits until `server` reports `wanted`, for at most `seconds`.
@@ -148,6 +158,48 @@ struct DashboardServerTests {
         #expect(server.state == .listening(port))
     }
 
+    /// Design §5: a page elsewhere whose name points at the Mac (DNS rebinding) is refused, files and WebSocket alike.
+    @Test func answersOnlyRequestsThatNameThisMac() async throws {
+        let server = makeServer()
+        defer { server.stop() }
+        let port = try BoundSocket.freePort()
+        #expect(await start(server, port: port) == .listening(port))
+        // There are no files (`/nonexistent`), so a request that gets through is a 404.
+        #expect(try await statusLine(port, "GET / HTTP/1.1\r\nHost: test-mac.local:\(port)\r\n\r\n") == "HTTP/1.1 404 Not Found")
+        #expect(try await statusLine(port, "GET / HTTP/1.1\r\nHost: 127.0.0.1:\(port)\r\n\r\n") == "HTTP/1.1 404 Not Found")
+        #expect(try await statusLine(port, "GET / HTTP/1.1\r\nHost: evil.example:\(port)\r\n\r\n") == "HTTP/1.1 403 Forbidden")
+        #expect(try await statusLine(port, "GET / HTTP/1.1\r\n\r\n") == "HTTP/1.1 403 Forbidden")
+        let upgrade = "GET /ws HTTP/1.1\r\nHost: evil.example:\(port)\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+            + "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n"
+        #expect(try await statusLine(port, upgrade) == "HTTP/1.1 403 Forbidden")
+    }
+
+    /// Design §9: idle connections from one address cannot take every place, and the iPhone's USB link is always
+    /// taken (here `lo0`, whose `fe80::1` stands in for the phone's link-local address).
+    @Test func limitsIdleConnectionsPerAddressAndInAllButAlwaysTakesTheCable() async throws {
+        var usb: Set<String> = []
+        let server = makeServer(usbInterfaces: { usb })
+        defer { server.stop() }
+        let port = try BoundSocket.freePort()
+        #expect(await start(server, port: port) == .listening(port))
+        var held: [TestClient] = []
+        for _ in 0..<DashboardServer.maxConnectionsPerAddress { held.append(try #require(TestClient(port: port))) }
+        let extra = try #require(TestClient(port: port))
+        #expect(try await extra.read(until: { _ in extra.ended }, within: 2))
+        for _ in 0..<(DashboardServer.maxConnections - DashboardServer.maxConnectionsPerAddress) {
+            held.append(try #require(TestClient(port: port, address: "::1")))
+        }
+        // A third address finds no place left.
+        let third = try #require(TestClient(port: port, address: "fe80::1", interface: "lo0"))
+        #expect(try await third.read(until: { _ in third.ended }, within: 2))
+        #expect(held.allSatisfy { $0.isOpen } && !third.isOpen)
+
+        usb = ["lo0"]
+        let cable = try #require(TestClient(port: port, address: "fe80::1", interface: "lo0"))
+        cable.send("GET / HTTP/1.1\r\nHost: [fe80::1%lo0]:\(port)\r\n\r\n")
+        #expect(try await cable.read(until: { $0.starts(with: Data("HTTP/1.1 404".utf8)) }))
+    }
+
     @Test func closesThePhonesOfTheOldPort() async throws {
         let server = makeServer()
         defer { server.stop() }
@@ -171,7 +223,8 @@ extension DashboardServer.State {
     }
 }
 
-/// A TCP client on 127.0.0.1 that reads without blocking the main thread, where the server runs.
+/// A TCP client on 127.0.0.1 (or an IPv6 loopback address) that reads without blocking the main thread, where the
+/// server runs.
 final class TestClient {
     let descriptor: Int32
     private(set) var received = Data()
@@ -197,7 +250,35 @@ final class TestClient {
         self.descriptor = descriptor
     }
 
+    /// From an IPv6 address of this Mac: `::1`, or `fe80::1` with `interface` `lo0`.
+    init?(port: UInt16, address text: String, interface: String? = nil) {
+        let descriptor = socket(AF_INET6, SOCK_STREAM, 0)
+        guard descriptor >= 0 else { return nil }
+        var address = sockaddr_in6()
+        address.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)
+        address.sin6_family = sa_family_t(AF_INET6)
+        address.sin6_port = port.bigEndian
+        address.sin6_scope_id = interface.map { if_nametoindex($0) } ?? 0
+        let connected = inet_pton(AF_INET6, text, &address.sin6_addr) == 1 && withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                connect(descriptor, $0, socklen_t(MemoryLayout<sockaddr_in6>.size)) == 0
+            }
+        }
+        guard connected else {
+            Darwin.close(descriptor)
+            return nil
+        }
+        self.descriptor = descriptor
+    }
+
     deinit { Darwin.close(descriptor) }
+
+    /// One look without waiting: false once the other end has closed.
+    var isOpen: Bool {
+        var byte: UInt8 = 0
+        let count = recv(descriptor, &byte, 1, MSG_DONTWAIT | MSG_PEEK)
+        return count > 0 || (count < 0 && errno == EAGAIN)
+    }
 
     func send(_ text: String) {
         let bytes = Array(text.utf8)
