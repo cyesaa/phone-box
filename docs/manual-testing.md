@@ -200,6 +200,8 @@ Claude Code oturumları ve güncelleme:
 Mac (ağ ve ölçümler):
 - [ ] "Her zaman" kipinde A telefonu Wi-Fi'de, B telefonunu tak: A bir kez yeniden bağlanıyor (~3 sn), ~8 sn'de yeniden
   değil.
+- [ ] Aynı denemede B de takılmadan önce Wi-Fi'den bağlıyken: tak, B'nin kendisi de kabloya geçiyor; ayarlardaki durum
+  "2 cihaz · 1 kabloyla, 1 Wi-Fi'den" oluyor (yalnız A'nın bir kez yeniden bağlanması yetmez).
 - [ ] PhoneBox çalışırken Mac'in adını değiştir (Sistem Ayarları → Genel → Paylaşma): sonra bağlanan telefonun "⋯"
   menüsünde yeni ad.
 - [ ] PhoneBox açılmadan 4747'yi tut (`nc -l 4747`): menü portun kullanımda olduğunu söylüyor; "Değiştir…" ile 4747
