@@ -45,9 +45,17 @@ struct ClaudeHooksTests {
                 #expect(entry["command"] as? String == Self.command)
                 #expect(entry["async"] as? Bool == true)
                 #expect(entry["timeout"] as? Int == 10)
-                #expect(groups[0]["matcher"] as? String == (event == "Notification" ? "permission_prompt" : nil))
+                #expect(groups[0]["matcher"] as? String == (event == "Notification" ? "permission_prompt|idle_prompt" : nil))
             }
         }
+    }
+
+    /// A turn that ends on an API error fires StopFailure, not Stop; an agent's end (SubagentStop) ends its waits; the
+    /// idle prompt's notification ends a turn that Esc ended without either (bughunt #1, #2).
+    @Test func hooksTheEndsOfTurnsAndAgents() {
+        #expect(ClaudeHooks.events == ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",
+                                       "PermissionRequest", "PermissionDenied", "Notification", "Stop", "StopFailure",
+                                       "SubagentStop", "SessionEnd"])
     }
 
     @Test func writesSortedPrettyJSONWithANewline() throws {
@@ -65,7 +73,7 @@ struct ClaudeHooksTests {
       "permissions": {"allow": ["Bash(ls:*)"]},
       "hooks": {
         "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "~/bin/check.sh"}]}],
-        "SubagentStop": [{"hooks": [{"type": "command", "command": "say done"}]}]
+        "PreCompact": [{"hooks": [{"type": "command", "command": "say done"}]}]
       }
     }
     """#
@@ -78,7 +86,7 @@ struct ClaudeHooksTests {
         #expect(object["env"] as? NSDictionary == original["env"] as? NSDictionary)
         #expect(object["permissions"] as? NSDictionary == original["permissions"] as? NSDictionary)
         let hooks = try Self.hooks(installed)
-        #expect(hooks["SubagentStop"]?.count == 1)
+        #expect(hooks["PreCompact"]?.count == 1)
         let preToolUse = try #require(hooks["PreToolUse"])
         #expect(preToolUse.count == 2)
         #expect(preToolUse[0]["matcher"] as? String == "Bash")
@@ -147,9 +155,9 @@ struct ClaudeHooksTests {
     }
 
     @Test func leavesAnotherEventItDoesNotUseAsItIs() throws {
-        let text = #"{"hooks":{"SubagentStop":"custom"}}"#
+        let text = #"{"hooks":{"PreCompact":"custom"}}"#
         let installed = try Self.install(text)
-        #expect(try Self.object(installed)["hooks"].flatMap { ($0 as? NSDictionary)?["SubagentStop"] as? String } == "custom")
+        #expect(try Self.object(installed)["hooks"].flatMap { ($0 as? NSDictionary)?["PreCompact"] as? String } == "custom")
         #expect(try Self.object(try ClaudeHooks.remove(from: installed)) == Self.object(Data(text.utf8)))
     }
 
@@ -216,6 +224,25 @@ struct ClaudeHooksTests {
         hooks["Stop"] = nil
         root["hooks"] = hooks
         #expect(Self.check(try JSONSerialization.data(withJSONObject: root)) == .reinstall)
+    }
+
+    /// The hooks 0.4.0 installed miss StopFailure and SubagentStop, and their Notification group matches only the
+    /// permission prompt: the new app installs its own.
+    @Test func atLaunchTheHooksOf040AreInstalledAgain() throws {
+        var root = try #require(try JSONSerialization.jsonObject(with: try Self.installed(for: Self.app)) as? [String: Any])
+        var hooks = try #require(root["hooks"] as? [String: Any])
+        hooks["StopFailure"] = nil
+        hooks["SubagentStop"] = nil
+        var notification = try #require((hooks["Notification"] as? [[String: Any]])?.first)
+        notification["matcher"] = "permission_prompt"
+        hooks["Notification"] = [notification]
+        root["hooks"] = hooks
+        let old = try JSONSerialization.data(withJSONObject: root)
+        #expect(Self.check(old) == .reinstall)
+        let again = try Self.hooks(try ClaudeHooks.install(into: old, command: ClaudeHooks.command(executable: Self.app)))
+        #expect(again["Notification"]?.count == 1)
+        #expect(again["Notification"]?.first?["matcher"] as? String == "permission_prompt|idle_prompt")
+        #expect(again["StopFailure"]?.count == 1)
     }
 
     /// A test copy (`PHONEBOX_DEST`) that is still on disk owns the hooks it installed.

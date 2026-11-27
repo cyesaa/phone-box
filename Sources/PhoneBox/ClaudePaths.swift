@@ -10,6 +10,13 @@ enum ClaudePaths {
             .appendingPathComponent("claude.sock").path
     }
 
+    /// `~/Library/Application Support/PhoneBox/claude-sessions.json`: the sessions, kept across a restart (an update).
+    static var sessions: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("PhoneBox", isDirectory: true)
+            .appendingPathComponent("claude-sessions.json")
+    }
+
     /// `~/.claude/settings.json`, where Claude Code reads the user's hooks.
     static var settings: URL {
         FileManager.default.homeDirectoryForCurrentUser

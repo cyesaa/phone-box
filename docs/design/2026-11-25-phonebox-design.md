@@ -726,8 +726,8 @@ Claude Code'un komut hook'ları (`~/.claude/settings.json`). Her olayda Claude C
 `"<PhoneBox.app>/Contents/MacOS/PhoneBox" --claude-hook` çalıştırır (`"async": true`: oturum beklemez):
 
 1. Yardımcı, AppKit'i hiç başlatmadan stdin'deki JSON'u okur (en çok 1 MB, en çok 4 sn bekler), `ClaudeEvent`'e
-   çevirir: oturum kimliği, olay türü, araç adı, "soru mu" bayrağı, "arka planda iş var mı" bayrağı, `cwd`, oturum
-   dosyasının yolu, `getppid()` (oturumun Claude işlemi; 2026-11-26 denendi: hook'un ebeveyni `claude`, `async` ile
+   çevirir: oturum kimliği, olay türü, araç adı, "soru mu" bayrağı, "arka planda iş var mı" bayrağı, ajan (`agent_id`,
+   ana ajan için boş; düz bir ad değilse `?`), `cwd`, oturum dosyasının yolu, `getppid()` (oturumun Claude işlemi; 2026-11-26 denendi: hook'un ebeveyni `claude`, `async` ile
    de), `SessionStart`'ta başlık (en çok 120 karakter, oturum dosyasındaki gibi) ve model, ve olayın zamanı `at`:
    yardımcı işlemin çekirdekteki başlangıç zamanı (`sysctl` `p_starttime`, µs; okunamazsa şimdiki zaman). Metin
    alanları (`prompt`, `last_assistant_message`, `tool_input`, `tool_response`) okunur ama hiçbir yere yazılmaz.
@@ -736,7 +736,14 @@ Claude Code'un komut hook'ları (`~/.claude/settings.json`). Her olayda Claude C
    bitmese de 5 sn içinde çıkar; her durumda çıkış kodu 0.
 3. PhoneBox olayı `ClaudeSessions`'a uygular. Başlığı ve modeli oturum dosyasının son 256 KB'ından okur
    (`custom-title` kaydı ve son `"model":"claude-…"`; belgelenmemiş biçim, bulunamazsa başlık = klasör adı, model yok).
-   5 sn'de bir oturumların işlemine bakar (`kill(pid, 0)`); işlemi biten oturum listeden düşer.
+   5 sn'de bir oturumların işlemine bakar (`kill(pid, 0)`); işlemi biten oturum listeden düşer. Bir ajan komut
+   (`Bash`) izni beklerken saniyede bir o işlemin çocuklarına bakar (aşağıda, "Onaylanan komut").
+4. Oturumlar (beklemeleri ve son `at`'leriyle) `~/Library/Application Support/PhoneBox/claude-sessions.json`'a yazılır
+   (0600, geçici dosya + `rename`): bir değişiklikten en çok 2 sn sonra ve izleme dururken (çıkış, güncelleme, özelliği
+   kapatma). Dinlemeye başlarken (0.4.1) dosya en çok 10 dk önce yazılmışsa okunur; işlemi bitmiş ya da pid'i oturumun
+   son olayından sonra başlamış bir işlemin olan (Mac yeniden başladı, pid başkasının) oturumlar düşer. Böylece
+   güncellemeden sonra bekleyen oturumlar hemen yine görünür. Soketi alamayan PhoneBox (deneme kopyası) dosyayı ne
+   okur ne yazar.
 
 Olay → durum (`ClaudeSessions`, PhoneBoxCore, test edilir):
 
@@ -744,17 +751,33 @@ Olay → durum (`ClaudeSessions`, PhoneBoxCore, test edilir):
 |---|---|
 | `SessionStart` | yoksa ekle: Hazır (varsa durumu korunur; `/clear`, `compact`) |
 | `UserPromptSubmit` | Çalışıyor · Düşünüyor (süre baştan) |
-| `PreToolUse` `AskUserQuestion` | Seni bekliyor · Soru soruyor |
-| `PreToolUse` `ExitPlanMode` | Seni bekliyor · İzin istiyor |
+| `PreToolUse` `AskUserQuestion` | o ajan bekliyor · Soru soruyor |
+| `PreToolUse` `ExitPlanMode` | o ajan bekliyor · İzin istiyor |
 | `PreToolUse` `mcp__ccd_turn__wrap_up` (boş olmayan `ask` ile) | Çalışıyor, "tur sonunda soru var" işaretlenir |
-| `PreToolUse` diğer | Çalışıyor · aracın türü |
-| `PermissionRequest`, `Notification` (`permission_prompt`) | Seni bekliyor · İzin istiyor |
-| `PostToolUse`, `PostToolUseFailure`, `PermissionDenied` | Çalışıyor (bekliyorsa Düşünüyor'a döner) |
-| `Stop` | `background_tasks` doluysa Çalışıyor · Arka planda; değilse Seni bekliyor · işaret varsa Soru soruyor, yoksa Sıra sende |
+| `PreToolUse` diğer | o ajanın beklemesi biter; Çalışıyor · aracın türü |
+| `PermissionRequest` | o ajan bekliyor · İzin istiyor |
+| `Notification` `permission_prompt` | hiçbir ajanın izin beklemesi yoksa o ajan bekliyor · İzin istiyor (bildirim hangi ajanın olduğunu söylemeyebilir) |
+| `PostToolUse`, `PostToolUseFailure`, `PermissionDenied` | o ajanın beklemesi biter; Çalışıyor · Düşünüyor |
+| `Stop`, `StopFailure` (API hatasıyla biten tur) | `background_tasks` doluysa ana ajanın beklemesi biter, Çalışıyor · Arka planda; değilse bütün beklemeler biter, Seni bekliyor · işaret varsa Soru soruyor, yoksa Sıra sende |
+| `SubagentStop` (ve `agent_id`'li `Stop`) | yalnız o ajanın beklemesi biter |
+| `Notification` `idle_prompt` (yanıttan ~60 sn sonra) | Çalışıyorsa (arka planda değil) Seni bekliyor · işaret varsa Soru soruyor, yoksa Sıra sende: Esc'le biten tur `Stop` vermez (0.4.1) |
 | `SessionEnd` | listeden çıkar |
 
-Süre yalnız durum ya da bekleme nedeni değişince sıfırlanır (aynı turdaki araçlar değiştirmez). Alt ajan olayları
-(`agent_id`) ana oturumunkiler gibi işlenir, `Stop` hariç (alt ajanın `SubagentStop`'u kurulmaz).
+Bekleme ajan başınadır (0.4.1; ana ajan `""`): bir ajanın sorusu ya da izni başka ajanların olaylarıyla bitmez.
+`UserPromptSubmit` bütün beklemeleri bitirir. Bir ajan bekledikçe oturum Seni bekliyor görünür, en eski beklemenin
+nedeni ve süresiyle; hiçbiri beklemiyorsa son olayların durumu. Süre yalnız görünen durum ya da bekleme nedeni
+değişince sıfırlanır (aynı turdaki araçlar değiştirmez; bir ajanın aynı nedenli beklemesi sürer).
+
+Onaylanan komut (0.4.1): izni hiçbir hook söylemez; onaylanan komut `PostToolUse`'a dek sürer. Bir ajan `Bash` izni
+beklerken PhoneBox oturumun `claude` işleminin çocuklarına bakar (`proc_listchildpids`, `proc_pidinfo` başlama zamanı,
+`proc_pidpath`). Yolu `bash` ya da `zsh` olan, o işlemdeki oturumların son olayından 0,5 sn'den sonra başlamış ve en az
+0,25 sn'dir çalışan bir çocuk onaylanan komuttur: işlemde ilk soran ajanın beklemesi biter, oturum Çalışıyor · Komut
+çalıştırıyor olur, komutun başlama zamanı oturumun son `at`'i sayılır (bildirimin geç gelen hook'u eski kalır).
+2026-11-27'de `ps` ile görüldü (masaüstü uygulaması ve terminal): komut kullanıcının kabuğunda, `claude`'un doğrudan
+çocuğu; `claude` ayrıca her an `git`, `security`, `caffeinate` başlatır, hook'lar olaylarıyla (kendileri ya da `sh`
+olarak) başlar. Sınırlar: onay son olaydan 0,5 sn içinde gelirse ya da aynı işlemde başka ajanlar olay üretmeyi
+sürdürürse görülmez (kart komut bitene dek İzin istiyor kalır); izlenmeyen bir olayın bash/zsh hook'u ya da bash/zsh
+bir durum satırı komutu bekleme sırasında başlarsa onay sanılır. Diğer araçların (Edit, Write, MCP) onayı görülmez.
 
 Sıra: her hook ayrı bir işlem, iki olay birkaç ms arayla ters sırada gelebilir (`PermissionRequest` `PreToolUse`'dan
 önce; `Stop` `SessionEnd`'den sonra). İşlemler Claude Code'un hook'ları çalıştırdığı sırayla başlar, bu yüzden `at`
@@ -765,7 +788,10 @@ olan (`claude --resume` ile yeniden açılan oturumun `SessionStart`'ı) kabul e
 uygulanan `at`'i geçene kadar yok sayılır.
 
 Olay listesi: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`,
-`PermissionRequest`, `PermissionDenied`, `Notification` (eşleyici `permission_prompt`), `Stop`, `SessionEnd`.
+`PermissionRequest`, `PermissionDenied`, `Notification` (eşleyici `permission_prompt|idle_prompt`), `Stop`,
+`StopFailure`, `SubagentStop`, `SessionEnd`. Claude Code bilmediği bir olay adını uyarıyla atlar, dosyanın geri kalanı
+geçerli kalır (2.1.332, 2026-11-27 `claude -p --settings` ile denendi; `StopFailure`'u 2.1.330 ve 2.1.332 bilir).
+0.4.0'ın kurduğu hook'larda `StopFailure` ve `SubagentStop` yoktur: açılış denetimi onları yeniden kurar.
 
 Elenen yollar: `http` hook'u (oturumun işlemi bilinmez, `SessionStart` desteklemez, port değişince bozulur); hook'suz
 oturum dosyalarını izlemek (izin beklemesi görünmez, biçim belgelenmemiş).

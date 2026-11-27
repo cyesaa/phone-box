@@ -20,9 +20,9 @@ struct ClaudeMonitorTests {
     let socketPath = "/tmp/pbc-\(UUID().uuidString.prefix(8)).sock"
 
     static func event(_ kind: ClaudeEvent.Kind, session: String = "s1", tool: String? = nil, pid: Int32 = getpid(),
-                      transcript: String? = nil) -> ClaudeEvent {
-        ClaudeEvent(session: session, kind: kind, tool: tool, asks: false, background: false, subagent: false,
-                    cwd: "/Users/me/Code/PhoneBox", transcript: transcript, pid: pid, title: nil, model: nil, at: 0)
+                      transcript: String? = nil, at: Int64 = 0) -> ClaudeEvent {
+        ClaudeEvent(session: session, kind: kind, tool: tool, asks: false, background: false, agent: "",
+                    cwd: "/Users/me/Code/PhoneBox", transcript: transcript, pid: pid, title: nil, model: nil, at: at)
     }
 
     /// True once `condition` holds, checked every 10 ms for up to `seconds`.
@@ -41,7 +41,7 @@ struct ClaudeMonitorTests {
     }
 
     @Test func anEventSentByTheHelperShowsUp() async throws {
-        let monitor = ClaudeMonitor(socketPath: socketPath, clock: { 5_000 })
+        let monitor = ClaudeMonitor(socketPath: socketPath, sessionsFile: nil, clock: { 5_000 })
         monitor.start()
         defer { monitor.stop() }
         #expect(ClaudeHookForwarder.send(Self.event(.prompt).line(), to: socketPath))
@@ -51,7 +51,7 @@ struct ClaudeMonitorTests {
     }
 
     @Test func appliesEveryLineOfAConnectionInOrderAndSkipsJunk() async throws {
-        let monitor = ClaudeMonitor(socketPath: socketPath)
+        let monitor = ClaudeMonitor(socketPath: socketPath, sessionsFile: nil)
         var changes = 0
         monitor.onChange = { changes += 1 }
         monitor.start()
@@ -66,7 +66,7 @@ struct ClaudeMonitorTests {
     }
 
     @Test func theSocketIsOnlyForThisUser() throws {
-        let monitor = ClaudeMonitor(socketPath: socketPath)
+        let monitor = ClaudeMonitor(socketPath: socketPath, sessionsFile: nil)
         monitor.start()
         defer { monitor.stop() }
         var info = stat()
@@ -84,7 +84,7 @@ struct ClaudeMonitorTests {
         close(descriptor)
         #expect(bound == 0)
         #expect(socketExists())
-        let monitor = ClaudeMonitor(socketPath: socketPath)
+        let monitor = ClaudeMonitor(socketPath: socketPath, sessionsFile: nil)
         monitor.start()
         defer { monitor.stop() }
         #expect(monitor.isRunning)
@@ -95,10 +95,10 @@ struct ClaudeMonitorTests {
     /// A test copy of PhoneBox (`PHONEBOX_DEST`) runs next to the installed one with the same socket path: the one that
     /// listens keeps it.
     @Test func aSecondMonitorLeavesTheListeningOneAlone() async throws {
-        let first = ClaudeMonitor(socketPath: socketPath)
+        let first = ClaudeMonitor(socketPath: socketPath, sessionsFile: nil)
         first.start()
         defer { first.stop() }
-        let second = ClaudeMonitor(socketPath: socketPath)
+        let second = ClaudeMonitor(socketPath: socketPath, sessionsFile: nil)
         second.start()
         #expect(!second.isRunning)
         second.stop()
@@ -109,12 +109,12 @@ struct ClaudeMonitorTests {
 
     /// `stop()` removes the socket file only while it is still the one this monitor made.
     @Test func stopLeavesAnotherSocketFileAtThePath() async throws {
-        let first = ClaudeMonitor(socketPath: socketPath)
+        let first = ClaudeMonitor(socketPath: socketPath, sessionsFile: nil)
         first.start()
         #expect(first.isRunning)
         // Another PhoneBox took the path over.
         unlink(socketPath)
-        let second = ClaudeMonitor(socketPath: socketPath)
+        let second = ClaudeMonitor(socketPath: socketPath, sessionsFile: nil)
         second.start()
         defer { second.stop() }
         #expect(second.isRunning)
@@ -128,7 +128,7 @@ struct ClaudeMonitorTests {
         let path = "/tmp/pbc-\(UUID().uuidString.prefix(8)).txt"
         #expect(FileManager.default.createFile(atPath: path, contents: Data("keep".utf8)))
         defer { unlink(path) }
-        let monitor = ClaudeMonitor(socketPath: path)
+        let monitor = ClaudeMonitor(socketPath: path, sessionsFile: nil)
         monitor.start()
         #expect(!monitor.isRunning)
         monitor.stop()
@@ -142,7 +142,7 @@ struct ClaudeMonitorTests {
                      #"{"type":"assistant","message":{"model":"claude-opus-5-5","content":[]}}"#]
         try Data(lines.joined(separator: "\n").utf8).write(to: transcript)
         defer { try? FileManager.default.removeItem(at: transcript) }
-        let monitor = ClaudeMonitor(socketPath: socketPath)
+        let monitor = ClaudeMonitor(socketPath: socketPath, sessionsFile: nil)
         monitor.start()
         defer { monitor.stop() }
         #expect(ClaudeHookForwarder.send(Self.event(.sessionStart, transcript: transcript.path).line(), to: socketPath))
@@ -175,7 +175,7 @@ struct ClaudeMonitorTests {
     @Test func readsASessionsFileAgainOnlyAfterTenSeconds() async throws {
         var now: Int64 = 1_000_000
         let reads = CallCounter()
-        let monitor = ClaudeMonitor(socketPath: socketPath, clock: { now }, readTail: { _ in
+        let monitor = ClaudeMonitor(socketPath: socketPath, sessionsFile: nil, clock: { now }, readTail: { _ in
             reads.increment()
             return (Data(#"{"type":"custom-title","customTitle":"Named"}"#.utf8), true)
         })
@@ -199,7 +199,7 @@ struct ClaudeMonitorTests {
     }
 
     @Test func dropsASessionWhoseProcessEnded() async throws {
-        let monitor = ClaudeMonitor(socketPath: socketPath, isAlive: { $0 != 555 })
+        let monitor = ClaudeMonitor(socketPath: socketPath, sessionsFile: nil, isAlive: { $0 != 555 })
         monitor.start()
         defer { monitor.stop() }
         #expect(ClaudeHookForwarder.send(Self.event(.prompt, session: "gone", pid: 555).line(), to: socketPath))
@@ -219,7 +219,7 @@ struct ClaudeMonitorTests {
     }
 
     @Test func stopRemovesTheSocketAndForgetsEverySession() async throws {
-        let monitor = ClaudeMonitor(socketPath: socketPath)
+        let monitor = ClaudeMonitor(socketPath: socketPath, sessionsFile: nil)
         monitor.start()
         #expect(socketExists())
         #expect(ClaudeHookForwarder.send(Self.event(.prompt).line(), to: socketPath))
@@ -234,6 +234,122 @@ struct ClaudeMonitorTests {
         defer { monitor.stop() }
         #expect(ClaudeHookForwarder.send(Self.event(.stop).line(), to: socketPath))
         #expect(try await eventually { monitor.sessions.first?.state == .waiting })
+    }
+
+    // MARK: Across a restart (bughunt #4)
+
+    /// A folder of this test's own, for the saved list.
+    func temporaryFolder() throws -> URL {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("pbc-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    }
+
+    @Test func savesTheSessionsAndBringsThemBackAfterARestart() async throws {
+        let folder = try temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("claude-sessions.json")
+        let at = ClaudeHookForwarder.now()
+        // A process that started after the session's last event: its pid is another session's now.
+        let later = Process()
+        later.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        later.arguments = ["10"]
+        try later.run()
+        defer { later.terminate() }
+        let first = ClaudeMonitor(socketPath: socketPath, sessionsFile: file, clock: { 5_000 })
+        first.start()
+        #expect(ClaudeHookForwarder.send(Self.event(.prompt, session: "open", at: at).line(), to: socketPath))
+        #expect(ClaudeHookForwarder.send(Self.event(.stop, session: "ended", pid: 99_999_999, at: at).line(), to: socketPath))
+        #expect(ClaudeHookForwarder.send(Self.event(.stop, session: "reused", pid: later.processIdentifier, at: at - 1_000_000).line(),
+                                         to: socketPath))
+        #expect(try await eventually { first.sessionCount == 3 })
+        first.stop()
+        var info = stat()
+        #expect(lstat(file.path, &info) == 0)
+        #expect(info.st_mode & 0o777 == 0o600)
+        let second = ClaudeMonitor(socketPath: socketPath, sessionsFile: file, clock: { 6_000 })
+        second.start()
+        defer { second.stop() }
+        #expect(second.sessions == [ClaudeSession(id: "open", title: "PhoneBox", project: "PhoneBox", model: nil, state: .working,
+                                                  reason: nil, activity: .think, since: 5_000)])
+        // And it goes on from there.
+        #expect(ClaudeHookForwarder.send(Self.event(.stop, session: "open", at: at + 1).line(), to: socketPath))
+        #expect(try await eventually { second.sessions.first?.state == .waiting })
+    }
+
+    @Test func savesSoonAfterAChangeInPlaceOfTheOldList() async throws {
+        let folder = try temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("claude-sessions.json")
+        try Data("old".utf8).write(to: file)
+        let monitor = ClaudeMonitor(socketPath: socketPath, sessionsFile: file, saveDelay: 0.05)
+        monitor.start()
+        defer { monitor.stop() }
+        #expect(ClaudeHookForwarder.send(Self.event(.prompt, at: ClaudeHookForwarder.now()).line(), to: socketPath))
+        #expect(try await eventually { (try? Data(contentsOf: file)) != Data("old".utf8) })
+        let saved = try Data(contentsOf: file)
+        #expect(ClaudeSessions(saved: saved, now: ClaudeMonitor.now(), keep: { _, _ in true })?.list.map(\.id) == ["s1"])
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path) == ["claude-sessions.json"])
+        var info = stat()
+        #expect(lstat(file.path, &info) == 0)
+        #expect(info.st_mode & 0o777 == 0o600)
+    }
+
+    /// A test copy that does not get the socket neither reads nor writes the list.
+    @Test func aMonitorThatDoesNotListenLeavesTheSavedListAlone() throws {
+        let folder = try temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("claude-sessions.json")
+        var sessions = ClaudeSessions()
+        sessions.apply(Self.event(.prompt, at: ClaudeHookForwarder.now()), now: ClaudeMonitor.now())
+        let saved = sessions.saved(now: ClaudeMonitor.now())
+        try saved.write(to: file)
+        let first = ClaudeMonitor(socketPath: socketPath, sessionsFile: nil)
+        first.start()
+        defer { first.stop() }
+        let second = ClaudeMonitor(socketPath: socketPath, sessionsFile: file)
+        second.start()
+        #expect(!second.isRunning)
+        #expect(second.sessions.isEmpty)
+        second.stop()
+        #expect(try Data(contentsOf: file) == saved)
+    }
+
+    // MARK: An approved command (bughunt #3)
+
+    @Test func anApprovedCommandShowsAsWorkingSoonAfterItsShellStarts() async throws {
+        var children: [ClaudeSessions.ChildProcess] = []
+        let at = ClaudeHookForwarder.now() - 10_000_000
+        let monitor = ClaudeMonitor(socketPath: socketPath, sessionsFile: nil, isAlive: { _ in true },
+                                    children: { $0 == 4242 ? children : [] })
+        monitor.start()
+        defer { monitor.stop() }
+        #expect(!monitor.checksCommands)
+        var lines = Self.event(.prompt, pid: 4242, at: at).line()
+        lines.append(Self.event(.toolStart, tool: "Bash", pid: 4242, at: at + 1).line())
+        lines.append(Self.event(.permission, tool: "Bash", pid: 4242, at: at + 2).line())
+        #expect(ClaudeHookForwarder.send(lines, to: socketPath))
+        #expect(try await eventually { monitor.sessions.first?.reason == .permission })
+        #expect(monitor.checksCommands)
+        // Its shell started 2 s after the request, and the user's own hook with the request.
+        children = [ClaudeSessions.ChildProcess(pid: 1, start: at + 100_000, path: "/bin/zsh"),
+                    ClaudeSessions.ChildProcess(pid: 2, start: at + 2_000_000, path: "/bin/zsh")]
+        #expect(try await eventually { monitor.sessions.first?.state == .working })
+        #expect(monitor.sessions.first?.activity == .command)
+        #expect(!monitor.checksCommands)
+    }
+
+    @Test func listsAProcesssChildren() throws {
+        let before = ClaudeHookForwarder.now()
+        let child = Process()
+        child.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        child.arguments = ["10"]
+        try child.run()
+        defer { child.terminate() }
+        let found = try #require(ClaudeMonitor.children(of: getpid()).first { $0.pid == child.processIdentifier })
+        #expect(found.path == "/bin/sleep")
+        #expect(found.start >= before - 1_000_000 && found.start <= ClaudeHookForwarder.now(), "\(found.start) \(before)")
+        #expect(ClaudeMonitor.children(of: 99_999_999).isEmpty)
     }
 
     @Test func theHelperGivesUpQuietlyWithoutPhoneBox() {

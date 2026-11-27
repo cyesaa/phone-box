@@ -7,6 +7,11 @@ import Foundation
 public struct ClaudeEvent: Codable, Equatable, Sendable {
     public enum Kind: String, Codable, Sendable {
         case sessionStart, prompt, toolStart, toolEnd, permission, stop, sessionEnd
+        /// The Notification of a permission dialog that has been up a few seconds; it may not say which agent asked.
+        case permissionPrompt
+        /// The Notification of a prompt that has waited for the user for about a minute: the turn is over, also when
+        /// it ended without a Stop (Esc).
+        case idle
     }
 
     public var session: String
@@ -17,8 +22,8 @@ public struct ClaudeEvent: Codable, Equatable, Sendable {
     public var asks: Bool
     /// A stop while background tasks still run.
     public var background: Bool
-    /// The event came from a subagent of the session.
-    public var subagent: Bool
+    /// The agent the event came from: its `agent_id`, "" for the session's main agent.
+    public var agent: String
     public var cwd: String
     /// The session's file, read for its title and model.
     public var transcript: String?
@@ -32,14 +37,14 @@ public struct ClaudeEvent: Codable, Equatable, Sendable {
     /// order (`ClaudeSessions.apply`).
     public var at: Int64
 
-    public init(session: String, kind: Kind, tool: String?, asks: Bool, background: Bool, subagent: Bool, cwd: String,
+    public init(session: String, kind: Kind, tool: String?, asks: Bool, background: Bool, agent: String, cwd: String,
                 transcript: String?, pid: Int32, title: String?, model: String?, at: Int64) {
         self.session = session
         self.kind = kind
         self.tool = tool
         self.asks = asks
         self.background = background
-        self.subagent = subagent
+        self.agent = agent
         self.cwd = cwd
         self.transcript = transcript
         self.pid = pid
@@ -48,16 +53,21 @@ public struct ClaudeEvent: Codable, Equatable, Sendable {
         self.at = at
     }
 
+    /// The event came from a subagent of the session.
+    public var subagent: Bool { !agent.isEmpty }
+
     /// The end-of-turn box of the Claude desktop app; with a non-empty `ask` it ends the turn with a question.
     public static let wrapUpTool = "mcp__ccd_turn__wrap_up"
     public static let questionTool = "AskUserQuestion"
 
-    /// Nil for an event PhoneBox does not follow, a Notification other than a permission prompt, or input without a
-    /// session. `at` is when the hook ran (µs since 1970).
+    /// Nil for an event PhoneBox does not follow, a Notification other than a permission or idle prompt, or input
+    /// without a session. `at` is when the hook ran (µs since 1970).
     public static func parse(hookInput: Data, parentPID: Int32, at: Int64) -> ClaudeEvent? {
         guard let object = (try? JSONSerialization.jsonObject(with: hookInput)) as? [String: Any],
               let session = object["session_id"] as? String, !session.isEmpty
         else { return nil }
+        // Any other non-empty value counts as one unnamed subagent.
+        let agent = (object["agent_id"] as? String).map { $0.isEmpty || isPlainName($0) ? $0 : "?" } ?? ""
         let kind: Kind
         switch object["hook_event_name"] as? String {
         case "SessionStart": kind = .sessionStart
@@ -66,9 +76,17 @@ public struct ClaudeEvent: Codable, Equatable, Sendable {
         case "PostToolUse", "PostToolUseFailure", "PermissionDenied": kind = .toolEnd
         case "PermissionRequest": kind = .permission
         case "Notification":
-            guard object["notification_type"] as? String == "permission_prompt" else { return nil }
-            kind = .permission
-        case "Stop": kind = .stop
+            switch object["notification_type"] as? String {
+            case "permission_prompt": kind = .permissionPrompt
+            case "idle_prompt": kind = .idle
+            default: return nil
+            }
+        // A turn that ends on an API error fires StopFailure instead of Stop.
+        case "Stop", "StopFailure": kind = .stop
+        // A subagent's end; without its `agent_id` it would read as the end of the session's turn.
+        case "SubagentStop":
+            guard !agent.isEmpty else { return nil }
+            kind = .stop
         case "SessionEnd": kind = .sessionEnd
         default: return nil
         }
@@ -83,10 +101,9 @@ public struct ClaudeEvent: Codable, Equatable, Sendable {
             }
         }
         let background = kind == .stop && !((object["background_tasks"] as? [Any]) ?? []).isEmpty
-        let subagent = !((object["agent_id"] as? String) ?? "").isEmpty
         let transcript = (object["transcript_path"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         return ClaudeEvent(session: session, kind: kind, tool: tool, asks: asks, background: background,
-                           subagent: subagent, cwd: object["cwd"] as? String ?? "", transcript: transcript,
+                           agent: agent, cwd: object["cwd"] as? String ?? "", transcript: transcript,
                            pid: parentPID,
                            title: kind == .sessionStart ? ClaudeTranscript.cleanTitle(object["session_title"]) : nil,
                            model: kind == .sessionStart ? trimmed(object["model"]) : nil, at: at)

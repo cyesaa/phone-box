@@ -17,7 +17,7 @@ struct ClaudeEventTests {
         let kinds: [(String, ClaudeEvent.Kind)] = [
             ("SessionStart", .sessionStart), ("UserPromptSubmit", .prompt), ("PreToolUse", .toolStart),
             ("PostToolUse", .toolEnd), ("PostToolUseFailure", .toolEnd), ("PermissionDenied", .toolEnd),
-            ("PermissionRequest", .permission), ("Stop", .stop), ("SessionEnd", .sessionEnd),
+            ("PermissionRequest", .permission), ("Stop", .stop), ("StopFailure", .stop), ("SessionEnd", .sessionEnd),
         ]
         for (name, kind) in kinds {
             #expect(Self.parse(Self.input(name))?.kind == kind, "\(name)")
@@ -26,17 +26,37 @@ struct ClaudeEventTests {
 
     @Test func copiesTheSessionThePathsAndTheParentProcess() throws {
         let event = try #require(Self.parse(Self.input("UserPromptSubmit"), pid: 777, at: 1_764_000_000_123_456))
-        #expect(event == ClaudeEvent(session: "s1", kind: .prompt, tool: nil, asks: false, background: false, subagent: false,
+        #expect(event == ClaudeEvent(session: "s1", kind: .prompt, tool: nil, asks: false, background: false, agent: "",
                                      cwd: "/Users/me/Code/PhoneBox", transcript: "/Users/me/.claude/projects/x/s1.jsonl",
                                      pid: 777, title: nil, model: nil, at: 1_764_000_000_123_456))
     }
 
     @Test func otherEventsAndOtherNotificationsAreNil() {
-        #expect(Self.parse(Self.input("SubagentStop")) == nil)
+        #expect(Self.parse(Self.input("SubagentStart")) == nil)
         #expect(Self.parse(Self.input("PreCompact")) == nil)
-        #expect(Self.parse(Self.input("Notification", #","notification_type":"idle_prompt","message":"waiting""#)) == nil)
+        #expect(Self.parse(Self.input("Notification", #","notification_type":"auth_success","message":"ok""#)) == nil)
         #expect(Self.parse(Self.input("Notification")) == nil)
-        #expect(Self.parse(Self.input("Notification", #","notification_type":"permission_prompt""#))?.kind == .permission)
+    }
+
+    /// A permission dialog that has been up a few seconds, and a prompt that has waited for a minute.
+    @Test func mapsTheNotificationsPhoneBoxFollows() {
+        #expect(Self.parse(Self.input("Notification", #","notification_type":"permission_prompt""#))?.kind == .permissionPrompt)
+        #expect(Self.parse(Self.input("Notification", #","notification_type":"idle_prompt","message":"waiting""#))?.kind == .idle)
+    }
+
+    /// A turn that ends on an API error fires StopFailure instead of Stop; a subagent's end is SubagentStop.
+    @Test func stopFailureAndSubagentStopAreStops() throws {
+        let failure = try #require(Self.parse(Self.input("StopFailure", #","error":"rate_limit""#)))
+        #expect(failure.kind == .stop)
+        #expect(!failure.background)
+        #expect(!failure.subagent)
+        let subagent = try #require(Self.parse(Self.input("SubagentStop", #","agent_id":"a7","agent_type":"Explore""#)))
+        #expect(subagent.kind == .stop)
+        #expect(subagent.agent == "a7")
+        #expect(subagent.subagent)
+        // Without its agent it would end the session's turn.
+        #expect(Self.parse(Self.input("SubagentStop")) == nil)
+        #expect(Self.parse(Self.input("SubagentStop", #","agent_id":"""#)) == nil)
     }
 
     @Test func aMissingOrEmptySessionIsNil() {
@@ -122,6 +142,16 @@ struct ClaudeEventTests {
         #expect(Self.parse(Self.input("Stop"))?.subagent == false)
     }
 
+    /// Which agent the event comes from: its `agent_id`, "" for the session's main agent.
+    @Test func carriesTheAgent() {
+        #expect(Self.parse(Self.input("PermissionRequest", #","tool_name":"Bash","agent_id":"a1""#))?.agent == "a1")
+        #expect(Self.parse(Self.input("PreToolUse", #","tool_name":"Read","agent_id":"""#))?.agent == "")
+        #expect(Self.parse(Self.input("PreToolUse", #","tool_name":"Read","agent_id":7"#))?.agent == "")
+        #expect(Self.parse(Self.input("PreToolUse", #","tool_name":"Read""#))?.agent == "")
+        // Only a plain identifier, like a tool's name.
+        #expect(Self.parse(Self.input("PreToolUse", #","agent_id":"a b""#))?.agent == "?")
+    }
+
     @Test func neverCopiesTheConversation() throws {
         let secret = "SECRET-7f3a"
         let inputs = [
@@ -131,6 +161,8 @@ struct ClaudeEventTests {
             Self.input("PostToolUse", #","tool_name":"Bash","tool_input":{"command":"x"},"tool_response":{"stdout":"\#(secret)"}"#),
             Self.input("PreToolUse", #","tool_name":"mcp__ccd_turn__wrap_up","tool_input":{"ask":"\#(secret)?"}"#),
             Self.input("Notification", #","notification_type":"permission_prompt","message":"\#(secret)""#),
+            Self.input("Notification", #","notification_type":"idle_prompt","message":"\#(secret)""#),
+            Self.input("StopFailure", #","error":"x","error_details":"\#(secret)","last_assistant_message":"\#(secret)""#),
         ]
         for input in inputs {
             let line = String(decoding: try #require(Self.parse(input)).line(), as: UTF8.self)

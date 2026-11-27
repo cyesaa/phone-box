@@ -10,9 +10,14 @@ public enum ClaudeHooks {
         case eventNotAnArray(String)
     }
 
-    /// One group of PhoneBox's in each of these events' arrays.
+    /// One group of PhoneBox's in each of these events' arrays. Claude Code 2.1.332 skips an event name it does not
+    /// know, with a warning, and keeps the rest of the file (checked 2026-11-27).
     public static let events = ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",
-                                "PermissionRequest", "PermissionDenied", "Notification", "Stop", "SessionEnd"]
+                                "PermissionRequest", "PermissionDenied", "Notification", "Stop", "StopFailure",
+                                "SubagentStop", "SessionEnd"]
+    /// The notifications PhoneBox follows: a permission dialog that has been up a few seconds, and a prompt that has
+    /// waited a minute.
+    public static let notificationMatcher = "permission_prompt|idle_prompt"
 
     /// The executable quoted for `sh`, then the helper's flag.
     public static func command(executable: String) -> String {
@@ -88,7 +93,7 @@ public enum ClaudeHooks {
         removeEntries(from: &hooks)
         for event in events {
             var group: [String: Any] = ["hooks": [["type": "command", "command": command, "async": true, "timeout": 10]]]
-            if event == "Notification" { group["matcher"] = "permission_prompt" }
+            if event == "Notification" { group["matcher"] = notificationMatcher }
             hooks[event] = ((hooks[event] as? [Any]) ?? []) + [group]
         }
         root["hooks"] = hooks

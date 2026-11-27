@@ -4,7 +4,8 @@ import PhoneBoxCore
 
 /// Follows the Mac's Claude Code sessions while "Claude Code Sessions" is on (design §14): listens on a Unix socket for
 /// the events `PhoneBox --claude-hook` hands over, keeps `ClaudeSessions` up to date, reads each session's title and
-/// model from its file and drops a session whose process has ended.
+/// model from its file, drops a session whose process has ended, sees a command the user approved start, and keeps the
+/// sessions in a file across a restart.
 @MainActor
 final class ClaudeMonitor {
     typealias Tail = (data: Data, startsAtBeginning: Bool)
@@ -15,6 +16,8 @@ final class ClaudeMonitor {
     /// A session's file is read again on its next event once this many milliseconds have passed.
     static let detailsEvery: Int64 = 10_000
     static let livenessEvery: TimeInterval = 5
+    /// While a session waits for permission to run a command, its process's children are looked at this often.
+    static let commandsEvery: TimeInterval = 1
 
     /// Called on the main thread after the sessions changed.
     var onChange: (() -> Void)?
@@ -24,11 +27,20 @@ final class ClaudeMonitor {
     /// The sessions waiting for the user (the list has those first).
     var waitingCount: Int { state.list.filter { $0.state == .waiting }.count }
     var isRunning: Bool { source != nil }
+    /// Some session waits for permission to run a command: its process's children are looked at every second.
+    var checksCommands: Bool { commandTimer != nil }
 
     private let socketPath: String
+    /// Where the sessions are kept across a restart; nil keeps them nowhere.
+    private let sessionsFile: URL?
     private let clock: () -> Int64
     private let isAlive: (Int32) -> Bool
     private let readTail: @Sendable (String) -> Tail?
+    /// How long after a change the sessions are saved, at most.
+    private let saveDelay: TimeInterval
+    /// When a process started (µs since 1970).
+    private let processStart: (Int32) -> Int64?
+    private let children: (Int32) -> [ClaudeSessions.ChildProcess]
     private var state = ClaudeSessions()
     /// When each session's file was last read (by `clock`).
     private var detailsReadAt: [String: Int64] = [:]
@@ -36,18 +48,30 @@ final class ClaudeMonitor {
     /// The socket file this monitor made, as it was right after `bind`: `stop()` removes that file and no other.
     private var socketFile: FileID?
     private var livenessTimer: Timer?
+    private var commandTimer: Timer?
+    private var saveTimer: Timer?
+    /// The sessions changed since they were last saved.
+    private var unsaved = false
     /// Bumped by `stop()`: events and details still on their way from before are dropped.
     private var generation = 0
     private let socketQueue = DispatchQueue(label: "PhoneBox Claude socket")
     private let fileQueue = DispatchQueue(label: "PhoneBox Claude files", qos: .utility)
 
-    init(socketPath: String = ClaudePaths.socket, clock: @escaping () -> Int64 = ClaudeMonitor.now,
+    init(socketPath: String = ClaudePaths.socket, sessionsFile: URL? = ClaudePaths.sessions,
+         clock: @escaping () -> Int64 = ClaudeMonitor.now,
          isAlive: @escaping (Int32) -> Bool = ClaudeMonitor.processIsAlive,
-         readTail: @escaping @Sendable (String) -> Tail? = { ClaudeMonitor.readTail($0) }) {
+         readTail: @escaping @Sendable (String) -> Tail? = { ClaudeMonitor.readTail($0) },
+         saveDelay: TimeInterval = 2,
+         processStart: @escaping (Int32) -> Int64? = { ClaudeHookForwarder.startTime(of: $0) },
+         children: @escaping (Int32) -> [ClaudeSessions.ChildProcess] = { ClaudeMonitor.children(of: $0) }) {
         self.socketPath = socketPath
+        self.sessionsFile = sessionsFile
         self.clock = clock
         self.isAlive = isAlive
         self.readTail = readTail
+        self.saveDelay = saveDelay
+        self.processStart = processStart
+        self.children = children
     }
 
     /// Listens on the socket. If it cannot be made, PhoneBox logs it and stays stopped: sessions then simply do not
@@ -79,6 +103,8 @@ final class ClaudeMonitor {
         }
         source.resume()
         self.source = source
+        // Before the first event, which comes in through the main queue.
+        restore()
         let timer = Timer(timeInterval: Self.livenessEvery, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.checkProcesses() }
         }
@@ -87,11 +113,16 @@ final class ClaudeMonitor {
         livenessTimer = timer
     }
 
-    /// Closes the socket, removes its file (if it is still the one this monitor made) and forgets every session.
+    /// Saves the sessions, closes the socket, removes its file (if it is still the one this monitor made) and forgets
+    /// every session.
     func stop() {
         generation += 1
         livenessTimer?.invalidate()
         livenessTimer = nil
+        commandTimer?.invalidate()
+        commandTimer = nil
+        // For the next start: after an update, PhoneBox shows the sessions again.
+        if unsaved { save() }
         if let source {
             source.cancel()
             self.source = nil
@@ -111,7 +142,96 @@ final class ClaudeMonitor {
         guard state.count != before else { return }
         let ids = state.ids
         detailsReadAt = detailsReadAt.filter { ids.contains($0.key) }
+        changed()
+    }
+
+    /// Looks for the shell of a command the user approved among the children of each process whose session waits for
+    /// permission to run one (every `commandsEvery` seconds while one does; `ClaudeSessions.applyApprovals`).
+    func checkCommands() {
+        var any = false
+        for pid in state.pidsWaitingToRunACommand where state.applyApprovals(pid: pid, children: children(pid), now: clock()) {
+            any = true
+        }
+        if any { changed() }
+    }
+
+    /// After the sessions changed: saves them soon, looks for approved commands while some session waits to run one,
+    /// and tells `onChange`.
+    private func changed() {
+        unsaved = true
+        if sessionsFile != nil, saveTimer == nil {
+            let timer = Timer(timeInterval: saveDelay, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated { self?.save() }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            saveTimer = timer
+        }
+        let checking = source != nil && !state.pidsWaitingToRunACommand.isEmpty
+        if checking, commandTimer == nil {
+            let timer = Timer(timeInterval: Self.commandsEvery, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.checkCommands() }
+            }
+            timer.tolerance = 0.2
+            RunLoop.main.add(timer, forMode: .common)
+            commandTimer = timer
+        } else if !checking, let commandTimer {
+            commandTimer.invalidate()
+            self.commandTimer = nil
+        }
         onChange?()
+    }
+
+    /// The sessions saved before PhoneBox last stopped, those whose `claude` still runs: alive, and started before the
+    /// session's last event (a pid can be another process's after a restart of the Mac).
+    private func restore() {
+        guard let sessionsFile, let data = try? Data(contentsOf: sessionsFile) else { return }
+        let isAlive = self.isAlive, processStart = self.processStart
+        guard let saved = ClaudeSessions(saved: data, now: clock(), keep: { pid, at in
+            isAlive(pid) && (processStart(pid).map { $0 <= at } ?? false)
+        }), saved.count > 0 else { return }
+        state = saved
+        changed()
+    }
+
+    private func save() {
+        saveTimer?.invalidate()
+        saveTimer = nil
+        unsaved = false
+        guard let sessionsFile else { return }
+        do {
+            try Self.write(state.saved(now: clock()), replacing: sessionsFile)
+        } catch {
+            Log.app.error("Could not save the Claude Code sessions: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// `data` in place of the file at `url`, readable and writable by this user only: written to a new file next to it,
+    /// then renamed over it.
+    nonisolated static func write(_ data: Data, replacing url: URL) throws {
+        let temporary = url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).\(getpid()).tmp").path
+        unlink(temporary)
+        let descriptor = open(temporary, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o600)
+        guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        var failure: Int32 = 0
+        data.withUnsafeBytes { bytes in
+            var offset = 0
+            while offset < bytes.count, let base = bytes.baseAddress {
+                let written = Darwin.write(descriptor, base + offset, bytes.count - offset)
+                if written < 0 {
+                    if errno == EINTR { continue }
+                    failure = errno
+                    return
+                }
+                offset += written
+            }
+        }
+        if failure == 0, fchmod(descriptor, 0o600) != 0 { failure = errno }
+        if close(descriptor) != 0, failure == 0 { failure = errno }
+        if failure == 0, rename(temporary, url.path) != 0 { failure = errno }
+        guard failure == 0 else {
+            unlink(temporary)
+            throw POSIXError(POSIXErrorCode(rawValue: failure) ?? .EIO)
+        }
     }
 
     private func received(_ events: [ClaudeEvent], generation: Int) {
@@ -125,7 +245,7 @@ final class ClaudeMonitor {
                 readDetailsIfDue(event, now: now)
             }
         }
-        onChange?()
+        changed()
     }
 
     /// A new session's file is read at once; a known one's at most every `detailsEvery` ms, so a title the user
@@ -142,7 +262,7 @@ final class ClaudeMonitor {
                 MainActor.assumeIsolated {
                     guard let self, generation == self.generation else { return }
                     self.state.setDetails(session: session, title: details.title, model: details.model)
-                    self.onChange?()
+                    self.changed()
                 }
             }
         }
@@ -157,6 +277,25 @@ final class ClaudeMonitor {
     nonisolated static func processIsAlive(_ pid: Int32) -> Bool {
         guard pid > 1 else { return false }
         return kill(pid, 0) == 0 || errno == EPERM
+    }
+
+    /// The child processes of `pid` with their start times and executables (libproc); none when they cannot be read.
+    nonisolated static func children(of pid: Int32) -> [ClaudeSessions.ChildProcess] {
+        var pids = [pid_t](repeating: 0, count: 256)
+        let count = pids.withUnsafeMutableBytes { proc_listchildpids(pid, $0.baseAddress, Int32($0.count)) }
+        guard count > 0 else { return [] }
+        var path = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+        return pids.prefix(min(Int(count), pids.count)).compactMap { child in
+            var info = proc_bsdinfo()
+            let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+            // The child may have ended since it was listed, and its pid gone to another process.
+            guard child > 0, proc_pidinfo(child, PROC_PIDTBSDINFO, 0, &info, size) == size,
+                  info.pbi_ppid == UInt32(bitPattern: pid), proc_pidpath(child, &path, UInt32(path.count)) > 0
+            else { return nil }
+            return ClaudeSessions.ChildProcess(pid: child,
+                                               start: Int64(info.pbi_start_tvsec) * 1_000_000 + Int64(info.pbi_start_tvusec),
+                                               path: String(cString: path))
+        }
     }
 
     /// The last `tailBytes` of a regular file.

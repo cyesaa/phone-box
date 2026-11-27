@@ -38,14 +38,61 @@ public struct ClaudeSessions: Sendable {
     public static let maxListed = 12
     /// How long an ended session is remembered (ms), so that its late events do not bring it back.
     public static let endMemory: Int64 = 60_000
+    /// A list saved longer ago than this (ms) is not used: the sessions have changed in ways no event will tell (the
+    /// feature was off, or PhoneBox did not run).
+    public static let savedLife: Int64 = 10 * 60_000
 
-    private struct Entry: Sendable {
+    /// A child process of a session's `claude`.
+    public struct ChildProcess: Equatable, Sendable {
+        public var pid: Int32
+        /// When it started, in microseconds since 1970: the clock of an event's `at`.
+        public var start: Int64
+        public var path: String
+
+        public init(pid: Int32, start: Int64, path: String) {
+            self.pid = pid
+            self.start = start
+            self.path = path
+        }
+    }
+
+    /// A child that starts within this many microseconds of an event may be one of that event's hooks.
+    public static let hookStartMargin: Int64 = 500_000
+    /// A child counts once it has run this many microseconds: an event of its time may still be on its way.
+    public static let childSettling: Int64 = 250_000
+    /// What Claude Code runs a command in: the user's shell, bash or zsh. `claude` also starts `git`, `security` and
+    /// `caffeinate` at any time, and hooks (through `sh`, or as themselves) with their events (seen 2026-11-27).
+    static let shells: Set<String> = ["bash", "zsh"]
+
+    /// What a session does apart from its agents' waits: ready, working, or waiting for its turn.
+    private struct Mode: Codable, Sendable {
+        var state: ClaudeSession.State
+        var reason: ClaudeSession.Reason?
+        var activity: ClaudeSession.Activity?
+    }
+
+    /// An agent waiting for the user.
+    private struct Wait: Codable, Sendable {
+        var reason: ClaudeSession.Reason
+        /// When it began (`now`, ms).
+        var since: Int64
+        /// The tool that asked for permission.
+        var tool: String?
+
+        var isForACommand: Bool { reason == .permission && tool == "Bash" }
+    }
+
+    private struct Entry: Codable, Sendable {
+        /// As listed: the oldest of `waits`, or else `mode`.
         var session: ClaudeSession
         var pid: Int32
         /// The end-of-turn box asked a question: the turn's stop waits with `question`.
         var questionAtEnd = false
-        /// The `at` of the last event applied.
+        /// The `at` of the last event applied, or the start of a command seen approved.
         var at: Int64
+        var mode: Mode
+        /// Each agent's wait, by `agent` ("" for the main agent).
+        var waits: [String: Wait] = [:]
     }
 
     private struct End: Sendable {
@@ -55,10 +102,30 @@ public struct ClaudeSessions: Sendable {
         var received: Int64
     }
 
+    private struct Saved: Codable {
+        /// When it was saved (ms).
+        var saved: Int64
+        var entries: [String: Entry]
+    }
+
     private var entries: [String: Entry] = [:]
     private var ended: [String: End] = [:]
 
     public init() {}
+
+    /// The sessions `saved(now:)` gave at most `savedLife` ago, those for which `keep(pid, at)` holds. `at` is the
+    /// session's last event, a hook its process ran: a process with that pid that started later is another one. Nil
+    /// for anything else.
+    public init?(saved data: Data, now: Int64, keep: (_ pid: Int32, _ at: Int64) -> Bool) {
+        guard let saved = try? JSONDecoder().decode(Saved.self, from: data), now - saved.saved <= Self.savedLife
+        else { return nil }
+        entries = saved.entries.filter { keep($0.value.pid, $0.value.at) }
+    }
+
+    /// Every session, with its agents' waits and the order of its events, for after a restart (`now`, ms).
+    public func saved(now: Int64) -> Data {
+        (try? JSONEncoder().encode(Saved(saved: now, entries: entries))) ?? Data()
+    }
 
     /// Waiting sessions (the one waiting longest first), then working, then ready ones; at most `maxListed`.
     public var list: [ClaudeSession] {
@@ -82,12 +149,18 @@ public struct ClaudeSessions: Sendable {
     /// Every session's id, listed or not.
     public var ids: Set<String> { Set(entries.keys) }
 
+    /// The processes with a session one of whose agents waits for permission to run a command (`Bash`).
+    public var pidsWaitingToRunACommand: Set<Int32> {
+        Set(entries.values.filter { $0.waits.values.contains(where: \.isForACommand) }.map(\.pid))
+    }
+
     /// Applies one event at `now` (ms). Hooks run as separate processes and can come in out of order: an event that ran
-    /// before the session's last one, or no later than its end, is old news and changes nothing (design §14).
+    /// before the session's last one, or no later than its end, is old news and changes nothing (design §14). Each agent
+    /// of the session ("" the main one) waits on its own: the session waits while any of them does.
     public mutating func apply(_ event: ClaudeEvent, now: Int64) {
         if !ended.isEmpty { ended = ended.filter { now - $0.value.received <= Self.endMemory } }
-        // A subagent's stop ends only its own work; the session goes on.
-        if event.kind == .stop, event.subagent { return }
+        // A subagent's stop ends only its own wait; it makes no session.
+        if event.kind == .stop, event.subagent, entries[event.session] == nil { return }
         // `at` is wall-clock time (the helper's start time): if the Mac's clock steps back, the events of a known session
         // are ignored until the clock passes the last `at` applied.
         if let end = ended[event.session] {
@@ -112,34 +185,95 @@ public struct ClaudeSessions: Sendable {
             return
         case .prompt:
             entry.questionAtEnd = false
-            Self.set(&entry.session, .working, activity: .think, now: now)
+            entry.waits = [:]
+            entry.mode = Mode(state: .working, activity: .think)
+            Self.show(&entry, now: now)
             // A new turn: its time starts now even when the last one was still running.
             entry.session.since = now
+            entries[event.session] = entry
+            return
         case .toolStart:
             switch event.tool {
             case ClaudeEvent.questionTool:
-                Self.set(&entry.session, .waiting, reason: .question, now: now)
+                Self.wait(&entry, agent: event.agent, reason: .question, tool: event.tool, now: now)
             case "ExitPlanMode":
-                Self.set(&entry.session, .waiting, reason: .permission, now: now)
+                Self.wait(&entry, agent: event.agent, reason: .permission, tool: event.tool, now: now)
             default:
+                entry.waits[event.agent] = nil
                 if event.tool == ClaudeEvent.wrapUpTool, event.asks { entry.questionAtEnd = true }
-                Self.set(&entry.session, .working, activity: event.tool.map(Self.activity(forTool:)) ?? .tool, now: now)
+                entry.mode = Mode(state: .working, activity: event.tool.map(Self.activity(forTool:)) ?? .tool)
             }
         case .toolEnd:
-            Self.set(&entry.session, .working, activity: .think, now: now)
+            entry.waits[event.agent] = nil
+            entry.mode = Mode(state: .working, activity: .think)
         case .permission:
-            Self.set(&entry.session, .waiting, reason: .permission, now: now)
-        case .stop:
-            if event.background {
-                Self.set(&entry.session, .working, activity: .background, now: now)
-            } else {
-                Self.set(&entry.session, .waiting, reason: entry.questionAtEnd ? .question : .turn, now: now)
+            Self.wait(&entry, agent: event.agent, reason: .permission, tool: event.tool, now: now)
+        case .permissionPrompt:
+            // The dialog's notification may not say which agent asked: it stands for a permission wait already known.
+            if !entry.waits.values.contains(where: { $0.reason == .permission }) {
+                Self.wait(&entry, agent: event.agent, reason: .permission, tool: nil, now: now)
             }
-            entry.questionAtEnd = false
+        case .stop:
+            if event.subagent {
+                entry.waits[event.agent] = nil
+            } else {
+                if event.background {
+                    // The background tasks' agents may still wait.
+                    entry.waits[""] = nil
+                    entry.mode = Mode(state: .working, activity: .background)
+                } else {
+                    entry.waits = [:]
+                    entry.mode = Mode(state: .waiting, reason: entry.questionAtEnd ? .question : .turn)
+                }
+                entry.questionAtEnd = false
+            }
+        case .idle:
+            // A turn that ended without a Stop (Esc, or StopFailure where it is not hooked) ends here.
+            if entry.mode.state == .working, entry.mode.activity != .background {
+                entry.mode = Mode(state: .waiting, reason: entry.questionAtEnd ? .question : .turn)
+                entry.questionAtEnd = false
+            }
         case .sessionEnd:
             return
         }
+        Self.show(&entry, now: now)
         entries[event.session] = entry
+    }
+
+    /// The first shell among `children` that started more than `hookStartMargin` after `lastEvent` and no later than
+    /// `startedBy` (µs): the command the user approved, as no hook of the session's events is one. Nil when there is
+    /// none.
+    public static func approvedCommand(lastEvent: Int64, children: [ChildProcess], startedBy: Int64) -> ChildProcess? {
+        children.filter { child in
+            guard child.start > lastEvent + hookStartMargin, child.start <= startedBy,
+                  let name = child.path.split(separator: "/").last
+            else { return false }
+            return shells.contains(String(name))
+        }.min { ($0.start, $0.pid) < ($1.start, $1.pid) }
+    }
+
+    /// No hook says that the user approved a command; its shell starting as a child of the session's process does
+    /// (design §14). With `children` of the process `pid` at `now` (ms): the agent of its sessions that asked first to
+    /// run one works on it. True when that changed a session.
+    @discardableResult
+    public mutating func applyApprovals(pid: Int32, children: [ChildProcess], now: Int64) -> Bool {
+        let process = entries.filter { $0.value.pid == pid }
+        guard let lastEvent = process.values.map(\.at).max() else { return false }
+        let asking = process.flatMap { id, entry in
+            entry.waits.filter { $0.value.isForACommand }.map { (since: $0.value.since, id: id, agent: $0.key) }
+        }
+        guard let first = asking.min(by: { ($0.since, $0.id, $0.agent) < ($1.since, $1.id, $1.agent) }),
+              let command = Self.approvedCommand(lastEvent: lastEvent, children: children,
+                                                 startedBy: now * 1_000 - Self.childSettling),
+              var entry = entries[first.id]
+        else { return false }
+        entry.waits[first.agent] = nil
+        entry.mode = Mode(state: .working, activity: .command)
+        // Like an event at the command's start: what ran before it (the dialog's late notification) is old news.
+        entry.at = command.start
+        Self.show(&entry, now: now)
+        entries[first.id] = entry
+        return true
     }
 
     /// The title and the model from the session's file. Nil (and an empty title) changes nothing.
@@ -170,17 +304,29 @@ public struct ClaudeSessions: Sendable {
         let name = folder.isEmpty ? "Claude" : folder
         return Entry(session: ClaudeSession(id: event.session, title: name, project: name, model: nil, state: .ready,
                                             reason: nil, activity: nil, since: now),
-                     pid: event.pid, at: event.at)
+                     pid: event.pid, at: event.at, mode: Mode(state: .ready))
     }
 
-    /// `reason` only while waiting, `activity` only while working; the time restarts when the state or the reason
-    /// changes.
-    private static func set(_ session: inout ClaudeSession, _ state: ClaudeSession.State, reason: ClaudeSession.Reason? = nil,
-                            activity: ClaudeSession.Activity? = nil, now: Int64) {
-        let reason = state == .waiting ? reason : nil
-        if session.state != state || session.reason != reason { session.since = now }
-        session.state = state
-        session.reason = reason
-        session.activity = state == .working ? activity : nil
+    /// `agent` waits for `reason`; a wait for the same reason goes on from when it began.
+    private static func wait(_ entry: inout Entry, agent: String, reason: ClaudeSession.Reason, tool: String?, now: Int64) {
+        let since = entry.waits[agent].flatMap { $0.reason == reason ? $0.since : nil } ?? now
+        entry.waits[agent] = Wait(reason: reason, since: since, tool: tool)
+    }
+
+    /// The session as listed: waiting with the reason and the time of its oldest wait, or else its mode, whose time
+    /// restarts when the state or the reason changes.
+    private static func show(_ entry: inout Entry, now: Int64) {
+        let shown: Mode
+        if let oldest = entry.waits.min(by: { ($0.value.since, $0.key) < ($1.value.since, $1.key) })?.value {
+            shown = Mode(state: .waiting, reason: oldest.reason)
+            entry.session.since = oldest.since
+        } else {
+            shown = entry.mode
+            if entry.session.state != shown.state || entry.session.reason != shown.reason { entry.session.since = now }
+        }
+        entry.session.state = shown.state
+        // `reason` only while waiting, `activity` only while working.
+        entry.session.reason = shown.state == .waiting ? shown.reason : nil
+        entry.session.activity = shown.state == .working ? shown.activity : nil
     }
 }
