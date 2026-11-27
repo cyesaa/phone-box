@@ -28,6 +28,11 @@
     return decode(stored);
   }
 
+  /// Every wait and silence here is timed with a clock that only moves forward: the phone's wall clock can be set back,
+  /// which would stall retrying and hide a dead socket for as long as the step. JavaScriptCore, where the tests run,
+  /// has no `performance` of its own.
+  const monotonic = () => (typeof global.performance !== "undefined" ? global.performance.now() : Date.now());
+
   const retryDelays = [1000, 2000, 5000];
   /// A snapshot is due every second; without one for this long the values are stale.
   const staleAfter = 3000;
@@ -94,16 +99,16 @@
     // Every second: mark stale values, replace a dead socket, and reconnect once the back-off delay has passed.
     tick() {
       if (this.stopped) return;
-      if (this.access && this.access.streaming && Date.now() - this.lastSnapshotAt > staleAfter) this.setStale(true);
+      if (this.access && this.access.streaming && monotonic() - this.lastSnapshotAt > staleAfter) this.setStale(true);
       this.replaceIfDead();
-      if (Date.now() >= this.nextAttemptAt) this.connect();
+      if (monotonic() >= this.nextAttemptAt) this.connect();
     }
 
     // The page came back (unlock, tab switch): check the socket at once instead of waiting for the back-off.
     resume() {
       if (this.stopped || !this.visible()) return;
       // The three events often fire together; a socket opened less than 1 s ago is kept.
-      if (Date.now() - this.openedAt >= 1000) {
+      if (monotonic() - this.openedAt >= 1000) {
         if (this.access && !this.access.streaming && this.socket) this.replace();
         else this.replaceIfDead();
       }
@@ -121,10 +126,10 @@
       this.socket = socket;
       this.ready = false;
       this.access = null;
-      this.lastMessageAt = Date.now();
-      this.openedAt = Date.now();
+      this.lastMessageAt = monotonic();
+      this.openedAt = monotonic();
       socket.onmessage = (event) => {
-        this.lastMessageAt = Date.now();
+        this.lastMessageAt = monotonic();
         let message;
         try {
           message = JSON.parse(event.data);
@@ -137,17 +142,18 @@
     }
 
     retryIn(delay) {
-      this.nextAttemptAt = Date.now() + delay;
+      this.nextAttemptAt = monotonic() + delay;
       global.setTimeout(() => {
-        if (Date.now() >= this.nextAttemptAt) this.connect();
+        if (monotonic() >= this.nextAttemptAt) this.connect();
       }, delay);
     }
 
     closed(socket, code) {
-      if (this.socket === socket) {
-        this.socket = null;
-        this.ready = false;
-      }
+      // A socket that is no longer the current one (the page opened the next while this one was closing) has nothing
+      // to say about the live one: its late close changes nothing.
+      if (this.socket !== socket) return;
+      this.socket = null;
+      this.ready = false;
       this.setStale(true);
       if (code === 4001) {
         // Wrong key or a pairing reset: retrying cannot help.
@@ -177,7 +183,7 @@
       const socket = this.socket;
       if (!socket) return;
       if (!this.ready) {
-        if (socket.readyState <= WebSocket.OPEN && Date.now() - this.openedAt > readyTimeout) {
+        if (socket.readyState <= WebSocket.OPEN && monotonic() - this.openedAt > readyTimeout) {
           socket.onmessage = null;
           socket.onclose = null;
           try {
@@ -189,15 +195,15 @@
       }
       if (socket.readyState !== WebSocket.OPEN) return;
       if (!(this.access && this.access.streaming)) {
-        if (this.access && Date.now() - this.accessSetAt >= recheckAfter) this.replace();
+        if (this.access && monotonic() - this.accessSetAt >= recheckAfter) this.replace();
         return;
       }
-      if (Date.now() - this.lastMessageAt > deadAfter) this.replace();
+      if (monotonic() - this.lastMessageAt > deadAfter) this.replace();
     }
 
     replace() {
       const socket = this.socket;
-      this.accessSetAt = Date.now();
+      this.accessSetAt = monotonic();
       if (socket) {
         socket.onmessage = null;
         socket.onclose = null;
@@ -228,7 +234,7 @@
           this.applyAccess(message);
           break;
         case "snapshot":
-          this.lastSnapshotAt = Date.now();
+          this.lastSnapshotAt = monotonic();
           this.setStale(false);
           this.handlers.onSnapshot(message);
           break;
@@ -241,7 +247,7 @@
     applyAccess(access) {
       if (!access) return;
       this.access = access;
-      this.accessSetAt = Date.now();
+      this.accessSetAt = monotonic();
       this.handlers.onAccess(access);
       if (access.streaming) {
         this.emit("streaming");

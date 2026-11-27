@@ -7,6 +7,8 @@
   const guideDoneKey = "phonebox-guide-done";
   let t = null;
   let started = false;
+  /// The pairing was lost ("Eşleşmedi"): the page is dead and lets the screen sleep.
+  let dead = false;
 
   // ---- Keep the screen on (spike V4): an unmuted, silent video that never loops, in an "ambient" audio session so
   // music on the phone keeps playing. A tap must start it.
@@ -27,7 +29,7 @@
   // Chrome does not fire visibilitychange when the phone is unlocked, and WebKit pauses media while the page is
   // hidden: restart the video every few seconds if it stopped.
   global.setInterval(() => {
-    if (!started || global.document.visibilityState !== "visible" || !video.paused) return;
+    if (dead || !started || global.document.visibilityState !== "visible" || !video.paused) return;
     keepAwake().catch((error) => {
       // iOS will not restart it without a tap: ask for one, or the screen will go to sleep.
       if (error && error.name === "NotAllowedError") {
@@ -76,7 +78,8 @@
     $("guide-link-row").hidden = !link;
     $("guide-audio").hidden = Boolean(global.navigator.audioSession);
     $("guide-copy").textContent = t.copy;
-    $("guide-done").textContent = started ? t.close : t.start;
+    // On a dead page the button only closes the guide: it must not keep the screen on.
+    $("guide-done").textContent = started || dead ? t.close : t.start;
     $("guide").hidden = false;
   }
 
@@ -84,7 +87,7 @@
     try {
       global.localStorage.setItem(guideDoneKey, "1");
     } catch (error) {}
-    if (started) {
+    if (started || dead) {
       $("guide").hidden = true;
       return;
     }
@@ -161,14 +164,21 @@
     else openGuide();
   }
 
-  global.PhoneBox = global.PhoneBox || {};
-  /// A wrong key: the page is dead, so it must not ask for a tap that keeps the screen on.
-  function hideStart() {
+  /// A wrong key or a pairing reset: the page is dead. The screen may sleep (the video stops and is not started again),
+  /// and nothing asks for a tap that would keep it on: the Start screen and the guide go.
+  function stopKeepAwake() {
+    dead = true;
+    started = false;
+    video.pause();
     $("start").hidden = true;
+    $("guide").hidden = true;
   }
 
+  global.PhoneBox = global.PhoneBox || {};
   global.PhoneBox.ui = {
-    setup, openGuide, closeMenu, hideStart, isStarted: () => started,
+    setup, openGuide, closeMenu, stopKeepAwake, isStarted: () => started,
+    /// The Start screen or the guide is over the dashboard (the Start screen hides it, the guide all but).
+    covers: () => !$("start").hidden || !$("guide").hidden,
     get menuOpenedAt() {
       return menuOpenedAt;
     },

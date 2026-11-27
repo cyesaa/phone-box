@@ -1,5 +1,6 @@
 // How things move (design §8 "Görünüm ve hareket"): values glide to each new snapshot, and one
-// requestAnimationFrame loop draws everything. `ease`, `between` and `Glide` are pure and tested in JavaScriptCore.
+// requestAnimationFrame loop draws everything. `ease`, `between`, `Glide`, `Timeline` and `Pace` are pure and tested in
+// JavaScriptCore.
 (function (global) {
   "use strict";
 
@@ -87,6 +88,32 @@
     }
   }
 
+  /// Which animation frames draw everything: each one, or once every `every` ms while nothing should move or nothing
+  /// is seen (`slow`: stale values, or the dashboard behind the Claude page or the Start screen). The first frame after
+  /// `slow` changes, or after `soon()`, is drawn at once.
+  class Pace {
+    constructor(every = 1000) {
+      this.every = every;
+      this.slow = false;
+      this.last = -Infinity;
+    }
+
+    soon() {
+      this.last = -Infinity;
+    }
+
+    /// True when the frame at `now` (ms) draws everything.
+    due(now, slow) {
+      if (slow !== this.slow) {
+        this.slow = slow;
+        this.last = -Infinity;
+      }
+      if (slow && now - this.last < this.every) return false;
+      this.last = now;
+      return true;
+    }
+  }
+
   // One loop for every drawing. The browser stops it while the page is hidden (phone locked, other tab).
   const tasks = [];
   let running = false;
@@ -125,5 +152,5 @@
   }
 
   global.PhoneBox = global.PhoneBox || {};
-  global.PhoneBox.motion = { ease, between, Glide, Timeline, onFrame, reduced };
+  global.PhoneBox.motion = { ease, between, Glide, Timeline, Pace, onFrame, reduced };
 })(typeof window !== "undefined" ? window : globalThis);

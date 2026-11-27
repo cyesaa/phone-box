@@ -547,8 +547,8 @@ p { margin: 0; }
 
 /* The cards fill the height in landscape (as many rows as they fill: one session is one tall card in the left column);
    in portrait they stack under the header. The Mac's order is set with `order`, so a card that moves keeps its
-   animations. */
-.claude-list { grid-row: 2; grid-column: 1; display: grid; grid-template-columns: repeat(var(--columns, 1), minmax(0, 1fr)); gap: 10px; min-height: 0; }
+   animations. Positioned, so the cards' offsetTop (portrait cut, claudeview.js) is measured from its top. */
+.claude-list { position: relative; grid-row: 2; grid-column: 1; display: grid; grid-template-columns: repeat(var(--columns, 1), minmax(0, 1fr)); gap: 10px; min-height: 0; }
 /* Portrait with more sessions than fit: the cards past the bottom are cut, and this line says how many. */
 .claude-more { grid-row: 3; grid-column: 1; margin: 0; text-align: center; font-size: 13px; color: var(--muted); }
 .claude-more[hidden] { display: none; }

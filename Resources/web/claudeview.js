@@ -50,6 +50,8 @@
       /// The Mac sends sessions (the feature is on): there are two pages.
       this.enabled = false;
       this.showing = "dashboard";
+      /// When `showing` last changed (`performance.now()`).
+      this.shownAt = -Infinity;
       this.stale = true;
       /// Each session's card, by id.
       this.cards = new Map();
@@ -239,10 +241,19 @@
       this.measure = false;
       this.cut(0);
       list.classList.remove("compact");
-      list.classList.toggle("compact", list.scrollHeight > list.clientHeight + 1);
+      list.classList.toggle("compact", this.reach() > list.clientHeight + 1);
       // Even compact cards do not fit (many sessions on a small phone): only the cards that fit completely stay, the
       // lowest-ranked ones go, and a line under them says how many. No scrolling.
-      if (list.scrollHeight > list.clientHeight + 1) this.cutToFit();
+      if (this.reach() > list.clientHeight + 1) this.cutToFit();
+    }
+
+    /// How far down the list the cards reach where they rest. Cards are measured by their place in the layout (the list
+    /// is their offset parent, styles.css), not where they are on screen: a card that is still coming in is drawn up to
+    /// 24 px lower (`scrollHeight` counts that too), and nothing measures again once it has arrived.
+    reach() {
+      let bottom = 0;
+      for (const element of this.ordered()) bottom = Math.max(bottom, element.offsetTop + element.offsetHeight);
+      return bottom;
     }
 
     /// The cards in the Mac's order, the ones fading out in their places too.
@@ -269,11 +280,11 @@
       // The line takes its place first, so that the list's height is what is left for the cards.
       setText(this.more, this.t.claudeMore(this.cards.size));
       setHidden(this.more, false);
-      const top = list.getBoundingClientRect().top;
       const room = list.clientHeight + 1;
       const elements = this.ordered();
+      // Where each card rests, as in `reach`.
       let keep = 0;
-      while (keep < elements.length && elements[keep].getBoundingClientRect().bottom - top <= room) keep += 1;
+      while (keep < elements.length && elements[keep].offsetTop + elements[keep].offsetHeight <= room) keep += 1;
       this.cut(Math.max(1, keep));
     }
 
@@ -283,6 +294,7 @@
       const next = claude ? "claude" : "dashboard";
       if (next === this.showing) return;
       this.showing = next;
+      this.shownAt = global.performance.now();
       const dashboard = $("dashboard");
       // The page may have been shown just now: its slide needs a place to start from.
       void this.page.offsetWidth;
@@ -301,6 +313,11 @@
         this.page.classList.add("arriving");
         this.arrivalTimer = global.setTimeout(() => this.page.classList.remove("arriving"), arrival);
       }
+    }
+
+    /// The Claude page is over the whole dashboard at `now` (a frame's time): it shows and has finished sliding in.
+    covers(now) {
+      return this.showing === "claude" && now - this.shownAt >= slide;
     }
 
     /// Stale data dims the page like the dashboard, and stops what would look live.
