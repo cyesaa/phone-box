@@ -36,15 +36,7 @@ final class Sampler {
         if running {
             resetCounters()
             primeCounters()
-            // Fire half way through each second. The page files a snapshot under its whole second; a timer that
-            // fires near a second's edge drifts across it, putting two snapshots in one slot and leaving a gap.
-            let start = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down) + 1.5)
-            let timer = Timer(fire: start, interval: 1, repeats: true) { [weak self] _ in
-                MainActor.assumeIsolated { self?.tick() }
-            }
-            timer.tolerance = 0.1
-            RunLoop.main.add(timer, forMode: .common)
-            self.timer = timer
+            scheduleTimer()
             activity = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep,
                                                              reason: "Streaming to iPhone")
             nowPlaying.start()
@@ -59,9 +51,29 @@ final class Sampler {
         }
     }
 
-    /// After sleep every counter jumped; start over so the first values are not nonsense.
+    /// After sleep every counter jumped; start over so the first values are not nonsense. A running timer is made
+    /// again: it counts on a clock that stops during sleep, so after a wake it no longer fires half way through a
+    /// wall-clock second.
     func resetAfterWake() {
         resetCounters()
+        if isRunning { scheduleTimer() }
+    }
+
+    /// Fire half way through each second. The page files a snapshot under its whole second; a timer that fires near a
+    /// second's edge drifts across it, putting two snapshots in one slot and leaving a gap.
+    private func scheduleTimer() {
+        timer?.invalidate()
+        let timer = Timer(fire: Self.firstTick(after: Date()), interval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick() }
+        }
+        timer.tolerance = 0.1
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    /// The middle of the next whole second after `now`.
+    static func firstTick(after now: Date) -> Date {
+        Date(timeIntervalSince1970: now.timeIntervalSince1970.rounded(.down) + 1.5)
     }
 
     private func resetCounters() {
