@@ -99,8 +99,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sampler.setRunning(false)
         // A hook that finds no socket gives up at once.
         claudeMonitor.stop()
-        // The adapter may ignore SIGTERM, and PhoneBox exits long before `ShortProcess.killDelay`: what still runs (it,
-        // or a `send`) gets half a second, then SIGKILL. Nothing left, no wait.
+        // The adapter may ignore SIGTERM, and PhoneBox exits long before `ShortProcess.killDelay`: what ShortProcess ran
+        // or stopped and still runs (the adapter's stream, a `send`) gets half a second, then SIGKILL. Nothing left, no
+        // wait.
         ShortProcess.endAtQuit()
     }
 

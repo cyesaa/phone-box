@@ -78,7 +78,7 @@
 
     start() {
       global.setInterval(() => this.tick(), 1000);
-      global.addEventListener("visibilitychange", () => this.hidden());
+      global.addEventListener("visibilitychange", () => this.noteHidden());
       for (const name of ["visibilitychange", "pageshow", "focus"]) global.addEventListener(name, () => this.resume());
       this.connect();
     }
@@ -108,7 +108,7 @@
       if (monotonic() >= this.nextAttemptAt) this.connect();
     }
 
-    hidden() {
+    noteHidden() {
       if (!this.visible() && this.hiddenAt === null) this.hiddenAt = Date.now();
     }
 
