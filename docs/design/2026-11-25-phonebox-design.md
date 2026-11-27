@@ -123,7 +123,7 @@ otomasyonu sayesinde dashboard kendiliğinden açılır.
 |---|---|---|
 | Mac → telefon | `{"type":"hello","nonce":"<32 hex>","app":"PhoneBox 0.1.0"}` | Bağlantıya özgü rastgele sayı |
 | telefon → Mac | `{"type":"auth","mac":"<HMAC-SHA256(k, "auth:"+nonce) hex>"}` | Yanlışsa bağlantı 4001 ile kapanır (sayfa durur, "Eşleşmedi"); 5 sn içinde gelmezse 4003 ile kapanır (sayfa yeniden dener; telefon kilitliyken açılan bir bağlantı böyle kapanabilir) |
-| Mac → telefon | `{"type":"ready","mode":"cable"\|"always","host":"<Mac'in adı>","limits":{"power":[15,35]},"access":{"streaming":bool,"commands":["…"],"cable":bool,"reason":"…"},"build":"<12 hex>"}` | Kimlik doğrulandı; `host` bilgisayarın adı ("⋯" menüsünün başlığında görünür); `limits.power` güç kutusunun kızarmaya başladığı ve kıpkırmızı olduğu watt (bölüm 8, Mac çipine göre seçer); `access` alanı bir alttaki `access` mesajıyla aynı; `build` sayfa dosyalarının adı (`WebBuild`: yolların, boyların ve içeriklerin SHA-256'sının ilk 12 hanesi). Sayfa ilk `ready`'deki adı hatırlar; sonraki bir `ready` başka ad getirirse (PhoneBox güncellendi) kendini yeniden yükler ve "Başlat" yeniden ister. Sayfa kendi adını index.html'den de alır (Mac sunarken `<meta name="phonebox-build">` etiketine damgalar), böylece daha ilk `ready` başka ad getirse de yeniden yüklenir |
+| Mac → telefon | `{"type":"ready","mode":"cable"\|"always","host":"<Mac'in adı>","limits":{"power":[15,35]},"access":{"streaming":bool,"commands":["…"],"cable":bool,"reason":"…"},"build":"<12 hex>"}` | Kimlik doğrulandı; `host` bilgisayarın adı ("⋯" menüsünün başlığında görünür; her `ready`'de yeniden okunur, Mac yeniden adlandırılınca yeni ad gelir); `limits.power` güç kutusunun kızarmaya başladığı ve kıpkırmızı olduğu watt (bölüm 8, Mac çipine göre seçer); `access` alanı bir alttaki `access` mesajıyla aynı; `build` sayfa dosyalarının adı (`WebBuild`: yolların, boyların ve içeriklerin SHA-256'sının ilk 12 hanesi). Sayfa ilk `ready`'deki adı hatırlar; sonraki bir `ready` başka ad getirirse (PhoneBox güncellendi) kendini yeniden yükler ve "Başlat" yeniden ister. Sayfa kendi adını index.html'den de alır (Mac sunarken `<meta name="phonebox-build">` etiketine damgalar), böylece daha ilk `ready` başka ad getirse de yeniden yüklenir |
 | Mac → telefon | `{"type":"access","streaming":bool,"commands":["…"],"cable":bool,"reason":"ok"\|"not-on-cable"}` | Erişim değiştiğinde; `commands` telefonun gönderebileceği komutların adları (bölüm 7): kablodan hepsi, Wi-Fi'den "Wi-Fi'den Kilit ve Müzik" açıkken `["media","lock"]`, değilse `[]` (aşağıda AccessPolicy); `cable` bu bağlantının USB'den gelip gelmediği ("kablo" / "Wi-Fi") |
 | Mac → telefon | `{"type":"snapshot","t":<ms>, ...}` | Saniyede bir (bölüm 6) |
 | telefon → Mac | `{"type":"cmd","seq":n,"name":"…","args":"<JSON metni>","mac":"<HMAC(k, "cmd:"+nonce+":"+seq+":"+name+":"+args) hex>"}` | `args` bir metin; imza tam bu metin üzerinden atılır, sonra çözülür |
@@ -135,9 +135,14 @@ Kurallar:
   bağlantının `access.commands` listesinde olmalı ve `args` o komutun biçimine uymalı. İmzası doğru ama listede
   olmayan ad (bilinmeyen ad da) `ack` ile `not-allowed`, listedeki adın bozuk biçimi `unsupported` döner; bozuk JSON
   ve tip hataları bağlantıyı kapatır (1008).
+- Her istekte (dosya ve WebSocket) `Host` bu Mac'i göstermeli: `<LocalHostName>.local`, bir IP adresi (IPv4 ya da
+  köşeli parantezli, bölgeli ya da bölgesiz IPv6) ya da `localhost`; port ve büyük/küçük harf fark etmez. Değilse ya da
+  hiç yoksa 403 (0.4.1): adını Mac'in adresine çözdüren başka bir sitenin sayfası (DNS rebinding) kendi adını gönderir.
 - WebSocket yükseltmesinde `Origin` başlığı varsa `http://` + `Host` başlığıyla aynı olmalı; değilse 403 (başka bir
   sitenin sayfası tarayıcı üzerinden bağlanamaz).
-- Saniyede 10'dan fazla komut, bozuk JSON ya da yanlış imza → bağlantı kapanır.
+- Saniyede 10'dan fazla komut, bozuk JSON ya da yanlış imza → bağlantı kapanır. Bu sınırın, `WiFiCommandLimit`'in ve
+  canlılık denetiminin süreleri monoton saatle ölçülür (`ContinuousClock`, 0.4.1): Mac'in saati değişince sınır uzamaz
+  ya da atlanmaz, canlı telefon düşürülmez.
 - Anahtar ağ üzerinden hiç gitmez. Metrikler şifresiz akar; aynı ağdakiler görebilir ama anahtar olmadan komut
   gönderemez. Bu açık bilerek kabul edilmiştir.
 
@@ -173,6 +178,8 @@ bağlanırsa kablo modunda "Kabloyu tak" görür. Bir iPhone takılınca (her ik
 doğrulanmış istemcileri 4002 koduyla kapatır; sayfa hemen yeniden bağlanır ve takılı telefon bu sefer USB üzerinden
 gelir (iOS'un kablo varken USB adresini seçtiği spike'ta görüldü; Wi-Fi açıkken bu sıralama elle testte doğrulanır).
 "Her zaman" modunda bütün komutlar ancak böyle açılır; takılı olmayan başka bir cihaz bir kez yeniden bağlanır.
+Takıldıktan 3 ve 8 sn sonra bakılır (USB bağlantısı geç gelebilir); ikisi de yalnız takılmadan önce kimliğini
+doğrulamış telefonları kapatır, böylece ilkinde Wi-Fi'den geri gelen telefon ikincide yeniden kapatılmaz (0.4.1).
 Mod ya da "Wi-Fi'den Kilit ve Müzik" değişince kimliği doğrulanmış her istemcinin erişimi yeniden hesaplanır; erişimi
 değişene `access` gönderilir.
 
@@ -201,17 +208,24 @@ Okunamayan değer JSON'a hiç yazılmaz (alan yok); dashboard "—" gösterir.
 | `disk` | `free`, `total` (bayt; 60 sn'de bir, okuması ~9 ms sürüyor), `read`, `write` (bayt/sn) | `URLResourceValues` (`volumeAvailableCapacityForImportantUsage`), IOKit `IOBlockStorageDriver` istatistikleri |
 | `battery` | `percent`, `charging`, `plugged` (prizde mi), `minutesLeft`; masaüstü Mac'te alan yok, prizdeyken şarj olmuyorsa `minutesLeft` yok | `IOPSCopyPowerSourcesInfo` (`plugged`: `Power Source State` = `AC Power`) |
 | `phone` | Kabloyla takılı iPhone'un pili: `percent`, `charging`, `plugged`. USB'den yalnız bir iPhone takılıysa ve okunabildiyse var; okuma başarısız olursa son iyi değer 5 dk tutulur, sonra alan kalkar. Telefon takılınca ve sonra dakikada bir, yalnız örnekleyici çalışırken okunur; okuma ~150 ms sürdüğü için örnekleyiciyi bekletmez, ayrı kuyrukta yapılır, biri sürerken yenisi başlamaz | `MobileDevice.framework` (resmi olmayan, `dlopen`): `AMDeviceNotificationSubscribe`, yalnız USB arayüzündeki cihazlar (`AMDeviceGetInterfaceType` = 1); `AMDeviceConnect` → `ValidatePairing` → `StartSession` → `AMDeviceCopyValue("com.apple.mobile.battery", "BatteryCurrentCapacity" / "BatteryIsCharging" / "ExternalConnected")`. Root gerekmez; telefonun bu Mac'e güvenmesi yeter (2026-11-26, M4 / macOS 27.2'de denendi: %100, dolu, prizde, 149 ms) |
-| `media` | Mac'te çalan: `title`, `artist`, `app` (uygulama adı), `playing` (bool); hiçbir şey yoksa alan yok | mediaremote-adapter'ın olay akışındaki son durum (bölüm 7) |
+| `media` | Mac'te çalan: `title`, `artist`, `app` (uygulama adı), `playing` (bool); hiçbir şey yoksa alan yok (iki parça arasındaki kısa "hiçbir şey" 1,5 sn beklenir, monoton saatle) | mediaremote-adapter'ın olay akışındaki son durum (bölüm 7) |
 | `audio` | `volume` (0…1), `muted` (bool); varsayılan çıkışta ses kontrolü yoksa alan yok | CoreAudio varsayılan çıkış cihazı |
 | `apps` | 3 saniyede bir (diğer saniyelerde alan gönderilmez): CPU'ya göre ilk 5 ile RAM'e göre ilk 5'in birleşimi, en fazla 10 kayıt `{pid, bundleId, name, cpu, mem, quittable}` | `libproc` (`proc_listallpids`, `proc_pid_rusage`, `proc_pidpath`) |
 
-- **Gruplama:** Bir sürecin yolu bir `.app` paketinin içindeyse en dıştaki `.app`'e yazılır ("Chrome Helper" →
-  "Chrome"). Root'a ait sistem süreçleri izin olmadan okunamaz ve listede yer almaz. Uygulama adlarından
+- **Gruplama:** Bir sürecin yolu bir `.app` paketinin içindeyse, onu içeren paketlerden Dock'ta çalışan (regular) en
+  içtekine, öyle biri yoksa en dıştaki `.app`'e yazılır (0.4.1): Xcode'un içindeki Simulator "Simulator" olur, kendi
+  CPU'su ve Kapat'ıyla; "Chrome Helper" → "Chrome" (macOS bazı yardımcıları da listeler, ama Dock uygulaması olarak
+  değil). Root'a ait sistem süreçleri izin olmadan okunamaz ve listede yer almaz. Uygulama adlarından
   görünmez yön karakterleri (`U+200E`, `U+200F`, `U+202A…U+202E`, `U+2066…U+2069`) temizlenir (WhatsApp'ın adı `U+200E`
   ile başlıyor) ve ad en fazla 80 karaktere kısaltılır. Paket dışındaki süreçler (ör. WebKit'in XPC süreçleri) çalıştırılabilir
   dosyanın yoluna göre ayrı satır olur; Safari'nin sekmeleri bu yüzden Safari'ye yazılmaz (Plan 4'te ele alınacak).
+- **Uygulama CPU'su:** Önceki örnekten bu yana harcanan CPU zamanı aralığın süresine bölünür. Önceki örnekten sonra
+  başlayan süreç (`ri_proc_start_abstime`) bütün CPU zamanını bu aralıkta harcamıştır, hepsi sayılır: bir saniyelik
+  derleyici süreçleri de görünür (0.4.1). Daha eski olup ilk kez görülen süreç bu sefer %0 sayılır.
 - **Uyku/uyanma ve ağ değişimi:** CPU, ağ ve disk sayaçlarının referansı sıfırlanır; ilk örnekte hız alanı
   gönderilmez, böylece anlamsız sıçrama olmaz. Başlarken sayaçlar bir kez önceden okunur, ilk snapshot dolu gelir.
+  Saniyelik zamanlayıcı her saniyenin ortasında çalışır (sayfa her snapshot'ı tam saniyesine yazar); uykuda duran bir
+  saate bağlı olduğu için uyanınca yeniden kurulur (0.4.1).
 - **Sıcaklık/güç:** Stats ve macmon'un yöntemleri izlenir. Kod alınırsa lisansına uyulur ve
   `THIRD_PARTY_NOTICES.md`'ye yazılır. Sensör adları çipe göre değişir: M4'te test edilir, M1–M3 için Stats'in
   sensör listesi kullanılır, README'de "topluluk testine açık" diye belirtilir.
@@ -245,6 +259,9 @@ Okunamayan değer JSON'a hiç yazılmaz (alan yok); dashboard "—" gösterir.
   ama değeri almadıysa `failed` döner.
 - Spike 7'de uygulama kapatma, sessiz, ses seviyesi, ekranı kapatma ve kilit hiçbir izin penceresi açmadan
   çalıştı. Medya komutu NotchBox'ta çalışan adaptörle gönderilir.
+- Adaptörün çerçevesi SIGTERM'i yalnız run loop'u durduracak şekilde değiştirir: `send` hiç run loop çalıştırmaz,
+  run loop'u başlamadan durdurulan `stream` durdurmayı kaçırır. Bu yüzden SIGTERM'den 1,5 sn sonra hâlâ çalışan
+  adaptör (`stream` ya da `send`, ShortProcess'in 5 sn'lik süresi dolunca) SIGKILL ile durdurulur (0.4.1).
 
 ## 8. Arayüz
 
@@ -559,7 +576,7 @@ her metnin yer tutucuları aynı olmalı (`LocalizationTests`).
 
 | Durum | Davranış |
 |---|---|
-| Port dolu | Açılışta başka porta geçilmez (kayıtlı bağlantı bozulmasın): menüde ve ayarlar penceresinde uyarı, Ayarlar → Bağlantı → Port → "Değiştir…" ile yeni port; QR güncellenir. Seçilen port kullanımdaysa reddedilir: uyarı çıkar, PhoneBox eski portta kalır, kayıtlı port değişmez |
+| Port dolu | Açılışta başka porta geçilmez (kayıtlı bağlantı bozulmasın): menüde ve ayarlar penceresinde uyarı, port boşalana kadar 30 sn'de bir yeniden denenir (0.4.1); Ayarlar → Bağlantı → Port → "Değiştir…" ile yeni port; QR güncellenir. Port kullanımdayken "Değiştir…" aynı portu da kabul eder ve hemen dener (QR açılmaz, bağlantı aynı). Seçilen port kullanımdaysa reddedilir: uyarı çıkar, PhoneBox eski portta kalır, kayıtlı port değişmez |
 | usbmuxd yok | Takma olayıyla QR penceresi açılamaz; menüde ve ayarlar penceresinde uyarı. Kablo modu etkilenmez (USB arayüzüne bakar) |
 | Tarayıcı HTTPS deniyor | İlk baytı `0x16` (TLS el sıkışması) olan bağlantı hemen kapatılır; tarayıcı HTTP'ye düşer |
 | Video byte aralığı istiyor | `Range` isteğine `206 Partial Content`, geçersize `416`; iOS aralıksız sunulan videoyu oynatmaz |
@@ -567,10 +584,10 @@ her metnin yer tutucuları aynı olmalı (`LocalizationTests`).
 | Protokol ihlali | Bozuk mesaj, yanlış imza, artmayan `seq`, hız sınırı aşımı → bağlantı kapanır (1008) |
 | Kimlik doğrulamadan önce metin dışı çerçeve | 1008 ile kapanır (ping seli koruması); sonrasında ikili çerçeve 1003, bir okumadaki pinglerden sadece sonuncusu cevaplanır |
 | Geçersiz WebSocket çerçevesi | 125 bayttan uzun ya da parçalı kontrol çerçevesi, RSV bitleri, ayrılmış opcode'lar, 64 KB'tan büyük ya da negatif uzunluk → 1008 |
-| Boşta ya da takılan bağlantı | İstek başlığı 10 sn'de gelmezse kapanır; en fazla 32 TCP bağlantısı; kapanış 2 sn'de bitmezse kesilir; 256'dan fazla gönderilmemiş mesaj birikirse kesilir |
-| Ölü bağlantı | 15 sn'de bir ping; 45 sn hiçbir şey gelmezse kesilir; 5 sn uygun yol yoksa kesilir; kablo çıkınca 1,5 sn sonra kaybolan USB arayüzündeki istemciler kesilir |
-| 5. istemci | Reddedilir (en fazla 4) |
-| Mac uyandı / ağ değişti | Sayaç referansları sıfırlanır; dinleyici tüm arayüzlerde kalır, `.local` yeni ağda çalışır |
+| Boşta ya da takılan bağlantı | İstek başlığı 10 sn'de gelmezse kapanır; henüz telefon olmayan (dosya isteği, kimliğini doğrulamamış soket) en fazla 32 TCP bağlantısı, bir adresten en fazla 16; kimliği doğrulanmış telefonlar ve iPhone'un USB bağlantısından gelenler sayılmaz, USB'den gelen her zaman kabul edilir (0.4.1); kapanış 2 sn'de bitmezse kesilir; 256'dan fazla gönderilmemiş mesaj birikirse kesilir |
+| Ölü bağlantı | 15 sn'de bir ping; 45 sn hiçbir şey gelmezse kesilir (uykuyu da sayan monoton saatle); 5 sn uygun yol yoksa kesilir; kablo çıkınca 1,5 sn sonra kaybolan USB arayüzündeki istemciler kesilir |
+| 5. istemci | Kimliğini doğrulamış en fazla 4 telefon: fazlası yükseltmede 503, kimlik doğrularken 4'ü dolmuşsa 1013 alır (sayfa sonra yeniden dener). Kimliğini doğrulamamış WebSocket'ler ayrıca sınırlı: bir adresten 2, toplam 8; anahtarı olmayan bir cihaz telefonların yerini tutamaz. iPhone'un USB bağlantısından gelen telefon her zaman kabul edilir (0.4.1) |
+| Mac uyandı / ağ değişti | Sayaç referansları sıfırlanır, saniyelik zamanlayıcı yeniden kurulur; dinleyici tüm arayüzlerde kalır, `.local` yeni ağda çalışır |
 | Komut başarısız | `ack` içinde `error`; dashboard bildirim gösterir |
 
 Süreç: SIGPIPE yok sayılır; örnekleyici çalışırken App Nap engellenir (`beginActivity`), durunca bırakılır.
