@@ -140,9 +140,10 @@ final class SettingsModel: ObservableObject {
         actions.applyLockAndMusic(on)
     }
 
-    /// The port dialog; the port is saved, and the link changes, only once the dashboard listens there.
+    /// The port dialog; the port is saved, and the link changes, only once the dashboard listens there. The same port
+    /// moves nothing, unless it is in use: then it is tried again (design §9).
     func changePort() {
-        guard let chosen = actions.askPort(port), chosen != port else { return }
+        guard let chosen = actions.askPort(port), chosen != port || status == .portInUse(chosen) else { return }
         actions.movePort(chosen) { [weak self] newLink in
             guard let self, let newLink else { return }
             port = chosen

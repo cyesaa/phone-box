@@ -49,10 +49,20 @@ final class BoundSocket {
 struct DashboardServerTests {
     let runner = FakeRunner()
 
-    func makeServer() -> DashboardServer {
+    func makeServer(retryDelay: TimeInterval = 30) -> DashboardServer {
         let hub = DashboardHub(mode: .cable, key: PairingKey.generate(), appName: "PhoneBox test", hostName: { "Test Mac" },
                                commands: runner, usbInterfaces: { [] })
-        return DashboardServer(webDirectory: URL(fileURLWithPath: "/nonexistent"), hub: hub)
+        return DashboardServer(webDirectory: URL(fileURLWithPath: "/nonexistent"), hub: hub, retryDelay: retryDelay)
+    }
+
+    /// Waits until `server` reports `wanted`, for at most `seconds`.
+    func reaches(_ server: DashboardServer, _ wanted: DashboardServer.State, within seconds: Double = 3) async throws -> Bool {
+        let end = Date().addingTimeInterval(seconds)
+        while Date() < end {
+            if server.state == wanted { return true }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        return server.state == wanted
     }
 
     /// Starts `server` on `port` and waits for the listener's answer.
@@ -108,6 +118,36 @@ struct DashboardServerTests {
         #expect(BoundSocket(port: old) == nil)
     }
 
+    /// Design §9: PhoneBox stays on the saved port at launch even when another program holds it, and takes it once it
+    /// is free.
+    @Test func triesTheSavedPortAgainUntilItIsFree() async throws {
+        let server = makeServer(retryDelay: 0.2)
+        defer { server.stop() }
+        var holder = BoundSocket(port: try BoundSocket.freePort(), listening: true)
+        let port = try #require(holder?.port)
+        guard case .failed(port, _) = await start(server, port: port) else {
+            Issue.record("a taken port should fail")
+            return
+        }
+        try await Task.sleep(for: .milliseconds(500))
+        #expect(server.state.isFailed)
+        holder = nil
+        #expect(try await reaches(server, .listening(port)))
+    }
+
+    /// "Change…" with the same port while it is in use runs the move to it.
+    @Test func movesToTheSamePortOnceItIsFree() async throws {
+        let server = makeServer()
+        defer { server.stop() }
+        var holder = BoundSocket(port: try BoundSocket.freePort(), listening: true)
+        let port = try #require(holder?.port)
+        #expect(await start(server, port: port).isFailed)
+        #expect(await !move(server, to: port))
+        holder = nil
+        #expect(await move(server, to: port))
+        #expect(server.state == .listening(port))
+    }
+
     @Test func closesThePhonesOfTheOldPort() async throws {
         let server = makeServer()
         defer { server.stop() }
@@ -121,6 +161,13 @@ struct DashboardServerTests {
         #expect(await move(server, to: try BoundSocket.freePort(other: old)))
         #expect(try await phone.read(until: { _ in phone.ended }))
         #expect(phone.received.range(of: Data([0x03, 0xE9]) + Data("port changed".utf8)) != nil)
+    }
+}
+
+extension DashboardServer.State {
+    var isFailed: Bool {
+        if case .failed = self { return true }
+        return false
     }
 }
 

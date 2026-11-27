@@ -163,6 +163,25 @@ struct SettingsModelTests {
         #expect(moves == [5000, 5000])
     }
 
+    /// The saved port was taken at launch (design §9): choosing it again tries it again.
+    @Test func theSamePortIsTriedAgainWhileItIsInUse() {
+        let model = makeModel()
+        var moves: [UInt16] = []
+        model.actions.askPort = { _ in 4747 }
+        model.actions.movePort = { port, completion in
+            moves.append(port)
+            completion("http://mac.local:4747/#k=old")
+        }
+        model.status = .portInUse(4747)
+        model.changePort()
+        #expect(moves == [4747])
+        #expect(model.port == 4747)
+        // Once it listens there, the same port moves nothing again.
+        model.status = .waiting
+        model.changePort()
+        #expect(moves == [4747])
+    }
+
     @Test func openAtLoginShowsWhatMacOSSays() {
         let model = makeModel()
         var calls = 0

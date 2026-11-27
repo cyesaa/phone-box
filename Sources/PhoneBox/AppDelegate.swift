@@ -232,7 +232,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return actions
     }
 
-    /// Saved only once the new port listens: a port in use leaves PhoneBox, and its phones, on the old one.
+    /// Saved only once the new port listens: a port in use leaves PhoneBox, and its phones, on the old one. The saved
+    /// port itself, while another program held it, comes back without a new QR code.
     private func movePort(to port: UInt16, completion: @escaping @MainActor (String?) -> Void) {
         server.move(to: port) { [weak self] moved in
             guard let self else { return }
@@ -240,10 +241,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 portInUse(port)
                 return completion(nil)
             }
+            let changed = port != settings.port
             settings.port = port
             completion(settings.personalURL(key: key))
             // The phone's link names the port: it has to scan the new code.
-            showQR()
+            if changed { showQR() }
         }
     }
 

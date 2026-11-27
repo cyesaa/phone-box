@@ -20,23 +20,53 @@ final class DashboardServer {
 
     private let webDirectory: URL
     private let hub: DashboardHub
+    /// Seconds between tries of a port that could not be opened (design §9 "Port dolu").
+    private let retryDelay: TimeInterval
     private var listener: NWListener?
     /// The listener `move(to:)` is starting; it takes over from `listener` once it is ready.
     private var pendingListener: NWListener?
+    /// The next try of the port in a failed `state`.
+    private var retry: DispatchWorkItem?
     /// Each connection with the listener that accepted it: moving to another port closes the old port's.
     private var connections: [ObjectIdentifier: (client: ClientConnection, listener: NWListener)] = [:]
 
-    init(webDirectory: URL, hub: DashboardHub) {
+    init(webDirectory: URL, hub: DashboardHub, retryDelay: TimeInterval = 30) {
         self.webDirectory = webDirectory
         self.hub = hub
+        self.retryDelay = retryDelay
         hub.onConnectionClosed = { [weak self] connection in self?.connections[ObjectIdentifier(connection)] = nil }
     }
 
+    /// Listens on `port`. While it cannot (another program holds it at launch), it is tried again every `retryDelay`
+    /// seconds, so PhoneBox comes back to the port in every saved link once it is free.
     func start(port: UInt16) {
         stop()
+        listen(on: port)
+    }
+
+    private func listen(on port: UInt16) {
         guard let listener = makeListener(port: port, moved: nil) else { return }
         self.listener = listener
         listener.start(queue: .main)
+    }
+
+    /// The current listener cannot listen on `port`: `state` says so, and `retryDelay` later the port is tried again.
+    private func failed(port: UInt16, message: String) {
+        listener?.cancel()
+        listener = nil
+        state = .failed(port: port, message: message)
+        retry?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, case let .failed(failedPort, message) = self.state, failedPort == port else { return }
+                // A move under way decides first; if it fails too, the port is tried again later.
+                guard self.pendingListener == nil else { return self.failed(port: port, message: message) }
+                Log.server.info("Trying port \(port) again")
+                self.listen(on: port)
+            }
+        }
+        retry = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + retryDelay, execute: work)
     }
 
     /// Listens on `port` instead, keeping the current port until the new one works (design §9 "Port dolu"). Once the
@@ -53,6 +83,8 @@ final class DashboardServer {
     }
 
     func stop() {
+        retry?.cancel()
+        retry = nil
         listener?.cancel()
         listener = nil
         pendingListener?.cancel()
@@ -71,7 +103,7 @@ final class DashboardServer {
             listener = try NWListener(using: parameters, on: endpointPort)
         } catch {
             Log.server.error("Cannot listen on port \(port): \(error.localizedDescription, privacy: .public)")
-            if moved == nil { state = .failed(port: port, message: error.localizedDescription) }
+            if moved == nil { failed(port: port, message: error.localizedDescription) }
             return nil
         }
         listener.stateUpdateHandler = { [weak self, weak listener] newState in
@@ -86,7 +118,7 @@ final class DashboardServer {
                         self.state = .listening(port)
                     case let .failed(error):
                         Log.server.error("Listener failed: \(error.localizedDescription, privacy: .public)")
-                        self.state = .failed(port: port, message: error.localizedDescription)
+                        self.failed(port: port, message: error.localizedDescription)
                     default:
                         break
                     }
@@ -119,6 +151,8 @@ final class DashboardServer {
     /// The listener that `move(to:)` started is ready: it replaces the current one, whose phones are closed (their
     /// page reconnects to the port in its address, which is gone; they have to scan the new QR code).
     private func takeOver(_ newListener: NWListener, port: UInt16) {
+        retry?.cancel()
+        retry = nil
         let oldListener = listener
         oldListener?.cancel()
         listener = newListener
