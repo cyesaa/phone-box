@@ -59,7 +59,8 @@ final class NowPlayingService {
         running = false
         let old = process
         process = nil
-        old?.terminate()
+        // SIGKILL follows if it ignores SIGTERM (it does until its run loop runs).
+        if let old { ShortProcess.terminate(old) }
         state.clear()
         assembler.reset()
     }
