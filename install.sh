@@ -16,7 +16,21 @@ APP="PhoneBox.app"
 ASSET="PhoneBox.zip"
 
 WORK=""
-cleanup() { [ -z "$WORK" ] || rm -rf "$WORK"; }
+# The new copy while it waits next to the old one; a failure removes it.
+STAGED=""
+# The app that was running, once it has been quit for an install: a failure from then on (or Ctrl-C) opens it again,
+# so that a failed update does not leave the Mac without PhoneBox.
+REOPEN=""
+cleanup() {
+  local status=$?
+  [ -z "$WORK" ] || rm -rf "$WORK"
+  [ "$status" -eq 0 ] && return 0
+  [ -z "$STAGED" ] || rm -rf "$STAGED"
+  if [ -n "$REOPEN" ] && [ -d "$REOPEN" ] && [ -z "${PHONEBOX_NO_OPEN:-}" ]; then
+    say "Opening the PhoneBox that was running again"
+    env -u PHONEBOX_ZIP -u PHONEBOX_DEST -u PHONEBOX_VERSION -u PHONEBOX_NO_OPEN open "$REOPEN" || true
+  fi
+}
 trap cleanup EXIT
 
 say() { printf '\033[1m==>\033[0m %s\n' "$*"; }
@@ -125,13 +139,20 @@ install() {
   [ -d "$WORK/unpacked/$APP" ] || fail "The zip does not contain $APP."
   codesign --verify --deep --strict "$WORK/unpacked/$APP" 2>/dev/null || fail "$APP failed its signature check."
 
-  if should_quit "$dest"; then quit_running_app "$dest"; fi
   mkdir -p "$dest"
-  # Copy next to the final place first: if the copy fails (disk full) the old app is still there.
+  # Copy next to the final place first, while the old app still runs: if the copy fails (disk full), the old app is
+  # still there and still running.
   rm -rf "${dest:?}/.PhoneBox-installing.app"
-  ditto "$WORK/unpacked/$APP" "$dest/.PhoneBox-installing.app" || { rm -rf "${dest:?}/.PhoneBox-installing.app"; fail "Could not copy PhoneBox into $dest."; }
+  STAGED="$dest/.PhoneBox-installing.app"
+  ditto "$WORK/unpacked/$APP" "$STAGED" || fail "Could not copy PhoneBox into $dest."
+  if should_quit "$dest"; then
+    REOPEN="$dest/$APP"
+    quit_running_app "$dest"
+  fi
   rm -rf "${dest:?}/$APP"
-  mv "$dest/.PhoneBox-installing.app" "$dest/$APP"
+  mv "$STAGED" "$dest/$APP"
+  STAGED=""
+  REOPEN=""
   # Only browsers add this, but a zip someone passed along may carry it.
   xattr -dr com.apple.quarantine "$dest/$APP" 2>/dev/null || true
 

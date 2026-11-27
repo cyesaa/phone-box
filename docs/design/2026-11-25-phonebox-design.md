@@ -628,9 +628,11 @@ NotchBox ile aynı:
 
 - Kurulum: `curl -fsSL https://raw.githubusercontent.com/cyesaa/phone-box/main/install.sh | bash`
   (`curl` ile inen dosya karantinaya alınmaz, imzasız uygulama engellenmez). Apple Silicon (`sysctl hw.optional.arm64`; Rosetta
-  altındaki kabukta `uname -m` yanıltır) ve macOS 14+ denetlenir, imza doğrulanır, çalışan PhoneBox kapatılır, yeni
-  kopya önce aynı klasörde geçici bir adla (`.PhoneBox-installing.app`) hazırlanır, sonra eskisinin yerine taşınır
-  (kopya başarısız olursa eski uygulama kalır); uygulama `/Applications`'a (yazılamıyorsa `~/Applications`) konup
+  altındaki kabukta `uname -m` yanıltır) ve macOS 14+ denetlenir, imza doğrulanır, yeni kopya önce aynı klasörde
+  geçici bir adla (`.PhoneBox-installing.app`) hazırlanır (kopya başarısız olursa, ör. disk dolu, eski uygulama yerinde
+  ve açık kalır), sonra çalışan PhoneBox kapatılır ve yeni kopya eskisinin yerine taşınır; kapatıldıktan sonra bir
+  hata olursa (ya da Ctrl-C) hazırlanan kopya silinir, eski uygulama duruyorsa yeniden açılır (`PHONEBOX_NO_OPEN`
+  yoksa; 0.4.1); uygulama `/Applications`'a (yazılamıyorsa `~/Applications`) konup
   açılır. `PHONEBOX_VERSION=x.y.z` belirli bir sürümü kurar. Denemek için `PHONEBOX_ZIP` (yerel zip), `PHONEBOX_DEST`
   (başka klasör; başka yerden çalışan PhoneBox'a dokunulmaz) ve `PHONEBOX_NO_OPEN=1`.
 - Kaldırma `… | bash -s -- --uninstall`: uygulama, ayarlar (`defaults`), eşleştirme anahtarı
