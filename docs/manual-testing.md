@@ -179,6 +179,8 @@ Telefonun sayfası:
   dururken 15 sn, 30 sn, sonra dakikada bir. Kural kalkınca bir sonraki yenilemede normal açılıyor ("Başlat" istiyor).
 - [ ] Aynı denemede kural dururken PhoneBox'tan çık: sayfa yenilenmiyor, kartta kalıyor (tarayıcının hata sayfasına
   düşmüyor). Kuralı kaldırıp PhoneBox'ı açınca birkaç saniyede kendini yenileyip bağlanıyor.
+- [ ] "Her zaman" kipinde telefon Wi-Fi'de (kablosuz), pano açıkken telefonu 2 dakika kilitle, sonra aç: ~1 sn içinde
+  taze değerler geliyor; yeşil noktayla eski (donmuş) değerler görünmüyor.
 
 Claude Code oturumları ve güncelleme:
 - [ ] Etkileşimli bir oturumda (masaüstü uygulaması ve terminal) tur sürerken Esc: yaklaşık bir dakika sonra kart

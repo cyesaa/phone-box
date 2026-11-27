@@ -18,8 +18,17 @@ struct WebConnectionTests {
             Date.now = function () { return now + wall; };
             function setTimeout(fn, delay) { timers.push({ at: now + delay, fn: fn }); return timers.length; }
             function setInterval(fn) { intervals.push(fn); return intervals.length; }
-            function addEventListener() {}
+            var listeners = {};
+            function addEventListener(name, fn) { (listeners[name] = listeners[name] || []).push(fn); }
+            function fire(name) { (listeners[name] || []).forEach(function (fn) { fn(); }); }
             var document = { visibilityState: "visible" };
+            // The phone locked for `ms`: the page hidden, its own clock stopped (WebKit's `performance.now()` does not
+            // count the phone's sleep), the wall clock on. Then unlocked: the three events that come with it.
+            function lockFor(ms) { document.visibilityState = "hidden"; fire("visibilitychange"); wall += ms; }
+            function unlock() {
+              document.visibilityState = "visible";
+              fire("visibilitychange"); fire("pageshow"); fire("focus");
+            }
             var location = { host: "mac.local:4747", hash: "" };
             var PBCrypto = { hmacHex: function () { return "signature"; } };
             function WebSocket(url) { this.readyState = 0; this.sent = []; sockets.push(this); opened.push(now - 1000000); }
@@ -214,6 +223,39 @@ struct WebConnectionTests {
             [sockets.length, connection.state, connection.stale, connection.retries, timers.length - waits, states.join(",")].join(" ")
             """)
         #expect(result == "2 streaming false 0 0 connecting,streaming,streaming")
+    }
+
+    /// After two minutes locked, the socket the phone slept on is dead, but by the page's own clock its last message
+    /// is a second old: the wall clock tells how long the page was away, and the socket is replaced at once instead of
+    /// showing stale values as live for another five seconds.
+    @Test func replacesTheSocketAtOnceAfterTheLockedPhoneSlept() {
+        let result = string("""
+            handshake(last(), { streaming: true, commands: [], cable: true, reason: "ok" });
+            receive(last(), { v: 1, type: "snapshot", t: 1 });
+            advance(1000);
+            lockFor(120000);
+            unlock();
+            [sockets.length, sockets[0].readyState, sockets[0].onclose === null, connection.stale].join(" ")
+            """)
+        #expect(result == "2 3 true true")
+    }
+
+    /// A lock shorter than a dead socket's silence keeps the socket; a wall clock set back while away replaces it.
+    @Test func keepsTheSocketAfterAShortLockAndReplacesItAfterAClockStep() {
+        let result = string("""
+            handshake(last(), { streaming: true, commands: [], cable: true, reason: "ok" });
+            receive(last(), { v: 1, type: "snapshot", t: 1 });
+            advance(1000);
+            lockFor(4000);
+            unlock();
+            var afterShort = sockets.length;
+            advance(1000);
+            receive(last(), { v: 1, type: "snapshot", t: 2 });
+            lockFor(-3600000);
+            unlock();
+            [afterShort, sockets.length].join(" ")
+            """)
+        #expect(result == "1 2")
     }
 
     @Test func reconnectsQuicklyWhenTheMacAsks() {

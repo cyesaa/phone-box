@@ -188,7 +188,10 @@ değişene `access` gönderilir.
 Ekran kilitlenince iOS bağlantıyı yaklaşık 10–15 sn içinde keser. Sayfa kapanan bağlantıyı 1, 2, 5 saniye (sonra
 5 saniyede bir) arayla yeniden dener; ayrıca `visibilitychange`, `pageshow` ve `focus` olaylarında hemen dener.
 Chrome'da kilit açılınca `visibilitychange` gelmediği için zamanlayıcı şarttır. Bu sırada "bağlanıyor" durumu
-gösterilir.
+gösterilir. Sayfanın süreleri `performance.now()` ile ölçülür ve WebKit'te bu saat telefon uyurken durur: kilitte
+uyuyan telefonun ölü soketi dönüşte taze görünürdü. Bu yüzden sayfa gizlenince duvar saati (`Date.now()`) not edilir;
+dönüşte gizli kalınan süre 5 sn'yi aşıyorsa (ya da saat bu arada geri alınmışsa, süre eksi) soket hemen yenilenir
+(0.4.1).
 
 ## 6. Metrikler
 
@@ -505,7 +508,7 @@ Mac'e ulaşılamıyorken yüklemek tarayıcının hata sayfasında bırakırdı;
 | `rings.js` | halkanın `<canvas>` çizimi | gözle |
 | `clock.js` | saat, tarih, rakam kayması | biçim JavaScriptCore'da, kayma gözle |
 | `chart.js` | grafik ölçeği (saf) ve her karede `<canvas>` çizimi (kızarma, sınır çizgisi, nabız) | ölçek JavaScriptCore'da, çizim gözle |
-| `connection.js` | bağlantı, eşleşme, yeniden bağlanma (bugünkü `app.js`'ten); bütün süreler `performance.now()` ile (telefonun saati geri alınabilir), yerine yenisi açılmış soketin geç gelen kapanışı hiçbir şeyi değiştirmez | yeniden bağlanma kuralları JavaScriptCore'da, gerisi telefonda |
+| `connection.js` | bağlantı, eşleşme, yeniden bağlanma (bugünkü `app.js`'ten); bütün süreler `performance.now()` ile (telefonun saati geri alınabilir), yalnız gizli kalınan süre duvar saatiyle (telefonun uykusunu sayar), yerine yenisi açılmış soketin geç gelen kapanışı hiçbir şeyi değiştirmez | yeniden bağlanma kuralları JavaScriptCore'da, gerisi telefonda |
 | `commands.js` | komut imzası, `seq`, cevap eşleme, 5 sn zaman aşımı, saniyede en çok 9 komut, ses kaydırıcısının hız sınırı | imza (Swift'in `MessageAuth`'u ile), eşleme ve hız sınırları JavaScriptCore'da |
 | `controls.js` | kontrol şeridi, uygulama paneli, "⋯" komutları, onay, bildirim, çift dokunuş kalkanı | hangi kontrolün `access.commands`'a göre gönderip soluk kaldığı JavaScriptCore'da (sahte sayfayla), gerisi gözle |
 | `view.js` | halkalar, kutucuklar, liste (satır kayması), şarkı kartı, saat başlığı, telefonun pili, alarm ve kenar ışığı, durumlar | gözle |

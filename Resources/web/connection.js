@@ -30,7 +30,8 @@
 
   /// Every wait and silence here is timed with a clock that only moves forward: the phone's wall clock can be set back,
   /// which would stall retrying and hide a dead socket for as long as the step. JavaScriptCore, where the tests run,
-  /// has no `performance` of its own.
+  /// has no `performance` of its own. WebKit's clock stops while the phone sleeps, so the time the page was away is
+  /// told by the wall clock (`resume`).
   const monotonic = () => (typeof global.performance !== "undefined" ? global.performance.now() : Date.now());
 
   const retryDelays = [1000, 2000, 5000];
@@ -63,6 +64,8 @@
       this.nextAttemptAt = 0;
       this.stale = true;
       this.state = null;
+      /// `Date.now()` when the page was hidden; null while it shows.
+      this.hiddenAt = null;
       /// This socket finished authentication (`ready` arrived); only then may the page send its own messages.
       this.ready = false;
     }
@@ -75,6 +78,7 @@
 
     start() {
       global.setInterval(() => this.tick(), 1000);
+      global.addEventListener("visibilitychange", () => this.hidden());
       for (const name of ["visibilitychange", "pageshow", "focus"]) global.addEventListener(name, () => this.resume());
       this.connect();
     }
@@ -104,11 +108,21 @@
       if (monotonic() >= this.nextAttemptAt) this.connect();
     }
 
+    hidden() {
+      if (!this.visible() && this.hiddenAt === null) this.hiddenAt = Date.now();
+    }
+
     // The page came back (unlock, tab switch): check the socket at once instead of waiting for the back-off.
     resume() {
       if (this.stopped || !this.visible()) return;
-      // The three events often fire together; a socket opened less than 1 s ago is kept.
-      if (monotonic() - this.openedAt >= 1000) {
+      // Away longer than a dead socket's silence (or the wall clock was set back meanwhile): the phone may have slept,
+      // which the page's own clock does not count, so the socket's last message only looks recent.
+      const away = this.hiddenAt === null ? 0 : Date.now() - this.hiddenAt;
+      this.hiddenAt = null;
+      if (this.socket && (away > deadAfter || away < 0)) {
+        this.replace();
+      } else if (monotonic() - this.openedAt >= 1000) {
+        // The three events often fire together; a socket opened less than 1 s ago is kept.
         if (this.access && !this.access.streaming && this.socket) this.replace();
         else this.replaceIfDead();
       }
