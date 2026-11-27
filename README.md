@@ -126,6 +126,8 @@ simgesini elle sil.
   Kilit'i "Asla" yap.
 - **Telefonu yan çevirince sayfa dönmüyor:** iPhone'da Dikey Yön Kilidi açık. Denetim Merkezi'ni aç (sağ üst köşeden
   aşağı kaydır) ve etrafında ok olan kilit düğmesine dokunup kapat.
+- **Claude Code bilinmeyen `StopFailure` hook'u için uyarı veriyor:** Claude Code'un eski bir sürümü bu olayı tanımıyor;
+  diğer hook'lar çalışmaya devam eder. Claude Code'u güncelle, uyarı kalkar.
 
 ## Kaynaktan derleme
 
@@ -277,6 +279,8 @@ on the phone by hand.
   Brightness → Auto-Lock to "Never".
 - **The page doesn't turn when you turn the phone sideways:** Portrait Orientation Lock is on. Open Control Center
   (swipe down from the top-right corner) and tap the lock with the circular arrow to turn it off.
+- **Claude Code warns about an unknown `StopFailure` hook:** an older Claude Code does not know this event; the other
+  hooks keep working. Update Claude Code and the warning goes away.
 
 ## Building from source
 
