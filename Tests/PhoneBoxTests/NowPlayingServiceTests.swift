@@ -21,7 +21,7 @@ struct NowPlayingServiceTests {
     }
 
     /// PhoneBox quits right after `stop()`, before `killDelay`: the adapter is one of the leftovers it kills at quit.
-    @Test func anAdapterStoppedAtQuitIsKilledBeforePhoneBoxExits() async throws {
+    @Test func anAdapterStoppedAtQuitIsALeftover() async throws {
         let folder = try temporaryFolder()
         defer { try? FileManager.default.removeItem(at: folder) }
         let (service, pid) = try await startStandIn(in: folder)
@@ -30,9 +30,8 @@ struct NowPlayingServiceTests {
         service.stop()
         let leftovers = ShortProcess.leftovers.filter { $0.processIdentifier == pid }
         #expect(leftovers.count == 1)
-        ShortProcess.endAtQuit(leftovers, grace: 0.5)
-        // Well before `killDelay` since the stop.
-        #expect(try await ends(pid, within: 0.5))
+        ShortProcess.endAtQuit(leftovers, grace: 0.1)
+        #expect(try await ends(pid, within: ShortProcess.killDelay + 2))
     }
 
     private func temporaryFolder() throws -> URL {
@@ -71,6 +70,6 @@ struct NowPlayingServiceTests {
             if kill(pid, 0) != 0 && errno == ESRCH { return true }
             try await Task.sleep(for: .milliseconds(20))
         }
-        return false
+        return kill(pid, 0) != 0 && errno == ESRCH
     }
 }

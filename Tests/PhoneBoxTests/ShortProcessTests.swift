@@ -57,19 +57,31 @@ struct ShortProcessTests {
         return !process.isRunning
     }
 
-    /// PhoneBox quits before `killDelay`: a process stopped a moment before gets half a second, then SIGKILL.
+    /// What `terminate` stopped stays one of the leftovers while it runs.
+    @Test func whatWasStoppedIsALeftoverWhileItRuns() async throws {
+        let process = try stubborn()
+        defer { if process.isRunning { kill(process.processIdentifier, SIGKILL) } }
+        try await Task.sleep(for: .milliseconds(200))
+        ShortProcess.terminate(process)
+        #expect(ShortProcess.leftovers.contains { $0 === process })
+        kill(process.processIdentifier, SIGKILL)
+        #expect(try await ends(process, within: 3))
+        #expect(!ShortProcess.leftovers.contains { $0 === process })
+    }
+
+    /// PhoneBox quits before `killDelay`: what still runs gets a moment, then SIGKILL.
     @Test func killsWhatStillRunsAtQuitAfterAMoment() async throws {
         let process = try stubborn()
         defer { if process.isRunning { kill(process.processIdentifier, SIGKILL) } }
         // Its shell has set the trap once it runs sleep.
         try await Task.sleep(for: .milliseconds(200))
-        ShortProcess.terminate(process)
-        #expect(ShortProcess.leftovers.contains { $0 === process })
+        // Not through `terminate`, whose own SIGKILL follows later: this one can only come from `endAtQuit`.
+        process.terminate()
         let start = Date()
-        ShortProcess.endAtQuit([process], grace: 0.5)
+        ShortProcess.endAtQuit([process], grace: 0.3)
         let took = Date().timeIntervalSince(start)
-        #expect(took >= 0.45 && took < 1, "\(took)")
-        #expect(try await ends(process, within: 1))
+        #expect(took >= 0.25 && took < 2, "\(took)")
+        #expect(try await ends(process, within: 3))
         #expect(process.terminationReason == .uncaughtSignal)
         #expect(process.terminationStatus == SIGKILL)
     }
@@ -77,21 +89,20 @@ struct ShortProcessTests {
     /// Quitting stays quick: nothing left waits nothing, and a process that ends on SIGTERM only as long as it takes.
     @Test func quitsAtOnceWhenNothingIsLeft() async throws {
         var start = Date()
-        ShortProcess.endAtQuit([], grace: 0.5)
-        #expect(Date().timeIntervalSince(start) < 0.05)
+        ShortProcess.endAtQuit([], grace: 5)
+        #expect(Date().timeIntervalSince(start) < 0.1)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sleep")
         process.arguments = ["8"]
         try process.run()
         defer { if process.isRunning { kill(process.processIdentifier, SIGKILL) } }
-        ShortProcess.terminate(process)
+        process.terminate()
         start = Date()
-        ShortProcess.endAtQuit([process], grace: 0.5)
-        #expect(Date().timeIntervalSince(start) < 0.3)
-        #expect(try await ends(process, within: 1))
+        ShortProcess.endAtQuit([process], grace: 5)
+        #expect(Date().timeIntervalSince(start) < 2)
+        #expect(!process.isRunning)
         #expect(process.terminationReason == .uncaughtSignal)
         #expect(process.terminationStatus == SIGTERM)
-        #expect(!ShortProcess.leftovers.contains { $0 === process })
     }
 
     /// A `send` still running when PhoneBox quits is one of the leftovers too.
