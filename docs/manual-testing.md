@@ -196,6 +196,8 @@ Claude Code oturumları ve güncelleme:
   ekleniyor, Notification eşleyicisi `permission_prompt|idle_prompt` oluyor; Claude Code uyarı göstermiyor.
 - [ ] Başarısız güncelleme (ör. indirme sırasında Wi-Fi kapalı): uyarı çıkıyor, menü ve ayarlar yine "PhoneBox x.y.z
   sürümünü yükle…" / "Yükle…" sunuyor.
+- [ ] Oturumlar görünürken Ayarlar → Claude Code'da özelliği kapat: `~/Library/Application Support/PhoneBox/claude-sessions.json`
+  siliniyor.
 
 Mac (ağ ve ölçümler):
 - [ ] "Her zaman" kipinde A telefonu Wi-Fi'de, B telefonunu tak: A bir kez yeniden bağlanıyor (~3 sn), ~8 sn'de yeniden
@@ -215,6 +217,7 @@ Mac (ağ ve ölçümler):
 - [ ] Mac'te `swift build`/`make` sürerken derleyici işlemleri (`swift-frontend`, `clang`) gerçek yüzdelerle en üst CPU
   satırlarında.
 - [ ] Pano açıkken Mac uyuyup uyanınca, yeniden bağlandıktan sonra grafikte düzenli boşluklar yok.
+- [ ] Pano akarken PhoneBox'tan çık: kapanış gecikmiyor, 1 sn sonra `pgrep -fl mediaremote-adapter` boş.
 
 ## Henüz denenmemiş (spike 8)
 - [ ] Kestirmeler → Otomasyon → Şarj Aleti → "URL'yi Aç" (kişisel bağlantı) → "Hemen Çalıştır": kablo takılınca
