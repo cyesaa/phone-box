@@ -506,7 +506,9 @@ değil, ayrı bir pencerede (aşağıda); menü kısadır:
 - "PhoneBox x.y.z sürümünü yükle…" (yalnız yeni sürüm varken) ve "Güncellemeleri denetle…" (NotchBox'taki gibi):
   açılıştan 15 sn sonra ve günde iki kez GitHub'ın "latest release" yanıtına bakılır (taslak ve ön sürüm sayılmaz).
   Yükle, kurulum komutunu PhoneBox'tan bağımsız bir kabukta çalıştırır: PhoneBox kapanır, yenisi yerine konup açılır,
-  çıktısı `~/Library/Logs/PhoneBox/update.log`'a yazılır. Kurulum başarısızsa komut panoya konur ve kayıt gösterilir.
+  çıktısı `~/Library/Logs/PhoneBox/update.log`'a yazılır. Kurulum başarısızsa komut panoya konur, kayıt gösterilir ve
+  bulunan sürüm sunulmaya devam eder (menüde ve ayarlarda yine "Yükle…"; 0.4.1). PhoneBox kapandıktan sonraki bir
+  hatada betik eski uygulamayı yeniden açar (bölüm 12).
   `defaults write com.phonebox.PhoneBox CheckForUpdatesAutomatically -bool false` otomatik denetimi kapatır.
 - PhoneBox'tan çık
 

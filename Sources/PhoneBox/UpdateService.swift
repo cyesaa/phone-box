@@ -123,8 +123,7 @@ final class UpdateService {
         if failed {
             Log.app.notice("Update check failed (HTTP \(code, privacy: .public))")
             // An update found before is still there: keep offering it, also to a click on "Check for Updates…".
-            let known = UpdateCheck.availableUpdate(current: currentVersion, latest: lastFound)
-            status = known.map(Status.available) ?? .failed
+            status = Self.statusAfterFailure(current: currentVersion, lastFound: lastFound)
         } else if let update = UpdateCheck.availableUpdate(current: currentVersion, latest: release) {
             Log.app.notice("Update available: \(update.version.description, privacy: .public)")
             status = .available(update)
@@ -208,7 +207,8 @@ final class UpdateService {
 
     private func installFailed(code: Int32, log: URL) {
         Log.app.error("Installer exited with \(code, privacy: .public)")
-        status = .failed
+        // The install failed, not the check: the update is still there to try again.
+        status = Self.statusAfterFailure(current: currentVersion, lastFound: lastFound)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(UpdateCheck.installCommand, forType: .string)
         // From the run loop, not straight from the termination handler's main-queue block (see finishCheck).
@@ -218,6 +218,11 @@ final class UpdateService {
                 NSWorkspace.shared.activateFileViewerSelecting([log])
             }
         }
+    }
+
+    /// What a failed check or install leaves: the update found before, while there is one, stays offered.
+    static func statusAfterFailure(current: AppVersion?, lastFound: LatestRelease?) -> Status {
+        current.flatMap { UpdateCheck.availableUpdate(current: $0, latest: lastFound) }.map(Status.available) ?? .failed
     }
 
     private func alert(_ message: String, info: String?) {
