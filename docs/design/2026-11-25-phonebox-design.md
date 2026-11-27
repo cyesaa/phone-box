@@ -770,11 +770,12 @@ Claude Code'un komut hook'ları (`~/.claude/settings.json`). Her olayda Claude C
    5 sn'de bir oturumların işlemine bakar (`kill(pid, 0)`); işlemi biten oturum listeden düşer. Bir ajan komut
    (`Bash`) izni beklerken saniyede bir o işlemin çocuklarına bakar (aşağıda, "Onaylanan komut").
 4. Oturumlar (beklemeleri ve son `at`'leriyle) `~/Library/Application Support/PhoneBox/claude-sessions.json`'a yazılır
-   (0600, geçici dosya + `rename`): bir değişiklikten en çok 2 sn sonra ve izleme dururken (çıkış, güncelleme, özelliği
-   kapatma). Dinlemeye başlarken (0.4.1) dosya en çok 10 dk önce yazılmışsa okunur; işlemi bitmiş ya da pid'i oturumun
-   son olayından sonra başlamış bir işlemin olan (Mac yeniden başladı, pid başkasının) oturumlar düşer. Böylece
+   (0600, geçici dosya + `rename`): bir değişiklikten en çok 2 sn sonra ve izleme dururken (çıkış, güncelleme).
+   Dinlemeye başlarken (0.4.1) dosya en çok 10 dk önce yazılmışsa okunur; işlemi bitmiş ya da pid'i oturumun son
+   olayından sonra başlamış bir işlemin olan (Mac yeniden başladı, pid başkasının) oturumlar düşer. Böylece
    güncellemeden sonra bekleyen oturumlar hemen yine görünür. Soketi alamayan PhoneBox (deneme kopyası) dosyayı ne
-   okur ne yazar.
+   okur ne yazar. Özellik kapanınca (ayarlardan, ya da açılışta hook'lar silinmiş bulununca) ve özellik kapalıyken her
+   açılışta dosya silinir: oturum başlıkları diskte kalmaz.
 
 Olay → durum (`ClaudeSessions`, PhoneBoxCore, test edilir):
 

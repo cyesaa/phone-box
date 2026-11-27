@@ -135,6 +135,15 @@ final class ClaudeMonitor {
         onChange?()
     }
 
+    /// Removes the saved sessions, after `stop()` when the feature is turned off: their titles do not stay on disk.
+    func forgetSaved() {
+        saveTimer?.invalidate()
+        saveTimer = nil
+        unsaved = false
+        guard let sessionsFile, unlink(sessionsFile.path) != 0, errno != ENOENT else { return }
+        Log.app.error("Could not remove the saved Claude Code sessions: \(String(cString: strerror(errno)), privacy: .public)")
+    }
+
     /// Drops the sessions whose `claude` process has ended (every `livenessEvery` seconds).
     func checkProcesses() {
         let before = state.count

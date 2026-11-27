@@ -295,6 +295,25 @@ struct ClaudeMonitorTests {
         #expect(info.st_mode & 0o777 == 0o600)
     }
 
+    /// The feature turned off: the sessions' titles do not stay on disk, and a later start finds none.
+    @Test func forgettingTheSavedSessionsRemovesTheirFile() async throws {
+        let folder = try temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("claude-sessions.json")
+        let monitor = ClaudeMonitor(socketPath: socketPath, sessionsFile: file, saveDelay: 60)
+        monitor.start()
+        #expect(ClaudeHookForwarder.send(Self.event(.prompt, at: ClaudeHookForwarder.now()).line(), to: socketPath))
+        #expect(try await eventually { !monitor.sessions.isEmpty })
+        monitor.stop()
+        #expect(FileManager.default.fileExists(atPath: file.path))
+        monitor.forgetSaved()
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
+        monitor.forgetSaved()
+        monitor.start()
+        defer { monitor.stop() }
+        #expect(monitor.sessions.isEmpty)
+    }
+
     /// A test copy that does not get the socket neither reads nor writes the list.
     @Test func aMonitorThatDoesNotListenLeavesTheSavedListAlone() throws {
         let folder = try temporaryFolder()

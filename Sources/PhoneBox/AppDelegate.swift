@@ -106,12 +106,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// still there (a test copy) and a file PhoneBox cannot read are left as they are. Returns why installing them again
     /// failed, for the settings window.
     private func resumeClaudeSessions() -> String? {
-        guard settings.claudeSessions else { return nil }
+        guard settings.claudeSessions else {
+            // Sessions saved by a run that did not see the feature turned off.
+            claudeMonitor.forgetSaved()
+            return nil
+        }
         let executable = Bundle.main.executablePath!
         var failure: String?
         switch claudeHooks.launchCheck(executable: executable) {
         case .removed:
             settings.claudeSessions = false
+            claudeMonitor.forgetSaved()
             return nil
         case .unreadable:
             Log.app.error("Could not read the Claude Code settings, or there are none; the hooks are left as they are")
@@ -147,6 +152,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             settings.claudeSessions = false
             claudeMonitor.stop()
+            // The sessions' titles do not stay on disk.
+            claudeMonitor.forgetSaved()
             do {
                 try claudeHooks.remove()
             } catch {
