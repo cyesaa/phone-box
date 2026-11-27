@@ -98,6 +98,20 @@ public struct ClaudeSessions: Sendable {
         var mode: Mode
         /// Each agent's wait, by `agent` ("" for the main agent).
         var waits: [String: Wait] = [:]
+        /// The `at` of each agent's last own event (`AgentEffect`) since `allAgentsAt`, or the start of its command
+        /// seen approved.
+        var agentsAt: [String: Int64] = [:]
+        /// The `at` of the last event that ended every agent's wait: a prompt, the end of the turn.
+        var allAgentsAt: Int64 = .min
+
+        /// An event of `agent` older than this is old news for it.
+        func lastAt(of agent: String) -> Int64 { agentsAt[agent] ?? allAgentsAt }
+    }
+
+    /// What an event of one agent's own says about that agent's wait.
+    private enum AgentEffect {
+        case wait(ClaudeSession.Reason)
+        case end
     }
 
     private struct End: Sendable {
@@ -160,8 +174,9 @@ public struct ClaudeSessions: Sendable {
     }
 
     /// Applies one event at `now` (ms). Hooks run as separate processes and can come in out of order: an event that ran
-    /// before the session's last one, or no later than its end, is old news and changes nothing (design §14). Each agent
-    /// of the session ("" the main one) waits on its own: the session waits while any of them does.
+    /// before the session's last one, or no later than its end, is old news (design §14), except for what an agent's own
+    /// event says about that agent's wait (`applyToItsAgent`). Each agent of the session ("" the main one) waits on its
+    /// own: the session waits while any of them does.
     public mutating func apply(_ event: ClaudeEvent, now: Int64) {
         if !ended.isEmpty { ended = ended.filter { now - $0.value.received <= Self.endMemory } }
         // A subagent's stop ends only its own wait; it makes no session.
@@ -173,7 +188,7 @@ public struct ClaudeSessions: Sendable {
             guard event.at > end.at else { return }
             ended[event.session] = nil
         }
-        if let known = entries[event.session], event.at < known.at { return }
+        if let known = entries[event.session], event.at < known.at { return applyToItsAgent(event, now: now) }
         if event.kind == .sessionEnd {
             entries[event.session] = nil
             ended[event.session] = End(at: event.at, received: now)
@@ -182,6 +197,7 @@ public struct ClaudeSessions: Sendable {
         var entry = entries[event.session] ?? Self.newEntry(for: event, now: now)
         entry.pid = event.pid
         entry.at = event.at
+        if Self.agentEffect(of: event) != nil { entry.agentsAt[event.agent] = event.at }
         switch event.kind {
         case .sessionStart:
             entries[event.session] = entry
@@ -191,6 +207,8 @@ public struct ClaudeSessions: Sendable {
         case .prompt:
             entry.questionAtEnd = false
             entry.waits = [:]
+            entry.agentsAt = [:]
+            entry.allAgentsAt = event.at
             entry.mode = Mode(state: .working, activity: .think)
             Self.show(&entry, now: now)
             // A new turn: its time starts now even when the last one was still running.
@@ -225,9 +243,12 @@ public struct ClaudeSessions: Sendable {
                 if event.background {
                     // The background tasks' agents may still wait.
                     entry.waits[""] = nil
+                    entry.agentsAt[""] = event.at
                     entry.mode = Mode(state: .working, activity: .background)
                 } else {
                     entry.waits = [:]
+                    entry.agentsAt = [:]
+                    entry.allAgentsAt = event.at
                     entry.mode = Mode(state: .waiting, reason: entry.questionAtEnd ? .question : .turn)
                 }
                 entry.questionAtEnd = false
@@ -243,6 +264,39 @@ public struct ClaudeSessions: Sendable {
         }
         Self.show(&entry, now: now)
         entries[event.session] = entry
+    }
+
+    /// An event that ran before its session's last one: each agent's hooks run in order, but another agent's later event
+    /// may have come in first. An agent's own event that ran no earlier than that agent's last one and the last end of
+    /// every wait still starts or ends that agent's wait; the rest stays as the later events made it.
+    private mutating func applyToItsAgent(_ event: ClaudeEvent, now: Int64) {
+        guard var entry = entries[event.session], let effect = Self.agentEffect(of: event),
+              event.at >= entry.lastAt(of: event.agent)
+        else { return }
+        switch effect {
+        case let .wait(reason): Self.wait(&entry, agent: event.agent, reason: reason, tool: event.tool, now: now)
+        case .end: entry.waits[event.agent] = nil
+        }
+        entry.agentsAt[event.agent] = event.at
+        Self.show(&entry, now: now)
+        entries[event.session] = entry
+    }
+
+    /// Nil for an event that is no single agent's own: a prompt, the main agent's Stop, a notification, the session's
+    /// start or end.
+    private static func agentEffect(of event: ClaudeEvent) -> AgentEffect? {
+        switch event.kind {
+        case .toolStart:
+            switch event.tool {
+            case ClaudeEvent.questionTool: return .wait(.question)
+            case "ExitPlanMode": return .wait(.permission)
+            default: return .end
+            }
+        case .permission: return .wait(.permission)
+        case .toolEnd: return .end
+        case .stop: return event.subagent ? .end : nil
+        case .sessionStart, .prompt, .permissionPrompt, .idle, .sessionEnd: return nil
+        }
     }
 
     /// The first command shell of Claude Code (`commandShellMark`) among `children` that started more than
@@ -272,8 +326,10 @@ public struct ClaudeSessions: Sendable {
         else { return false }
         entry.waits[first.agent] = nil
         entry.mode = Mode(state: .working, activity: .command)
-        // Like an event at the command's start: what ran before it (the dialog's late notification) is old news.
+        // Like an event of that agent at the command's start: what ran before it (the dialog's late notification) is
+        // old news.
         entry.at = command.start
+        entry.agentsAt[first.agent] = command.start
         Self.show(&entry, now: now)
         entries[first.id] = entry
         return true

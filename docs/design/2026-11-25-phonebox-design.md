@@ -817,6 +817,10 @@ yavaş bir `PreToolUse` hook'u) onay sanılır. Diğer araçların (Edit, Write,
 Sıra: her hook ayrı bir işlem, iki olay birkaç ms arayla ters sırada gelebilir (`PermissionRequest` `PreToolUse`'dan
 önce; `Stop` `SessionEnd`'den sonra). İşlemler Claude Code'un hook'ları çalıştırdığı sırayla başlar, bu yüzden `at`
 sırası doğrudur: oturumun son uygulanan olayından eski `at`'li olay yok sayılır (aynı µs gelme sırasıyla uygulanır).
+Bir istisnayla (0.4.1): bir ajanın kendi olayı (`PreToolUse`, `PostToolUse`/`PostToolUseFailure`/`PermissionDenied`,
+`PermissionRequest`, `SubagentStop`) başka bir ajanın sonraki olayından sonra gelmiş olabilir. O ajanın son olayından
+(ya da onaylanan komutunun başlamasından) ve bütün beklemeleri bitiren son olaydan (`UserPromptSubmit`, `Stop`) eski
+değilse yalnız o ajanın beklemesini başlatır ya da bitirir; oturumun geri kalanı sonraki olayların bıraktığı gibi kalır.
 `SessionEnd`'den sonra oturum `at`'iyle 60 sn hatırlanır; `at`'i ondan eski ya da eşit olaylar yok sayılır, daha yeni
 olan (`claude --resume` ile yeniden açılan oturumun `SessionStart`'ı) kabul edilir.
 `at` duvar saatidir (yardımcının başlama zamanı): Mac'in saati geri alınırsa, bilinen bir oturumun olayları saat son

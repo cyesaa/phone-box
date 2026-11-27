@@ -451,6 +451,83 @@ struct ClaudeSessionsTests {
         #expect(sessions.list.first?.state == .working)
     }
 
+    /// Each agent's hooks keep their own order, but another agent's later event can come in first: the end of an
+    /// agent's wait (its next tool, its tool's end, its SubagentStop) still ends it, and leaves the rest as the later
+    /// event made it.
+    @Test func anAgentsOwnEventEndsItsWaitAfterALaterEventOfAnotherAgent() {
+        for end in [Self.event(.toolEnd, tool: "Bash", agent: "A", at: 300), Self.event(.toolStart, tool: "Grep", agent: "A", at: 300),
+                    Self.event(.stop, agent: "A", at: 300)] {
+            var sessions = ClaudeSessions()
+            sessions.apply(Self.event(.prompt, at: 100), now: 1)
+            sessions.apply(Self.event(.permission, tool: "Bash", agent: "A", at: 200), now: 2)
+            sessions.apply(Self.event(.toolStart, tool: "Read", agent: "B", at: 400), now: 3)
+            #expect(sessions.list.first?.state == .waiting)
+            sessions.apply(end, now: 4)
+            #expect(sessions.list.first?.state == .working, "\(end.kind)")
+            #expect(sessions.list.first?.activity == .read, "\(end.kind)")
+            #expect(sessions.list.first?.since == 4, "\(end.kind)")
+            #expect(sessions.pidsWaitingToRunACommand.isEmpty, "\(end.kind)")
+        }
+        // An event of the agent from before its wait (its PreToolUse, come in late) does not end it, nor does another
+        // agent's.
+        var sessions = ClaudeSessions()
+        sessions.apply(Self.event(.prompt, at: 100), now: 1)
+        sessions.apply(Self.event(.permission, tool: "Bash", agent: "A", at: 200), now: 2)
+        sessions.apply(Self.event(.toolStart, tool: "Read", agent: "B", at: 400), now: 3)
+        sessions.apply(Self.event(.toolStart, tool: "Bash", agent: "A", at: 150), now: 4)
+        sessions.apply(Self.event(.toolEnd, tool: "Read", agent: "B", at: 300), now: 5)
+        sessions.apply(Self.event(.toolEnd, tool: "Bash", at: 350), now: 6)
+        #expect(sessions.list.first?.state == .waiting)
+        #expect(sessions.list.first?.since == 2)
+    }
+
+    /// The same reorder the other way: an agent's request for permission (or its question) that ran before another
+    /// agent's event come in first still makes it wait, unless that agent, or the end of every wait, came later.
+    @Test func anAgentsWaitStartsAfterALaterEventOfAnotherAgent() {
+        var sessions = ClaudeSessions()
+        sessions.apply(Self.event(.prompt, at: 100), now: 1)
+        sessions.apply(Self.event(.toolStart, tool: "Read", agent: "B", at: 300), now: 2)
+        sessions.apply(Self.event(.permission, tool: "Bash", agent: "A", at: 250), now: 3)
+        #expect(sessions.list.first?.state == .waiting)
+        #expect(sessions.list.first?.reason == .permission)
+        #expect(sessions.list.first?.since == 3)
+        #expect(sessions.pidsWaitingToRunACommand == [100])
+        sessions.apply(Self.event(.toolStart, tool: "AskUserQuestion", asks: true, agent: "C", at: 260), now: 4)
+        sessions.apply(Self.event(.toolEnd, tool: "Bash", agent: "A", at: 500), now: 5)
+        #expect(sessions.list.first?.reason == .question)
+        #expect(sessions.list.first?.since == 4)
+        // A's request from before its own last event is old news.
+        sessions.apply(Self.event(.permission, tool: "Bash", agent: "A", at: 450), now: 6)
+        #expect(sessions.list.first?.reason == .question)
+        // So is one from before a prompt or the end of the turn, which end every wait.
+        sessions.apply(Self.event(.prompt, at: 600), now: 7)
+        sessions.apply(Self.event(.toolStart, tool: "Read", agent: "B", at: 700), now: 8)
+        sessions.apply(Self.event(.permission, tool: "Bash", agent: "D", at: 550), now: 9)
+        sessions.apply(Self.event(.permission, tool: "Bash", agent: "A", at: 650), now: 10)
+        #expect(sessions.list.first?.reason == .permission)
+        #expect(sessions.list.first?.since == 10)
+        sessions.apply(Self.event(.stop, at: 800), now: 11)
+        sessions.apply(Self.event(.permission, tool: "Bash", agent: "D", at: 750), now: 12)
+        #expect(sessions.list.first?.reason == .turn)
+        // Events that are no single agent's own stay old news.
+        sessions.apply(Self.event(.idle, at: 790), now: 13)
+        sessions.apply(Self.event(.permissionPrompt, at: 790), now: 14)
+        #expect(sessions.list.first?.reason == .turn)
+        #expect(sessions.list.first?.since == 11)
+    }
+
+    /// The approved command's start counts as its agent's event: that agent's older request does not come back.
+    @Test func anApprovalIsTheAgentsLastEvent() {
+        var sessions = ClaudeSessions()
+        sessions.apply(Self.event(.prompt, at: 1_000_000), now: 1_000)
+        sessions.apply(Self.event(.permission, tool: "Bash", agent: "A", at: 2_000_000), now: 2_000)
+        #expect(approve(&sessions, pid: 100, children: [Self.child(start: 5_000_000)], now: 10_000))
+        sessions.apply(Self.event(.permission, tool: "Bash", agent: "A", at: 4_000_000), now: 10_001)
+        #expect(sessions.list.first?.state == .working)
+        sessions.apply(Self.event(.permission, tool: "Bash", agent: "B", at: 4_000_000), now: 10_002)
+        #expect(sessions.list.first?.state == .waiting)
+    }
+
     /// Events of the same microsecond keep the order they came in.
     @Test func anEventOfTheSameTimeIsApplied() {
         var sessions = ClaudeSessions()
