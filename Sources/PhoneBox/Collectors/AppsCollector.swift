@@ -73,10 +73,12 @@ final class AppsCollector {
         var apps: [String: AppInfo] = [:]
         for app in NSWorkspace.shared.runningApplications {
             guard let path = app.bundleURL?.path else { continue }
+            let regular = app.activationPolicy == .regular
             let quittable = QuitRule.isQuittable(RunningApp(pid: app.processIdentifier, bundleId: app.bundleIdentifier,
-                                                            regular: app.activationPolicy == .regular), ownPid: ownPID)
+                                                            regular: regular), ownPid: ownPID)
             apps[path] = AppInfo(pid: app.processIdentifier, bundleId: app.bundleIdentifier,
-                                 name: app.localizedName ?? (path as NSString).lastPathComponent, quittable: quittable)
+                                 name: app.localizedName ?? (path as NSString).lastPathComponent, quittable: quittable,
+                                 regular: regular)
         }
         return apps
     }

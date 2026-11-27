@@ -59,7 +59,8 @@ struct AppUsageTests {
     }
 
     @Test func groupsHelpersIntoTheirAppAndComputesPercentOfOneCore() {
-        let apps = [chrome: AppInfo(pid: 10, bundleId: "com.google.Chrome", name: "Google Chrome", quittable: true)]
+        let apps = [chrome: AppInfo(pid: 10, bundleId: "com.google.Chrome", name: "Google Chrome", quittable: true,
+                                    regular: true)]
         let helperPath = chrome + "/Contents/Frameworks/X.framework/Helpers/Helper.app/Contents/MacOS/Helper"
         let current = [
             ProcessReading(pid: 10, path: chrome + "/Contents/MacOS/Google Chrome", cpuNanos: 3 * second, memory: 100),
@@ -68,6 +69,43 @@ struct AppUsageTests {
         let top = AppUsage.top(previousCPU: [10: 2 * second, 11: second / 2], current: current, elapsedNanos: 2 * second,
                                apps: apps)
         #expect(top == [AppSample(pid: 10, bundleId: "com.google.Chrome", name: "Google Chrome", cpu: 125, mem: 150,
+                                  quittable: true)])
+    }
+
+    /// Simulator ships inside Xcode but is an app of its own: its row is "Simulator", whether Xcode runs or not.
+    @Test func filesAnAppInsideAnotherAppUnderItself() {
+        let xcode = "/Applications/Xcode.app"
+        let simulator = xcode + "/Contents/Developer/Applications/Simulator.app"
+        let simulatorInfo = AppInfo(pid: 30, bundleId: "com.apple.iphonesimulator", name: "Simulator", quittable: true,
+                                    regular: true)
+        let simulatorProcess = ProcessReading(pid: 30, path: simulator + "/Contents/MacOS/Simulator", cpuNanos: 2 * second,
+                                              memory: 300)
+        let alone = AppUsage.top(previousCPU: [30: second], current: [simulatorProcess], elapsedNanos: second,
+                                 apps: [simulator: simulatorInfo])
+        #expect(alone == [AppSample(pid: 30, bundleId: "com.apple.iphonesimulator", name: "Simulator", cpu: 100, mem: 300,
+                                    quittable: true)])
+
+        let xcodeInfo = AppInfo(pid: 20, bundleId: "com.apple.dt.Xcode", name: "Xcode", quittable: true, regular: true)
+        let xcodeProcess = ProcessReading(pid: 20, path: xcode + "/Contents/MacOS/Xcode", cpuNanos: second, memory: 500)
+        let both = AppUsage.top(previousCPU: [20: 0, 30: second], current: [simulatorProcess, xcodeProcess],
+                                elapsedNanos: second, apps: [simulator: simulatorInfo, xcode: xcodeInfo])
+        #expect(both.count == 2)
+        #expect(both.first { $0.name == "Simulator" }?.mem == 300)
+        #expect(both.first { $0.name == "Xcode" }?.mem == 500)
+    }
+
+    /// macOS lists some helper bundles as apps too (accessory apps, not in the Dock): they still count as their app.
+    @Test func keepsListedHelperAppsUnderTheirApp() {
+        let helper = chrome + "/Contents/Frameworks/Google Chrome Framework.framework/Helpers/Google Chrome Helper (Aperitif).app"
+        let apps = [
+            chrome: AppInfo(pid: 10, bundleId: "com.google.Chrome", name: "Google Chrome", quittable: true, regular: true),
+            helper: AppInfo(pid: 12, bundleId: "com.google.Chrome.helper", name: "Google Chrome Helper", quittable: false,
+                            regular: false),
+        ]
+        let current = [ProcessReading(pid: 12, path: helper + "/Contents/MacOS/Google Chrome Helper (Aperitif)",
+                                      cpuNanos: second, memory: 40)]
+        let top = AppUsage.top(previousCPU: [12: 0], current: current, elapsedNanos: second, apps: apps)
+        #expect(top == [AppSample(pid: 10, bundleId: "com.google.Chrome", name: "Google Chrome", cpu: 100, mem: 40,
                                   quittable: true)])
     }
 

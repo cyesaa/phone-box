@@ -25,12 +25,15 @@ public struct AppInfo: Equatable, Sendable {
     public var name: String
     /// A regular (Dock) app that the phone may quit later (Plan 3B); Finder and PhoneBox are never quittable.
     public var quittable: Bool
+    /// A regular (Dock) app, as opposed to a helper macOS lists too (an accessory or background app).
+    public var regular: Bool
 
-    public init(pid: Int32, bundleId: String?, name: String, quittable: Bool) {
+    public init(pid: Int32, bundleId: String?, name: String, quittable: Bool, regular: Bool) {
         self.pid = pid
         self.bundleId = bundleId
         self.name = name
         self.quittable = quittable
+        self.regular = regular
     }
 }
 
@@ -61,12 +64,26 @@ public enum AppUsage {
     /// The outermost `.app` bundle that contains an executable, so that "Google Chrome Helper (Renderer)" deep
     /// inside Chrome counts as Chrome. Nil when the executable is not inside an app.
     public static func bundlePath(forExecutable path: String) -> String? {
+        bundlePaths(forExecutable: path).first
+    }
+
+    /// Every `.app` bundle that contains an executable, outermost first.
+    static func bundlePaths(forExecutable path: String) -> [String] {
         var components: [Substring] = []
+        var bundles: [String] = []
         for component in path.split(separator: "/", omittingEmptySubsequences: false) {
             components.append(component)
-            if component.hasSuffix(".app") { return components.joined(separator: "/") }
+            if component.hasSuffix(".app") { bundles.append(components.joined(separator: "/")) }
         }
-        return nil
+        return bundles
+    }
+
+    /// The bundle a process is filed under: the innermost `.app` around it that runs as a regular (Dock) app, so that
+    /// Simulator inside Xcode is "Simulator"; otherwise the outermost, so that a helper counts as its app even when
+    /// macOS lists the helper too. Nil when the executable is not inside an app.
+    public static func bundlePath(forExecutable path: String, apps: [String: AppInfo]) -> String? {
+        let bundles = bundlePaths(forExecutable: path)
+        return bundles.last { apps[$0]?.regular == true } ?? bundles.first
     }
 
     /// Longest name sent to the phone, in characters (grapheme clusters).
@@ -137,7 +154,7 @@ public enum AppUsage {
         }
         var groups: [String: Group] = [:]
         for process in current {
-            let bundle = bundlePath(forExecutable: process.path)
+            let bundle = bundlePath(forExecutable: process.path, apps: apps)
             let key = bundle ?? process.path
             var group = groups[key] ?? {
                 if let bundle, let info = apps[bundle] {
