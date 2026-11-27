@@ -9,12 +9,16 @@ public struct ProcessReading: Equatable, Sendable {
     public var cpuNanos: UInt64
     /// Physical footprint in bytes (what Activity Monitor calls Memory).
     public var memory: UInt64
+    /// When the process started, in nanoseconds of uptime (the clock of `DispatchTime.now().uptimeNanoseconds`); 0 when
+    /// unknown, which counts as long ago.
+    public var startNanos: UInt64
 
-    public init(pid: Int32, path: String, cpuNanos: UInt64, memory: UInt64) {
+    public init(pid: Int32, path: String, cpuNanos: UInt64, memory: UInt64, startNanos: UInt64 = 0) {
         self.pid = pid
         self.path = path
         self.cpuNanos = cpuNanos
         self.memory = memory
+        self.startNanos = startNanos
     }
 }
 
@@ -140,9 +144,11 @@ public enum AppUsage {
 
     /// Groups processes into apps, turns CPU time into percent of one core over `elapsedNanos`, and returns the
     /// top apps by CPU followed by the top apps by memory that are not already listed (at most 2 × `topCount`).
-    /// A process with no earlier reading (or whose counter went backwards) counts as 0 % this time.
-    public static func top(previousCPU: [Int32: UInt64], current: [ProcessReading], elapsedNanos: UInt64,
-                           apps: [String: AppInfo]) -> [AppSample] {
+    /// A process that started after `previousSampleAt` (on the clock of `ProcessReading.startNanos`) used all its CPU
+    /// time in this window, so a compiler that lives a second still counts; an older process is measured against its
+    /// earlier reading, and one with none (or whose counter went backwards) counts as 0 % this time.
+    public static func top(previousCPU: [Int32: UInt64], previousSampleAt: UInt64, current: [ProcessReading],
+                           elapsedNanos: UInt64, apps: [String: AppInfo]) -> [AppSample] {
         guard elapsedNanos > 0 else { return [] }
         struct Group {
             var pid: Int32
@@ -164,7 +170,10 @@ public enum AppUsage {
                 return Group(pid: process.pid, bundleId: nil, name: name(app: nil, bundle: bundle, executable: process.path),
                              quittable: false)
             }()
-            if let before = previousCPU[process.pid], process.cpuNanos >= before {
+            if process.startNanos > previousSampleAt {
+                // Also a new process that got the pid of one in the earlier readings.
+                group.cpuNanos += process.cpuNanos
+            } else if let before = previousCPU[process.pid], process.cpuNanos >= before {
                 group.cpuNanos += process.cpuNanos - before
             }
             group.memory += process.memory
