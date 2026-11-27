@@ -180,6 +180,38 @@ Telefonun sayfası:
 - [ ] Aynı denemede kural dururken PhoneBox'tan çık: sayfa yenilenmiyor, kartta kalıyor (tarayıcının hata sayfasına
   düşmüyor). Kuralı kaldırıp PhoneBox'ı açınca birkaç saniyede kendini yenileyip bağlanıyor.
 
+Claude Code oturumları ve güncelleme:
+- [ ] Etkileşimli bir oturumda (masaüstü uygulaması ve terminal) tur sürerken Esc: yaklaşık bir dakika sonra kart
+  "Çalışıyor"dan "Sıra sende"ye geçiyor, sayfa geliyor.
+- [ ] Bir tur API hatasıyla bitince (aşırı yük, kullanım sınırı) kart hemen "Sıra sende" (`StopFailure`).
+- [ ] Paralel alt ajanlarla birinin Bash izni istemesi: diğerleri çalışırken kart "İzin istiyor" (turuncu, "1 seni
+  bekliyor") kalıyor; o ajanın komutu bitince çalışıyora dönüyor.
+- [ ] Uzun bir komuta izin ver (`sleep 30`, `make test`), masaüstü uygulamasında ve terminalde: 1–2 sn içinde kart
+  "Komut çalıştırıyor", sayfa 3 sn sonra panoya dönüyor.
+- [ ] Oturum beklerken ("Sıra sende", "Soru soruyor") PhoneBox'ı güncelle (ya da çıkıp 10 dk içinde aç): bekleyen
+  oturumlar aynı sürelerle hemen yeniden görünüyor.
+- [ ] Özellik açıkken 0.4.0'dan 0.4.1'e ilk açılışta `~/.claude/settings.json`'a `StopFailure` ve `SubagentStop`
+  ekleniyor, Notification eşleyicisi `permission_prompt|idle_prompt` oluyor; Claude Code uyarı göstermiyor.
+- [ ] Başarısız güncelleme (ör. indirme sırasında Wi-Fi kapalı): uyarı çıkıyor, menü ve ayarlar yine "PhoneBox x.y.z
+  sürümünü yükle…" / "Yükle…" sunuyor.
+
+Mac (ağ ve ölçümler):
+- [ ] "Her zaman" kipinde A telefonu Wi-Fi'de, B telefonunu tak: A bir kez yeniden bağlanıyor (~3 sn), ~8 sn'de yeniden
+  değil.
+- [ ] PhoneBox çalışırken Mac'in adını değiştir (Sistem Ayarları → Genel → Paylaşma): sonra bağlanan telefonun "⋯"
+  menüsünde yeni ad.
+- [ ] PhoneBox açılmadan 4747'yi tut (`nc -l 4747`): menü portun kullanımda olduğunu söylüyor; "Değiştir…" ile 4747
+  "kullanımda" uyarısı veriyor; `nc` durunca 30 sn içinde 4747 dinleniyor ve kayıtlı bağlantı/Ana Ekran simgesi
+  bağlanıyor. Yeniden tut, bırak ve "Değiştir…" ile 4747: port hemen alınıyor, QR penceresi açılmıyor.
+- [ ] Sayfa `http://<LocalHostName>.local:<port>/` ve `http://<IP>:<port>/` ile açılıyor;
+  `curl -H 'Host: evil.example' http://<mac>.local:<port>/` 403 alıyor.
+- [ ] Yük altında kablodaki telefon: başka bir cihazdan 20+ boşta bağlantı aç
+  (`for i in $(seq 20); do nc <mac-ip> 4747 & done`); kablodaki telefon yine bağlanıp veri alıyor.
+- [ ] Xcode kapalıyken Simulator'ü aç (`open -a Simulator`): uygulama listesinde "Simulator" görünüyor ve kapatılabiliyor.
+- [ ] Mac'te `swift build`/`make` sürerken derleyici işlemleri (`swift-frontend`, `clang`) gerçek yüzdelerle en üst CPU
+  satırlarında.
+- [ ] Pano açıkken Mac uyuyup uyanınca, yeniden bağlandıktan sonra grafikte düzenli boşluklar yok.
+
 ## Henüz denenmemiş (spike 8)
 - [ ] Kestirmeler → Otomasyon → Şarj Aleti → "URL'yi Aç" (kişisel bağlantı) → "Hemen Çalıştır": kablo takılınca
   dashboard onaysız açılıyor mu?
