@@ -261,6 +261,7 @@ struct DashboardHubTests {
             let wifi = connect(hub, onUSB: false)
             let cable = connect(hub, onUSB: true)
             hub.iPhonePluggedIn()
+            hub.moveWiFiPhonesToCable()
             #expect(wifi.closeCode == DashboardHub.reconnectCode, "\(mode)")
             #expect(cable.closeCode == nil, "\(mode)")
         }
@@ -278,6 +279,40 @@ struct DashboardHubTests {
         hub.checkLiveness(now: now)
         #expect(silent.cancelled && silent.pings == 0)
         #expect(!live.cancelled && live.pings == 1)
+    }
+
+    @Test func aPlugInAsksEachWiFiPhoneToReconnectOnlyOnce() {
+        let hub = makeHub(mode: .always)
+        let wifi = connect(hub, onUSB: false)
+        hub.iPhonePluggedIn()
+        hub.moveWiFiPhonesToCable()
+        #expect(wifi.closeCode == DashboardHub.reconnectCode)
+        hub.closed(wifi)
+        // It was not the phone being plugged in: it comes back over Wi-Fi, and the later pass leaves it alone.
+        let again = connect(hub, onUSB: false)
+        hub.moveWiFiPhonesToCable()
+        #expect(again.closeCode == nil)
+    }
+
+    /// The later pass is there for a USB link that was not up yet at the first.
+    @Test func theLaterPassMovesTheWiFiPhonesWhenTheLinkCameLate() {
+        var links: Set<String> = []
+        let hub = DashboardHub(mode: .always, key: key, appName: "PhoneBox test", hostName: { "Test Mac" },
+                               powerLimits: limits, commands: runner, usbInterfaces: { links })
+        let wifi = connect(hub, onUSB: false)
+        hub.iPhonePluggedIn()
+        hub.moveWiFiPhonesToCable()
+        #expect(wifi.closeCode == nil)
+        links = ["anri1"]
+        hub.moveWiFiPhonesToCable()
+        #expect(wifi.closeCode == DashboardHub.reconnectCode)
+    }
+
+    @Test func noPassWithoutAPlugIn() {
+        let hub = makeHub(mode: .always)
+        let wifi = connect(hub, onUSB: false)
+        hub.moveWiFiPhonesToCable()
+        #expect(wifi.closeCode == nil)
     }
 
     @Test func aBadSignatureClosesTheConnection() {

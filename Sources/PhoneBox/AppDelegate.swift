@@ -301,10 +301,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         if !settings.hasEverPaired { showQR() }
-        // The USB link appears a moment after usbmuxd reports the phone; then move Wi-Fi phones to the cable.
+        hub.iPhonePluggedIn()
+        // The USB link appears a moment after usbmuxd reports the phone; then move Wi-Fi phones to the cable. The later
+        // pass is for a link that came late: a phone the first pass moved is not asked again.
         for delay in [3.0, 8.0] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                MainActor.assumeIsolated { self?.hub.iPhonePluggedIn() }
+                MainActor.assumeIsolated { self?.hub.moveWiFiPhonesToCable() }
             }
         }
     }

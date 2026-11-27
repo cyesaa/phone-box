@@ -52,6 +52,8 @@ final class DashboardHub {
         var session: Session
         let onUSB: Bool
         var access: Access
+        /// The order in which it authenticated (1, 2, …); 0 until then.
+        var authenticatedAs = 0
     }
 
     var mode: AccessMode {
@@ -77,6 +79,11 @@ final class DashboardHub {
     /// Lock and music commands from phones on Wi-Fi, all of them together (design §5).
     private var wifiLimit = WiFiCommandLimit()
     private var livenessTimer: Timer?
+    /// Authentications so far, to number the phones in the order they authenticated.
+    private var authentications = 0
+    /// `authentications` when the last iPhone was plugged in: only phones that authenticated by then are asked to
+    /// reconnect, so a phone that reconnected over Wi-Fi after the first pass is not asked again.
+    private var authenticationsAtPlugIn: Int?
 
     /// True while at least one phone may receive snapshots: the sampler runs only then.
     var onStreamingChange: ((Bool) -> Void)?
@@ -161,6 +168,8 @@ final class DashboardHub {
         case .authenticated:
             let wasStreaming = isStreaming
             connection.markAuthenticated()
+            authentications += 1
+            client.authenticatedAs = authentications
             client.access = access(onUSB: client.onUSB)
             clients[id] = client
             connection.send(.ready(mode: mode, host: hostName(), powerLimits: powerLimits, access: client.access,
@@ -213,12 +222,20 @@ final class DashboardHub {
         }
     }
 
-    /// An iPhone was just plugged in. In both modes, phones that are connected over Wi-Fi are asked to reconnect so
-    /// that the plugged-in one comes back over the cable: only there does it get every command (and, in cable mode,
-    /// data). A device that is not plugged in reconnects over Wi-Fi again.
+    /// usbmuxd reports an iPhone plugged in: the phones on Wi-Fi now are the ones `moveWiFiPhonesToCable()` asks to
+    /// reconnect.
     func iPhonePluggedIn() {
-        guard !usbInterfaces().isEmpty else { return }
-        for client in clients.values where client.session.isAuthenticated && !client.onUSB {
+        authenticationsAtPlugIn = authentications
+    }
+
+    /// A pass a few seconds after `iPhonePluggedIn()`, once the USB link is up. In both modes, phones that were connected
+    /// over Wi-Fi at the plug-in are asked to reconnect so that the plugged-in one comes back over the cable: only there
+    /// does it get every command (and, in cable mode, data). A device that is not plugged in reconnects over Wi-Fi again,
+    /// after the plug-in, so a later pass leaves it alone: it reconnects once.
+    func moveWiFiPhonesToCable() {
+        guard let mark = authenticationsAtPlugIn, !usbInterfaces().isEmpty else { return }
+        for client in clients.values
+        where client.session.isAuthenticated && !client.onUSB && client.authenticatedAs <= mark {
             client.connection.close(code: Self.reconnectCode, reason: "use the cable")
         }
     }
