@@ -20,6 +20,7 @@ enum ShortProcess {
             kill(process.processIdentifier, SIGKILL)
         }
     }
+
     /// `completion(true)` when the tool exited with status 0 within `timeout` seconds; a tool still running then is
     /// stopped (`terminate`) and counts as failed. `completion` runs once, on the main actor.
     static func run(_ executable: String, _ arguments: [String], timeout: TimeInterval = 5,
