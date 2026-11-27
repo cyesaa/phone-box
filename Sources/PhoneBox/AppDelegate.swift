@@ -34,7 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let powerLimits = PowerLimits.forChip(Settings.chipName(), wholeMac: BatteryCollector.hasInternalBattery())
         let webDirectory = Bundle.main.resourceURL!.appendingPathComponent("web", isDirectory: true)
         hub = DashboardHub(mode: settings.mode, lockAndMusicOverWiFi: settings.lockAndMusicOverWiFi, key: key,
-                           appName: "PhoneBox \(version)", hostName: Settings.computerName(), powerLimits: powerLimits,
+                           appName: "PhoneBox \(version)", hostName: Settings.computerName, powerLimits: powerLimits,
                            build: Self.webBuild(webDirectory), commands: commandRunner)
         server = DashboardServer(webDirectory: webDirectory, hub: hub)
         let claudeFailure = resumeClaudeSessions()
@@ -232,7 +232,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return actions
     }
 
-    /// Saved only once the new port listens: a port in use leaves PhoneBox, and its phones, on the old one.
+    /// Saved only once the new port listens: a port in use leaves PhoneBox, and its phones, on the old one. The saved
+    /// port itself, while another program held it, comes back without a new QR code.
     private func movePort(to port: UInt16, completion: @escaping @MainActor (String?) -> Void) {
         server.move(to: port) { [weak self] moved in
             guard let self else { return }
@@ -240,10 +241,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 portInUse(port)
                 return completion(nil)
             }
+            let changed = port != settings.port
             settings.port = port
             completion(settings.personalURL(key: key))
             // The phone's link names the port: it has to scan the new code.
-            showQR()
+            if changed { showQR() }
         }
     }
 
@@ -301,10 +303,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         if !settings.hasEverPaired { showQR() }
-        // The USB link appears a moment after usbmuxd reports the phone; then move Wi-Fi phones to the cable.
+        hub.iPhonePluggedIn()
+        // The USB link appears a moment after usbmuxd reports the phone; then move Wi-Fi phones to the cable. The later
+        // pass is for a link that came late: a phone the first pass moved is not asked again.
         for delay in [3.0, 8.0] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                MainActor.assumeIsolated { self?.hub.iPhonePluggedIn() }
+                MainActor.assumeIsolated { self?.hub.moveWiFiPhonesToCable() }
             }
         }
     }

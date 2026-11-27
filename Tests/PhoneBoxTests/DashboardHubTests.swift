@@ -8,21 +8,25 @@ import PhoneBoxCore
 final class FakeConnection: PhoneConnection {
     let interfaceName: String?
     let arrivedOnScopedLinkLocal: Bool
-    var lastInboundAt = Date()
+    let remoteAddress: String?
+    var lastInboundAt = ContinuousClock.now
     private(set) var sent: [ServerMessage] = []
     private(set) var closeCode: UInt16?
     private(set) var authenticated = false
+    private(set) var pings = 0
+    private(set) var cancelled = false
 
-    init(interfaceName: String, scopedLinkLocal: Bool) {
+    init(interfaceName: String, scopedLinkLocal: Bool, remoteAddress: String? = "192.168.1.20") {
         self.interfaceName = interfaceName
         self.arrivedOnScopedLinkLocal = scopedLinkLocal
+        self.remoteAddress = remoteAddress
     }
 
     func send(_ message: ServerMessage) { sent.append(message) }
-    func sendPing() {}
+    func sendPing() { pings += 1 }
     func markAuthenticated() { authenticated = true }
     func close(code: UInt16, reason: String) { closeCode = code }
-    func cancel() {}
+    func cancel() { cancelled = true }
 
     var nonce: String? {
         for case let .hello(nonce, _) in sent { return nonce }
@@ -51,7 +55,7 @@ struct DashboardHubTests {
     let limits = PowerLimits(start: 25, full: 60)
 
     func makeHub(mode: AccessMode) -> DashboardHub {
-        DashboardHub(mode: mode, key: key, appName: "PhoneBox test", hostName: "Test Mac", powerLimits: limits,
+        DashboardHub(mode: mode, key: key, appName: "PhoneBox test", hostName: { "Test Mac" }, powerLimits: limits,
                      commands: runner, usbInterfaces: { ["anri1"] })
     }
 
@@ -65,6 +69,22 @@ struct DashboardHubTests {
         return phone
     }
 
+    /// Opens `phone` the way `ClientConnection` does: only when the hub takes it.
+    func open(_ hub: DashboardHub, _ phone: FakeConnection) -> Bool {
+        guard hub.canAccept(phone) else { return false }
+        hub.opened(phone)
+        return true
+    }
+
+    func authenticate(_ hub: DashboardHub, _ phone: FakeConnection) {
+        let mac = MessageAuth.hmacHex(key: key.bytes, message: MessageAuth.authMessage(nonce: phone.nonce ?? ""))
+        hub.received(#"{"v":1,"type":"auth","mac":"\#(mac)"}"#, from: phone)
+    }
+
+    func wifiPhone(_ address: String) -> FakeConnection {
+        FakeConnection(interfaceName: "en0", scopedLinkLocal: false, remoteAddress: address)
+    }
+
     func command(_ phone: FakeConnection, seq: Int, name: String, args: String) -> String {
         let mac = MessageAuth.hmacHex(key: key.bytes, message: MessageAuth.commandMessage(
             nonce: phone.nonce ?? "", seq: seq, name: name, args: args))
@@ -73,7 +93,7 @@ struct DashboardHubTests {
     }
 
     @Test func readyCarriesTheWebBuild() {
-        let hub = DashboardHub(mode: .always, key: key, appName: "PhoneBox test", hostName: "Test Mac", powerLimits: limits,
+        let hub = DashboardHub(mode: .always, key: key, appName: "PhoneBox test", hostName: { "Test Mac" }, powerLimits: limits,
                                build: "0123456789ab", commands: runner, usbInterfaces: { ["anri1"] })
         let phone = connect(hub, onUSB: true)
         #expect(phone.sent.last == .ready(mode: .always, host: "Test Mac", powerLimits: limits, access: .onCable,
@@ -87,6 +107,18 @@ struct DashboardHubTests {
         #expect(cable.authenticated && wifi.authenticated)
         #expect(cable.sent.last == .ready(mode: .always, host: "Test Mac", powerLimits: limits, access: .onCable))
         #expect(wifi.sent.last == .ready(mode: .always, host: "Test Mac", powerLimits: limits, access: .overWiFi))
+    }
+
+    /// The Mac can be renamed while PhoneBox runs: every `ready` carries the name it has then.
+    @Test func readyCarriesTheMacsNameAsItIsNow() {
+        var name = "Old Name"
+        let hub = DashboardHub(mode: .always, key: key, appName: "PhoneBox test", hostName: { name }, powerLimits: limits,
+                               commands: runner, usbInterfaces: { ["anri1"] })
+        let before = connect(hub, onUSB: true)
+        name = "New Name"
+        let after = connect(hub, onUSB: true)
+        #expect(before.sent.last == .ready(mode: .always, host: "Old Name", powerLimits: limits, access: .onCable))
+        #expect(after.sent.last == .ready(mode: .always, host: "New Name", powerLimits: limits, access: .onCable))
     }
 
     @Test func runsACommandFromTheCableAndAcksIt() {
@@ -207,7 +239,7 @@ struct DashboardHubTests {
     }
 
     @Test func aWiFiPhoneThatConnectsWhileItIsOnGetsLockAndMusic() {
-        let hub = DashboardHub(mode: .always, lockAndMusicOverWiFi: true, key: key, appName: "PhoneBox test", hostName: "Test Mac",
+        let hub = DashboardHub(mode: .always, lockAndMusicOverWiFi: true, key: key, appName: "PhoneBox test", hostName: { "Test Mac" },
                                powerLimits: limits, commands: runner, usbInterfaces: { ["anri1"] })
         let wifi = connect(hub, onUSB: false)
         #expect(wifi.sent.last == .ready(mode: .always, host: "Test Mac", powerLimits: limits, access: .overWiFiWithLockAndMusic))
@@ -216,7 +248,7 @@ struct DashboardHubTests {
     }
 
     @Test func aWiFiPhoneMayLockOnlyOnceEvery30SecondsButTheCableIsNotLimited() {
-        let hub = DashboardHub(mode: .always, lockAndMusicOverWiFi: true, key: key, appName: "PhoneBox test", hostName: "Test Mac",
+        let hub = DashboardHub(mode: .always, lockAndMusicOverWiFi: true, key: key, appName: "PhoneBox test", hostName: { "Test Mac" },
                                powerLimits: limits, commands: runner, usbInterfaces: { ["anri1"] })
         let wifi = connect(hub, onUSB: false)
         hub.received(command(wifi, seq: 1, name: "lock", args: "{}"), from: wifi)
@@ -232,7 +264,7 @@ struct DashboardHubTests {
     }
 
     @Test func aConnectedWiFiPhoneLosesLockAndMusicInCableModeAndGetsThemBack() {
-        let hub = DashboardHub(mode: .always, lockAndMusicOverWiFi: true, key: key, appName: "PhoneBox test", hostName: "Test Mac",
+        let hub = DashboardHub(mode: .always, lockAndMusicOverWiFi: true, key: key, appName: "PhoneBox test", hostName: { "Test Mac" },
                                powerLimits: limits, commands: runner, usbInterfaces: { ["anri1"] })
         let wifi = connect(hub, onUSB: false)
         hub.mode = .cable
@@ -247,9 +279,120 @@ struct DashboardHubTests {
             let wifi = connect(hub, onUSB: false)
             let cable = connect(hub, onUSB: true)
             hub.iPhonePluggedIn()
+            hub.moveWiFiPhonesToCable()
             #expect(wifi.closeCode == DashboardHub.reconnectCode, "\(mode)")
             #expect(cable.closeCode == nil, "\(mode)")
         }
+    }
+
+    /// Liveness runs on a monotonic clock that counts sleep: setting the Mac's clock neither drops live phones nor keeps
+    /// dead ones.
+    @Test func dropsAPhoneSilentForLongerThanTheLimitAndPingsTheOthers() {
+        let hub = makeHub(mode: .always)
+        let silent = connect(hub, onUSB: false)
+        let live = connect(hub, onUSB: true)
+        let now = ContinuousClock.now
+        silent.lastInboundAt = now - .seconds(DashboardHub.silenceLimit + 1)
+        live.lastInboundAt = now - .seconds(DashboardHub.silenceLimit - 1)
+        hub.checkLiveness(now: now)
+        #expect(silent.cancelled && silent.pings == 0)
+        #expect(!live.cancelled && live.pings == 1)
+    }
+
+    @Test func aPlugInAsksEachWiFiPhoneToReconnectOnlyOnce() {
+        let hub = makeHub(mode: .always)
+        let wifi = connect(hub, onUSB: false)
+        hub.iPhonePluggedIn()
+        hub.moveWiFiPhonesToCable()
+        #expect(wifi.closeCode == DashboardHub.reconnectCode)
+        hub.closed(wifi)
+        // It was not the phone being plugged in: it comes back over Wi-Fi, and the later pass leaves it alone.
+        let again = connect(hub, onUSB: false)
+        hub.moveWiFiPhonesToCable()
+        #expect(again.closeCode == nil)
+    }
+
+    /// The later pass is there for a USB link that was not up yet at the first.
+    @Test func theLaterPassMovesTheWiFiPhonesWhenTheLinkCameLate() {
+        var links: Set<String> = []
+        let hub = DashboardHub(mode: .always, key: key, appName: "PhoneBox test", hostName: { "Test Mac" },
+                               powerLimits: limits, commands: runner, usbInterfaces: { links })
+        let wifi = connect(hub, onUSB: false)
+        hub.iPhonePluggedIn()
+        hub.moveWiFiPhonesToCable()
+        #expect(wifi.closeCode == nil)
+        links = ["anri1"]
+        hub.moveWiFiPhonesToCable()
+        #expect(wifi.closeCode == DashboardHub.reconnectCode)
+    }
+
+    @Test func noPassWithoutAPlugIn() {
+        let hub = makeHub(mode: .always)
+        let wifi = connect(hub, onUSB: false)
+        hub.moveWiFiPhonesToCable()
+        #expect(wifi.closeCode == nil)
+    }
+
+    /// Design §9: a device without the key can hold sockets, but not the places of the phones that have it.
+    @Test func socketsWithoutTheKeyDoNotTakeThePhonesPlaces() {
+        let hub = makeHub(mode: .always)
+        for index in 1...4 { #expect(open(hub, wifiPhone("192.168.1.\(100 + index)"))) }
+        let phone = wifiPhone("192.168.1.20")
+        #expect(open(hub, phone))
+        authenticate(hub, phone)
+        #expect(phone.authenticated)
+    }
+
+    @Test func capsSocketsWithoutTheKeyPerAddressAndInAll() {
+        let hub = makeHub(mode: .always)
+        let first = wifiPhone("192.168.1.66")
+        #expect(open(hub, first))
+        #expect(open(hub, wifiPhone("192.168.1.66")))
+        #expect(!open(hub, wifiPhone("192.168.1.66")))
+        for index in 1...6 { #expect(open(hub, wifiPhone("192.168.1.\(100 + index)"))) }
+        #expect(!open(hub, wifiPhone("192.168.1.20")))
+        // A socket that authenticates no longer counts.
+        authenticate(hub, first)
+        #expect(open(hub, wifiPhone("192.168.1.20")))
+    }
+
+    @Test func alwaysTakesThePhoneOnTheCable() {
+        // Four phones on Wi-Fi.
+        let full = makeHub(mode: .always)
+        for index in 1...4 {
+            let phone = wifiPhone("192.168.1.\(10 + index)")
+            #expect(open(full, phone))
+            authenticate(full, phone)
+        }
+        #expect(!open(full, wifiPhone("192.168.1.20")))
+        let cable = FakeConnection(interfaceName: "anri1", scopedLinkLocal: true, remoteAddress: "fe80::2%anri1")
+        #expect(open(full, cable))
+        authenticate(full, cable)
+        #expect(cable.sent.last == .ready(mode: .always, host: "Test Mac", powerLimits: limits, access: .onCable))
+
+        // Eight sockets without the key.
+        let crowded = makeHub(mode: .always)
+        for index in 1...8 { #expect(open(crowded, wifiPhone("192.168.1.\(100 + index)"))) }
+        #expect(!open(crowded, wifiPhone("192.168.1.20")))
+        let plugged = FakeConnection(interfaceName: "anri1", scopedLinkLocal: true, remoteAddress: "fe80::2%anri1")
+        #expect(open(crowded, plugged))
+        authenticate(crowded, plugged)
+        #expect(plugged.authenticated)
+    }
+
+    /// Five sockets were taken while fewer than four phones had authenticated: the fifth to authenticate is turned away.
+    @Test func aFifthPhoneIsTurnedAwayWhenItAuthenticates() {
+        let hub = makeHub(mode: .always)
+        var counts: [PhoneCounts] = []
+        hub.onClientsChange = { counts.append($0) }
+        let phones = (1...5).map { wifiPhone("192.168.1.\(10 + $0)") }
+        for phone in phones { #expect(open(hub, phone)) }
+        for phone in phones { authenticate(hub, phone) }
+        #expect(phones.prefix(4).allSatisfy { $0.authenticated })
+        #expect(!phones[4].authenticated)
+        #expect(phones[4].closeCode == DashboardHub.busyCode)
+        #expect(counts.last == PhoneCounts(onCable: 0, overWiFi: 4, waitingForCable: 0))
+        #expect(!open(hub, wifiPhone("192.168.1.30")))
     }
 
     @Test func aBadSignatureClosesTheConnection() {

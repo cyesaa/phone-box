@@ -33,15 +33,21 @@ final class AppsCollector {
             apps = Self.runningApps()
             appsTime = now
         }
-        return AppUsage.top(previousCPU: previousCPU, current: readings, elapsedNanos: now - previousTime, apps: apps)
+        return AppUsage.top(previousCPU: previousCPU, previousSampleAt: previousTime, current: readings,
+                            elapsedNanos: now - previousTime, apps: apps)
     }
 
-    /// `rusage` CPU times are in Mach absolute time units; this converts them to nanoseconds.
+    /// `rusage` CPU and start times are in Mach absolute time units; this converts them to nanoseconds.
     private static let timebase: (numer: UInt64, denom: UInt64) = {
         var info = mach_timebase_info_data_t()
         mach_timebase_info(&info)
         return (UInt64(info.numer), UInt64(max(1, info.denom)))
     }()
+
+    private static func nanoseconds(_ ticks: UInt64) -> UInt64 {
+        let nanos = ticks.multipliedReportingOverflow(by: timebase.numer)
+        return nanos.overflow ? ticks : nanos.partialValue / timebase.denom
+    }
 
     static func readProcesses() -> [ProcessReading] {
         let estimate = proc_listallpids(nil, 0)
@@ -58,11 +64,11 @@ final class AppsCollector {
                 $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V2, $0) }
             }
             guard result == 0, proc_pidpath(pid, &path, UInt32(path.count)) > 0 else { continue }
-            let ticks = usage.ri_user_time &+ usage.ri_system_time
-            let nanos = ticks.multipliedReportingOverflow(by: timebase.numer)
+            // The start time is Mach absolute time too, on the same clock as `DispatchTime.now().uptimeNanoseconds`.
             readings.append(ProcessReading(pid: pid, path: String(cString: path),
-                                           cpuNanos: nanos.overflow ? ticks : nanos.partialValue / timebase.denom,
-                                           memory: usage.ri_phys_footprint))
+                                           cpuNanos: nanoseconds(usage.ri_user_time &+ usage.ri_system_time),
+                                           memory: usage.ri_phys_footprint,
+                                           startNanos: nanoseconds(usage.ri_proc_start_abstime)))
         }
         return readings
     }
@@ -73,10 +79,12 @@ final class AppsCollector {
         var apps: [String: AppInfo] = [:]
         for app in NSWorkspace.shared.runningApplications {
             guard let path = app.bundleURL?.path else { continue }
+            let regular = app.activationPolicy == .regular
             let quittable = QuitRule.isQuittable(RunningApp(pid: app.processIdentifier, bundleId: app.bundleIdentifier,
-                                                            regular: app.activationPolicy == .regular), ownPid: ownPID)
+                                                            regular: regular), ownPid: ownPID)
             apps[path] = AppInfo(pid: app.processIdentifier, bundleId: app.bundleIdentifier,
-                                 name: app.localizedName ?? (path as NSString).lastPathComponent, quittable: quittable)
+                                 name: app.localizedName ?? (path as NSString).lastPathComponent, quittable: quittable,
+                                 regular: regular)
         }
         return apps
     }

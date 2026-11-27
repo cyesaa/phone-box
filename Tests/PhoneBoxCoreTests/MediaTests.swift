@@ -55,25 +55,26 @@ struct LineAssemblerTests {
 }
 
 struct NowPlayingStateTests {
-    let start = Date(timeIntervalSince1970: 1_000)
+    /// A monotonic instant: setting the Mac's clock back cannot keep a stopped track on the page.
+    let start = ContinuousClock.now
     let song = NowPlayingTrack(title: "A", artist: nil, bundleId: "com.spotify.client", playing: true)
     let next = NowPlayingTrack(title: "B", artist: nil, bundleId: "com.spotify.client", playing: true)
 
     @Test func keepsTheTrackThroughTheGapBetweenTwoTracks() {
         var state = NowPlayingState()
         state.received(.track(song), at: start)
-        state.received(.nothing, at: start.addingTimeInterval(1))
-        #expect(state.current(at: start.addingTimeInterval(2)) == song)
-        state.received(.track(next), at: start.addingTimeInterval(2.2))
-        #expect(state.current(at: start.addingTimeInterval(5)) == next)
+        state.received(.nothing, at: start + .seconds(1))
+        #expect(state.current(at: start + .seconds(2)) == song)
+        state.received(.track(next), at: start + .seconds(2.2))
+        #expect(state.current(at: start + .seconds(5)) == next)
     }
 
     @Test func nothingPlayingAppliesAfterTheGrace() {
         var state = NowPlayingState()
         state.received(.track(song), at: start)
-        state.received(.nothing, at: start.addingTimeInterval(1))
-        state.received(.nothing, at: start.addingTimeInterval(2))  // a repeat does not push the deadline back
-        #expect(state.current(at: start.addingTimeInterval(2.5)) == nil)
+        state.received(.nothing, at: start + .seconds(1))
+        state.received(.nothing, at: start + .seconds(2))  // a repeat does not push the deadline back
+        #expect(state.current(at: start + .seconds(2.5)) == nil)
     }
 
     @Test func ignoresInvalidLinesAndClears() {
@@ -81,9 +82,9 @@ struct NowPlayingStateTests {
         #expect(state.current(at: start) == nil)
         state.received(.nothing, at: start)
         state.received(.track(song), at: start)
-        state.received(.invalid, at: start.addingTimeInterval(10))
-        #expect(state.current(at: start.addingTimeInterval(10)) == song)
+        state.received(.invalid, at: start + .seconds(10))
+        #expect(state.current(at: start + .seconds(10)) == song)
         state.clear()
-        #expect(state.current(at: start.addingTimeInterval(10)) == nil)
+        #expect(state.current(at: start + .seconds(10)) == nil)
     }
 }

@@ -25,6 +25,14 @@ struct ShortProcessTests {
         #expect(Date().timeIntervalSince(start) < 3)
     }
 
+    /// The media adapter's framework turns SIGTERM into a run loop stop, so `send` ignores it: SIGKILL follows.
+    @Test func killsAToolThatIgnoresSIGTERM() async {
+        let start = Date()
+        let finished = await run("/bin/sh", ["-c", "trap '' TERM; exec /bin/sleep 8"], timeout: 0.2)
+        #expect(!finished)
+        #expect(Date().timeIntervalSince(start) < 0.2 + ShortProcess.killDelay + 1.5)
+    }
+
     @Test func failsForAToolThatDoesNotExist() async {
         let ran = await run("/nonexistent/phonebox-tool")
         #expect(!ran)

@@ -9,12 +9,16 @@ public struct ProcessReading: Equatable, Sendable {
     public var cpuNanos: UInt64
     /// Physical footprint in bytes (what Activity Monitor calls Memory).
     public var memory: UInt64
+    /// When the process started, in nanoseconds of uptime (the clock of `DispatchTime.now().uptimeNanoseconds`); 0 when
+    /// unknown, which counts as long ago.
+    public var startNanos: UInt64
 
-    public init(pid: Int32, path: String, cpuNanos: UInt64, memory: UInt64) {
+    public init(pid: Int32, path: String, cpuNanos: UInt64, memory: UInt64, startNanos: UInt64 = 0) {
         self.pid = pid
         self.path = path
         self.cpuNanos = cpuNanos
         self.memory = memory
+        self.startNanos = startNanos
     }
 }
 
@@ -25,12 +29,15 @@ public struct AppInfo: Equatable, Sendable {
     public var name: String
     /// A regular (Dock) app that the phone may quit later (Plan 3B); Finder and PhoneBox are never quittable.
     public var quittable: Bool
+    /// A regular (Dock) app, as opposed to a helper macOS lists too (an accessory or background app).
+    public var regular: Bool
 
-    public init(pid: Int32, bundleId: String?, name: String, quittable: Bool) {
+    public init(pid: Int32, bundleId: String?, name: String, quittable: Bool, regular: Bool) {
         self.pid = pid
         self.bundleId = bundleId
         self.name = name
         self.quittable = quittable
+        self.regular = regular
     }
 }
 
@@ -61,12 +68,26 @@ public enum AppUsage {
     /// The outermost `.app` bundle that contains an executable, so that "Google Chrome Helper (Renderer)" deep
     /// inside Chrome counts as Chrome. Nil when the executable is not inside an app.
     public static func bundlePath(forExecutable path: String) -> String? {
+        bundlePaths(forExecutable: path).first
+    }
+
+    /// Every `.app` bundle that contains an executable, outermost first.
+    static func bundlePaths(forExecutable path: String) -> [String] {
         var components: [Substring] = []
+        var bundles: [String] = []
         for component in path.split(separator: "/", omittingEmptySubsequences: false) {
             components.append(component)
-            if component.hasSuffix(".app") { return components.joined(separator: "/") }
+            if component.hasSuffix(".app") { bundles.append(components.joined(separator: "/")) }
         }
-        return nil
+        return bundles
+    }
+
+    /// The bundle a process is filed under: the innermost `.app` around it that runs as a regular (Dock) app, so that
+    /// Simulator inside Xcode is "Simulator"; otherwise the outermost, so that a helper counts as its app even when
+    /// macOS lists the helper too. Nil when the executable is not inside an app.
+    public static func bundlePath(forExecutable path: String, apps: [String: AppInfo]) -> String? {
+        let bundles = bundlePaths(forExecutable: path)
+        return bundles.last { apps[$0]?.regular == true } ?? bundles.first
     }
 
     /// Longest name sent to the phone, in characters (grapheme clusters).
@@ -123,9 +144,11 @@ public enum AppUsage {
 
     /// Groups processes into apps, turns CPU time into percent of one core over `elapsedNanos`, and returns the
     /// top apps by CPU followed by the top apps by memory that are not already listed (at most 2 × `topCount`).
-    /// A process with no earlier reading (or whose counter went backwards) counts as 0 % this time.
-    public static func top(previousCPU: [Int32: UInt64], current: [ProcessReading], elapsedNanos: UInt64,
-                           apps: [String: AppInfo]) -> [AppSample] {
+    /// A process that started after `previousSampleAt` (on the clock of `ProcessReading.startNanos`) used all its CPU
+    /// time in this window, so a compiler that lives a second still counts; an older process is measured against its
+    /// earlier reading, and one with none (or whose counter went backwards) counts as 0 % this time.
+    public static func top(previousCPU: [Int32: UInt64], previousSampleAt: UInt64, current: [ProcessReading],
+                           elapsedNanos: UInt64, apps: [String: AppInfo]) -> [AppSample] {
         guard elapsedNanos > 0 else { return [] }
         struct Group {
             var pid: Int32
@@ -137,7 +160,7 @@ public enum AppUsage {
         }
         var groups: [String: Group] = [:]
         for process in current {
-            let bundle = bundlePath(forExecutable: process.path)
+            let bundle = bundlePath(forExecutable: process.path, apps: apps)
             let key = bundle ?? process.path
             var group = groups[key] ?? {
                 if let bundle, let info = apps[bundle] {
@@ -147,7 +170,10 @@ public enum AppUsage {
                 return Group(pid: process.pid, bundleId: nil, name: name(app: nil, bundle: bundle, executable: process.path),
                              quittable: false)
             }()
-            if let before = previousCPU[process.pid], process.cpuNanos >= before {
+            if process.startNanos > previousSampleAt {
+                // Also a new process that got the pid of one in the earlier readings.
+                group.cpuNanos += process.cpuNanos
+            } else if let before = previousCPU[process.pid], process.cpuNanos >= before {
                 group.cpuNanos += process.cpuNanos - before
             }
             group.memory += process.memory

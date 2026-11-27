@@ -88,6 +88,55 @@ struct HTTPResponseTests {
     }
 }
 
+/// Design §5: a request must name this Mac in `Host`, or a web page whose own name points at the Mac (DNS rebinding)
+/// could reach the dashboard under its own origin.
+struct RequestHostTests {
+    let name = "Erens-MacBook-Pro"
+
+    @Test func acceptsTheMacsLocalNameOnAnyPortInAnyCase() {
+        #expect(RequestHost.isAllowed("Erens-MacBook-Pro.local:4747", localHostName: name))
+        #expect(RequestHost.isAllowed("erens-macbook-pro.LOCAL:5000", localHostName: name))
+        #expect(RequestHost.isAllowed("Erens-MacBook-Pro.local", localHostName: name))
+    }
+
+    @Test func acceptsLocalhostAndAddresses() {
+        #expect(RequestHost.isAllowed("localhost:4747", localHostName: name))
+        #expect(RequestHost.isAllowed("LocalHost", localHostName: name))
+        #expect(RequestHost.isAllowed("192.168.1.20:4747", localHostName: name))
+        #expect(RequestHost.isAllowed("127.0.0.1", localHostName: name))
+        #expect(RequestHost.isAllowed("[::1]:4747", localHostName: name))
+        #expect(RequestHost.isAllowed("[fe80::1c2b:3aff:fe4d:5e6f%en8]:4747", localHostName: name))
+        #expect(RequestHost.isAllowed("[fe80::1%25anri1]", localHostName: name))
+        #expect(RequestHost.isAllowed("[2a02:aa1::7]:80", localHostName: name))
+        #expect(RequestHost.isAllowed("[::ffff:192.168.1.20]:4747", localHostName: name))
+    }
+
+    @Test func refusesOtherNames() {
+        #expect(!RequestHost.isAllowed("evil.example:4747", localHostName: name))
+        #expect(!RequestHost.isAllowed("Other-Mac.local:4747", localHostName: name))
+        #expect(!RequestHost.isAllowed("Erens-MacBook-Pro.local.evil.example", localHostName: name))
+        #expect(!RequestHost.isAllowed("Erens-MacBook-Pro:4747", localHostName: name))
+        #expect(!RequestHost.isAllowed("localhost.evil.example", localHostName: name))
+        #expect(!RequestHost.isAllowed("192.168.1.20.nip.io:4747", localHostName: name))
+        #expect(!RequestHost.isAllowed("1.2.3", localHostName: name))
+        #expect(!RequestHost.isAllowed("1.2.3.256", localHostName: name))
+    }
+
+    @Test func refusesAMissingOrMalformedHost() {
+        #expect(!RequestHost.isAllowed(nil, localHostName: name))
+        #expect(!RequestHost.isAllowed("", localHostName: name))
+        #expect(!RequestHost.isAllowed("localhost:", localHostName: name))
+        #expect(!RequestHost.isAllowed("localhost:47a7", localHostName: name))
+        #expect(!RequestHost.isAllowed("localhost:123456", localHostName: name))
+        #expect(!RequestHost.isAllowed("[::1", localHostName: name))
+        #expect(!RequestHost.isAllowed("[::1]x", localHostName: name))
+        #expect(!RequestHost.isAllowed("[evil.example]", localHostName: name))
+        #expect(!RequestHost.isAllowed("[fe80::1%]", localHostName: name))
+        #expect(!RequestHost.isAllowed("[1.2.3.4]", localHostName: name))
+        #expect(!RequestHost.isAllowed("::1", localHostName: name))
+    }
+}
+
 struct WebSocketOriginTests {
     @Test func acceptsTheDashboardsOwnPage() {
         #expect(WebSocketOrigin.isAllowed(origin: "http://eren-macbook-pro.local:4747", host: "eren-macbook-pro.local:4747"))

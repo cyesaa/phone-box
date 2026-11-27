@@ -59,22 +59,85 @@ struct AppUsageTests {
     }
 
     @Test func groupsHelpersIntoTheirAppAndComputesPercentOfOneCore() {
-        let apps = [chrome: AppInfo(pid: 10, bundleId: "com.google.Chrome", name: "Google Chrome", quittable: true)]
+        let apps = [chrome: AppInfo(pid: 10, bundleId: "com.google.Chrome", name: "Google Chrome", quittable: true,
+                                    regular: true)]
         let helperPath = chrome + "/Contents/Frameworks/X.framework/Helpers/Helper.app/Contents/MacOS/Helper"
         let current = [
             ProcessReading(pid: 10, path: chrome + "/Contents/MacOS/Google Chrome", cpuNanos: 3 * second, memory: 100),
             ProcessReading(pid: 11, path: helperPath, cpuNanos: 2 * second, memory: 50),
         ]
-        let top = AppUsage.top(previousCPU: [10: 2 * second, 11: second / 2], current: current, elapsedNanos: 2 * second,
+        let top = AppUsage.top(previousCPU: [10: 2 * second, 11: second / 2], previousSampleAt: 0, current: current, elapsedNanos: 2 * second,
                                apps: apps)
         #expect(top == [AppSample(pid: 10, bundleId: "com.google.Chrome", name: "Google Chrome", cpu: 125, mem: 150,
                                   quittable: true)])
     }
 
+    /// Simulator ships inside Xcode but is an app of its own: its row is "Simulator", whether Xcode runs or not.
+    @Test func filesAnAppInsideAnotherAppUnderItself() {
+        let xcode = "/Applications/Xcode.app"
+        let simulator = xcode + "/Contents/Developer/Applications/Simulator.app"
+        let simulatorInfo = AppInfo(pid: 30, bundleId: "com.apple.iphonesimulator", name: "Simulator", quittable: true,
+                                    regular: true)
+        let simulatorProcess = ProcessReading(pid: 30, path: simulator + "/Contents/MacOS/Simulator", cpuNanos: 2 * second,
+                                              memory: 300)
+        let alone = AppUsage.top(previousCPU: [30: second], previousSampleAt: 0, current: [simulatorProcess], elapsedNanos: second,
+                                 apps: [simulator: simulatorInfo])
+        #expect(alone == [AppSample(pid: 30, bundleId: "com.apple.iphonesimulator", name: "Simulator", cpu: 100, mem: 300,
+                                    quittable: true)])
+
+        let xcodeInfo = AppInfo(pid: 20, bundleId: "com.apple.dt.Xcode", name: "Xcode", quittable: true, regular: true)
+        let xcodeProcess = ProcessReading(pid: 20, path: xcode + "/Contents/MacOS/Xcode", cpuNanos: second, memory: 500)
+        let both = AppUsage.top(previousCPU: [20: 0, 30: second], previousSampleAt: 0, current: [simulatorProcess, xcodeProcess],
+                                elapsedNanos: second, apps: [simulator: simulatorInfo, xcode: xcodeInfo])
+        #expect(both.count == 2)
+        #expect(both.first { $0.name == "Simulator" }?.mem == 300)
+        #expect(both.first { $0.name == "Xcode" }?.mem == 500)
+    }
+
+    /// macOS lists some helper bundles as apps too (accessory apps, not in the Dock): they still count as their app.
+    @Test func keepsListedHelperAppsUnderTheirApp() {
+        let helper = chrome + "/Contents/Frameworks/Google Chrome Framework.framework/Helpers/Google Chrome Helper (Aperitif).app"
+        let apps = [
+            chrome: AppInfo(pid: 10, bundleId: "com.google.Chrome", name: "Google Chrome", quittable: true, regular: true),
+            helper: AppInfo(pid: 12, bundleId: "com.google.Chrome.helper", name: "Google Chrome Helper", quittable: false,
+                            regular: false),
+        ]
+        let current = [ProcessReading(pid: 12, path: helper + "/Contents/MacOS/Google Chrome Helper (Aperitif)",
+                                      cpuNanos: second, memory: 40)]
+        let top = AppUsage.top(previousCPU: [12: 0], previousSampleAt: 0, current: current, elapsedNanos: second, apps: apps)
+        #expect(top == [AppSample(pid: 10, bundleId: "com.google.Chrome", name: "Google Chrome", cpu: 100, mem: 40,
+                                  quittable: true)])
+    }
+
+    /// A compiler that started after the last sample used all its CPU time since then (a 3 s window here).
+    @Test func aProcessBornSinceTheLastSampleCountsAllItsCPU() {
+        let lastSample = 100 * second
+        let current = [
+            ProcessReading(pid: 40, path: "/usr/bin/clang", cpuNanos: 3 * second / 2, memory: 10, startNanos: lastSample + second),
+            ProcessReading(pid: 41, path: "/usr/bin/clang", cpuNanos: second / 2, memory: 10, startNanos: lastSample + 2 * second),
+            // Seen for the first time but older than the last sample (it was not readable then): 0 % this time.
+            ProcessReading(pid: 42, path: "/usr/bin/swift", cpuNanos: 9 * second, memory: 10, startNanos: lastSample - second),
+        ]
+        let top = AppUsage.top(previousCPU: [:], previousSampleAt: lastSample, current: current, elapsedNanos: 3 * second,
+                               apps: [:])
+        #expect(top.first { $0.name == "clang" }?.cpu.rounded() == 67)
+        #expect(top.first { $0.name == "swift" }?.cpu == 0)
+    }
+
+    /// A new process with the pid of one from the last sample is not measured against the old one's counter.
+    @Test func aReusedPidCountsTheNewProcessFromItsStart() {
+        let lastSample = 100 * second
+        let current = [ProcessReading(pid: 50, path: "/usr/bin/node", cpuNanos: second, memory: 10,
+                                      startNanos: lastSample + second / 2)]
+        let top = AppUsage.top(previousCPU: [50: second / 4], previousSampleAt: lastSample, current: current,
+                               elapsedNanos: 2 * second, apps: [:])
+        #expect(top.first?.cpu == 50)
+    }
+
     @Test func newOrResetProcessesCountAsZeroThisTime() {
         let current = [ProcessReading(pid: 7, path: "/usr/bin/node", cpuNanos: 5 * second, memory: 10),
                        ProcessReading(pid: 8, path: "/usr/bin/ruby", cpuNanos: 1, memory: 20)]
-        let top = AppUsage.top(previousCPU: [8: 9 * second], current: current, elapsedNanos: second, apps: [:])
+        let top = AppUsage.top(previousCPU: [8: 9 * second], previousSampleAt: 0, current: current, elapsedNanos: second, apps: [:])
         #expect(top.map(\.cpu) == [0, 0])
         #expect(Set(top.map(\.name)) == ["node", "ruby"])
         #expect(top.allSatisfy { !$0.quittable && $0.bundleId == nil })
@@ -82,7 +145,7 @@ struct AppUsageTests {
 
     @Test func namesAnAppThatMacOSDoesNotListAfterItsBundle() {
         let current = [ProcessReading(pid: 5, path: "/Applications/Tool.app/Contents/MacOS/tool", cpuNanos: 0, memory: 1)]
-        #expect(AppUsage.top(previousCPU: [:], current: current, elapsedNanos: second, apps: [:]).first?.name == "Tool")
+        #expect(AppUsage.top(previousCPU: [:], previousSampleAt: 0, current: current, elapsedNanos: second, apps: [:]).first?.name == "Tool")
     }
 
     @Test func listsTopByCPUThenTopByMemoryWithoutDuplicates() {
@@ -95,13 +158,13 @@ struct AppUsageTests {
             current.append(ProcessReading(pid: pid, path: "/bin/p\(index)", cpuNanos: UInt64(index) * second / 10,
                                           memory: UInt64(100 - index)))
         }
-        let top = AppUsage.top(previousCPU: previous, current: current, elapsedNanos: second, apps: [:])
+        let top = AppUsage.top(previousCPU: previous, previousSampleAt: 0, current: current, elapsedNanos: second, apps: [:])
         #expect(top.map(\.name) == ["p8", "p7", "p6", "p5", "p4", "p1", "p2", "p3"])
     }
 
     @Test func returnsNothingForNoElapsedTime() {
         let current = [ProcessReading(pid: 1, path: "/bin/a", cpuNanos: 1, memory: 1)]
-        #expect(AppUsage.top(previousCPU: [:], current: current, elapsedNanos: 0, apps: [:]).isEmpty)
+        #expect(AppUsage.top(previousCPU: [:], previousSampleAt: 0, current: current, elapsedNanos: 0, apps: [:]).isEmpty)
     }
 
     @Test func capsNamesAtEightyCharacters() {

@@ -13,9 +13,11 @@ final class ClientConnection {
     /// True when the local end is a scoped IPv6 link-local address (`fe80::…%en8`), which is how the iPhone's
     /// USB link looks. Anything else (IPv4, unscoped IPv6, unknown) is not the cable: fail closed.
     private(set) var arrivedOnScopedLinkLocal = false
-    /// When the last frame of any kind arrived; the hub drops connections that went silent.
-    private(set) var lastInboundAt = Date()
+    /// When the last frame of any kind arrived (monotonic, counting sleep); the hub drops connections that went silent.
+    private(set) var lastInboundAt = ContinuousClock.now
     private(set) var isAuthenticated = false
+    /// The other end's address without the port (`192.168.1.20`, `fe80::…%en0`).
+    let remoteAddress: String?
 
     /// Seconds a connection may take to become a WebSocket before it is dropped.
     static let headTimeout: TimeInterval = 10
@@ -28,16 +30,27 @@ final class ClientConnection {
 
     private let webDirectory: URL
     private weak var hub: DashboardHub?
+    /// This Mac's `LocalHostName`, for the `Host` rule; read for each request, as the Mac can be renamed.
+    private let localHostName: @MainActor () -> String
     private var head = Data()
     private var decoder = WebSocketDecoder()
     private var closed = false
     private var outstandingSends = 0
     private var nonViableTimer: DispatchWorkItem?
 
-    init(connection: NWConnection, webDirectory: URL, hub: DashboardHub) {
+    init(connection: NWConnection, webDirectory: URL, hub: DashboardHub,
+         localHostName: @escaping @MainActor () -> String) {
         self.connection = connection
         self.webDirectory = webDirectory
         self.hub = hub
+        self.localHostName = localHostName
+        remoteAddress = Self.remoteAddress(of: connection)
+    }
+
+    /// The address of an accepted connection's other end, known before it starts.
+    static func remoteAddress(of connection: NWConnection) -> String? {
+        guard case let .hostPort(host, _) = connection.endpoint else { return nil }
+        return "\(host)"
     }
 
     func start() {
@@ -155,6 +168,10 @@ final class ClientConnection {
 
     private func route(_ request: HTTPRequestHead) {
         guard request.method == "GET" else { return respond(HTTPResponse.badRequest) }
+        guard RequestHost.isAllowed(request.headers["host"], localHostName: localHostName()) else {
+            Log.server.notice("Refusing a request for another host name")
+            return respond(HTTPResponse.forbidden)
+        }
         if request.path == "/ws" {
             guard request.headers["upgrade"]?.lowercased() == "websocket", let key = request.headers["sec-websocket-key"]
             else { return respond(HTTPResponse.badRequest) }
@@ -162,7 +179,7 @@ final class ClientConnection {
                 Log.server.notice("Refusing a WebSocket from another site")
                 return respond(HTTPResponse.forbidden)
             }
-            guard let hub, hub.canAccept else { return respond(HTTPResponse.busy) }
+            guard let hub, hub.canAccept(self) else { return respond(HTTPResponse.busy) }
             isWebSocket = true
             transmit(WebSocketHandshake.response(for: key))
             hub.opened(self)
@@ -200,7 +217,7 @@ final class ClientConnection {
                 } catch {
                     return self.close(code: Session.policyViolationCode, reason: "bad frame")
                 }
-                if !frames.isEmpty { self.lastInboundAt = Date() }
+                if !frames.isEmpty { self.lastInboundAt = .now }
                 // RFC 6455 section 5.5.3: answering the last ping of a burst is enough.
                 var lastPing: WebSocketFrame?
                 for frame in frames {

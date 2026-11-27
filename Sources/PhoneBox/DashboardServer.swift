@@ -15,28 +15,72 @@ final class DashboardServer {
         didSet { onStateChange?(state) }
     }
 
-    /// Most connections tracked at once; further ones are refused.
+    /// Most connections held at once that are not phones yet (a file request, a socket still waiting for its key), in
+    /// all and from one address; further ones are refused. Authenticated phones have their own limit (the hub's), and a
+    /// connection over the iPhone's USB link is always taken (design §9).
     static let maxConnections = 32
+    static let maxConnectionsPerAddress = 16
 
     private let webDirectory: URL
     private let hub: DashboardHub
+    private let localHostName: @MainActor () -> String
+    /// Seconds between tries of a port that could not be opened (design §9 "Port dolu").
+    private let retryDelay: TimeInterval
     private var listener: NWListener?
     /// The listener `move(to:)` is starting; it takes over from `listener` once it is ready.
     private var pendingListener: NWListener?
-    /// Each connection with the listener that accepted it: moving to another port closes the old port's.
-    private var connections: [ObjectIdentifier: (client: ClientConnection, listener: NWListener)] = [:]
+    /// The next try of the port in a failed `state`.
+    private var retry: DispatchWorkItem?
+    /// One connection with the listener that accepted it (moving to another port closes the old port's), whether it
+    /// came over the iPhone's USB link and the address it came from.
+    private struct Entry {
+        let client: ClientConnection
+        let listener: NWListener
+        let cable: Bool
+        let address: String?
+    }
 
-    init(webDirectory: URL, hub: DashboardHub) {
+    private var connections: [ObjectIdentifier: Entry] = [:]
+
+    init(webDirectory: URL, hub: DashboardHub, retryDelay: TimeInterval = 30,
+         localHostName: @escaping @MainActor () -> String = Settings.localHostName) {
         self.webDirectory = webDirectory
         self.hub = hub
+        self.retryDelay = retryDelay
+        self.localHostName = localHostName
         hub.onConnectionClosed = { [weak self] connection in self?.connections[ObjectIdentifier(connection)] = nil }
     }
 
+    /// Listens on `port`. While it cannot (another program holds it at launch), it is tried again every `retryDelay`
+    /// seconds, so PhoneBox comes back to the port in every saved link once it is free.
     func start(port: UInt16) {
         stop()
+        listen(on: port)
+    }
+
+    private func listen(on port: UInt16) {
         guard let listener = makeListener(port: port, moved: nil) else { return }
         self.listener = listener
         listener.start(queue: .main)
+    }
+
+    /// The current listener cannot listen on `port`: `state` says so, and `retryDelay` later the port is tried again.
+    private func failed(port: UInt16, message: String) {
+        listener?.cancel()
+        listener = nil
+        state = .failed(port: port, message: message)
+        retry?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, case let .failed(failedPort, message) = self.state, failedPort == port else { return }
+                // A move under way decides first; if it fails too, the port is tried again later.
+                guard self.pendingListener == nil else { return self.failed(port: port, message: message) }
+                Log.server.info("Trying port \(port) again")
+                self.listen(on: port)
+            }
+        }
+        retry = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + retryDelay, execute: work)
     }
 
     /// Listens on `port` instead, keeping the current port until the new one works (design §9 "Port dolu"). Once the
@@ -53,6 +97,8 @@ final class DashboardServer {
     }
 
     func stop() {
+        retry?.cancel()
+        retry = nil
         listener?.cancel()
         listener = nil
         pendingListener?.cancel()
@@ -71,7 +117,7 @@ final class DashboardServer {
             listener = try NWListener(using: parameters, on: endpointPort)
         } catch {
             Log.server.error("Cannot listen on port \(port): \(error.localizedDescription, privacy: .public)")
-            if moved == nil { state = .failed(port: port, message: error.localizedDescription) }
+            if moved == nil { failed(port: port, message: error.localizedDescription) }
             return nil
         }
         listener.stateUpdateHandler = { [weak self, weak listener] newState in
@@ -86,7 +132,7 @@ final class DashboardServer {
                         self.state = .listening(port)
                     case let .failed(error):
                         Log.server.error("Listener failed: \(error.localizedDescription, privacy: .public)")
-                        self.state = .failed(port: port, message: error.localizedDescription)
+                        self.failed(port: port, message: error.localizedDescription)
                     default:
                         break
                     }
@@ -119,16 +165,18 @@ final class DashboardServer {
     /// The listener that `move(to:)` started is ready: it replaces the current one, whose phones are closed (their
     /// page reconnects to the port in its address, which is gone; they have to scan the new QR code).
     private func takeOver(_ newListener: NWListener, port: UInt16) {
+        retry?.cancel()
+        retry = nil
         let oldListener = listener
         oldListener?.cancel()
         listener = newListener
         pendingListener = nil
-        for (client, owner) in connections.values where owner === oldListener {
+        for entry in connections.values where entry.listener === oldListener {
             // Only a WebSocket can take a close frame; a plain HTTP request is simply dropped.
-            if client.isWebSocket {
-                client.close(code: 1001, reason: "port changed")
+            if entry.client.isWebSocket {
+                entry.client.close(code: 1001, reason: "port changed")
             } else {
-                client.cancel()
+                entry.client.cancel()
             }
         }
         Log.server.info("Listening on port \(port)")
@@ -137,12 +185,26 @@ final class DashboardServer {
 
     private func accept(_ connection: NWConnection, from listener: NWListener) {
         // A replaced listener's late connection is refused, like its late state.
-        guard listener === self.listener || listener === pendingListener, connections.count < Self.maxConnections else {
-            connection.cancel()
-            return
+        guard listener === self.listener || listener === pendingListener else { return connection.cancel() }
+        let cable = arrivesOverUSB(connection)
+        let address = ClientConnection.remoteAddress(of: connection)
+        if !cable {
+            let held = connections.values.filter { !$0.cable && !$0.client.isAuthenticated }
+            guard held.count < Self.maxConnections,
+                  held.filter({ $0.address == address }).count < Self.maxConnectionsPerAddress
+            else { return connection.cancel() }
         }
-        let client = ClientConnection(connection: connection, webDirectory: webDirectory, hub: hub)
-        connections[ObjectIdentifier(client)] = (client, listener)
+        let client = ClientConnection(connection: connection, webDirectory: webDirectory, hub: hub,
+                                      localHostName: localHostName)
+        connections[ObjectIdentifier(client)] = Entry(client: client, listener: listener, cable: cable, address: address)
         client.start()
+    }
+
+    /// From a scoped IPv6 link-local address on the iPhone's USB link: only the plugged-in phone can be there.
+    private func arrivesOverUSB(_ connection: NWConnection) -> Bool {
+        guard case let .hostPort(host, _) = connection.endpoint, case let .ipv6(address) = host, address.isLinkLocal,
+              let name = address.interface?.name
+        else { return false }
+        return hub.isUSBLink(name)
     }
 }
