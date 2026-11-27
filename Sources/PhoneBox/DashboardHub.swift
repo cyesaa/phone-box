@@ -8,8 +8,8 @@ protocol PhoneConnection: AnyObject {
     var interfaceName: String? { get }
     /// True when the local end is a scoped IPv6 link-local address, which is how the iPhone's USB link looks.
     var arrivedOnScopedLinkLocal: Bool { get }
-    /// When the last frame of any kind arrived.
-    var lastInboundAt: Date { get }
+    /// When the last frame of any kind arrived, on a monotonic clock that counts sleep.
+    var lastInboundAt: ContinuousClock.Instant { get }
     func send(_ message: ServerMessage)
     func sendPing()
     func markAuthenticated()
@@ -105,11 +105,12 @@ final class DashboardHub {
         livenessTimer = timer
     }
 
-    /// Pings every authenticated phone and drops the ones that have been silent for too long.
-    private func checkLiveness() {
-        let now = Date()
+    /// Pings every authenticated phone and drops the ones that have been silent for too long. `now` is from
+    /// `ContinuousClock`, which counts time asleep: after a wake the sockets from before the sleep are dropped, and
+    /// setting the Mac's clock changes nothing.
+    func checkLiveness(now: ContinuousClock.Instant = .now) {
         for client in clients.values where client.session.isAuthenticated {
-            if now.timeIntervalSince(client.connection.lastInboundAt) > Self.silenceLimit {
+            if now - client.connection.lastInboundAt > .seconds(Self.silenceLimit) {
                 Log.server.notice("Dropping a silent phone")
                 client.connection.cancel()
             } else {
@@ -152,7 +153,7 @@ final class DashboardHub {
     func received(_ text: String, from connection: any PhoneConnection) {
         let id = ObjectIdentifier(connection)
         guard var client = clients[id] else { return }
-        let outcome = client.session.receive(text, key: key, allowedCommands: client.access.commands, now: Date())
+        let outcome = client.session.receive(text, key: key, allowedCommands: client.access.commands, now: .now)
         clients[id] = client
         switch outcome {
         case .authenticated:
@@ -165,7 +166,7 @@ final class DashboardHub {
             onAuthenticated?()
             changed(wasStreaming: wasStreaming)
         case let .command(seq, command):
-            if !client.onUSB, !wifiLimit.allows(command, now: Date()) {
+            if !client.onUSB, !wifiLimit.allows(command, now: .now) {
                 Log.server.notice("Refusing \(command.name, privacy: .public) from a phone on Wi-Fi: too often")
                 connection.send(.ack(seq: seq, result: .failed(.failed)))
                 return

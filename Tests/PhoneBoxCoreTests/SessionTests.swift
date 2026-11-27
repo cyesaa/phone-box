@@ -4,7 +4,7 @@ import Testing
 
 struct SessionTests {
     let key = PairingKey.generate()
-    let now = Date(timeIntervalSince1970: 1_000)
+    let now = ContinuousClock.now
     /// What a phone on the cable may send, and one on Wi-Fi with "Lock and Music over Wi-Fi" on.
     let cable = Command.allNames
     let wifi = Command.wifiNames
@@ -96,7 +96,7 @@ struct SessionTests {
         for seq in 1...10 {
             _ = session.receive(commandMessage(session, seq: seq), key: key, allowedCommands: cable, now: now)
         }
-        #expect(session.receive(commandMessage(session, seq: 11), key: key, allowedCommands: cable, now: now.addingTimeInterval(1.1))
+        #expect(session.receive(commandMessage(session, seq: 11), key: key, allowedCommands: cable, now: now + .seconds(1.1))
             == .command(seq: 11, command: .mute(on: true)))
     }
 

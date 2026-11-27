@@ -13,8 +13,8 @@ final class ClientConnection {
     /// True when the local end is a scoped IPv6 link-local address (`fe80::…%en8`), which is how the iPhone's
     /// USB link looks. Anything else (IPv4, unscoped IPv6, unknown) is not the cable: fail closed.
     private(set) var arrivedOnScopedLinkLocal = false
-    /// When the last frame of any kind arrived; the hub drops connections that went silent.
-    private(set) var lastInboundAt = Date()
+    /// When the last frame of any kind arrived (monotonic, counting sleep); the hub drops connections that went silent.
+    private(set) var lastInboundAt = ContinuousClock.now
     private(set) var isAuthenticated = false
 
     /// Seconds a connection may take to become a WebSocket before it is dropped.
@@ -200,7 +200,7 @@ final class ClientConnection {
                 } catch {
                     return self.close(code: Session.policyViolationCode, reason: "bad frame")
                 }
-                if !frames.isEmpty { self.lastInboundAt = Date() }
+                if !frames.isEmpty { self.lastInboundAt = .now }
                 // RFC 6455 section 5.5.3: answering the last ping of a burst is enough.
                 var lastPing: WebSocketFrame?
                 for frame in frames {

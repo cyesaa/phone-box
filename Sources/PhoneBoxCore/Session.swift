@@ -12,7 +12,8 @@ public struct Session: Sendable {
     public let nonce: String
     public private(set) var isAuthenticated = false
     private var lastSeq = 0
-    private var recentCommands: [Date] = []
+    /// Monotonic instants (`ContinuousClock.now`), so a clock change cannot stretch or skip the one-second window.
+    private var recentCommands: [ContinuousClock.Instant] = []
 
     public init(nonce: String) {
         self.nonce = nonce
@@ -37,7 +38,8 @@ public struct Session: Sendable {
 
     /// `allowedCommands` is the phone's `Access.commands`: a signed, fresh command outside it is answered with
     /// `not-allowed` before its arguments are looked at.
-    public mutating func receive(_ text: String, key: PairingKey, allowedCommands: [String], now: Date) -> Outcome {
+    public mutating func receive(_ text: String, key: PairingKey, allowedCommands: [String],
+                                 now: ContinuousClock.Instant) -> Outcome {
         guard let message = ClientMessage.parse(text) else {
             return .close(code: Self.policyViolationCode, reason: "bad message")
         }
@@ -58,7 +60,7 @@ public struct Session: Sendable {
             }
             guard seq > lastSeq else { return .close(code: Self.policyViolationCode, reason: "old sequence number") }
             lastSeq = seq
-            recentCommands = recentCommands.filter { now.timeIntervalSince($0) < 1 }
+            recentCommands = recentCommands.filter { now - $0 < .seconds(1) }
             guard recentCommands.count < Self.maxCommandsPerSecond else {
                 return .close(code: Self.policyViolationCode, reason: "too many commands")
             }

@@ -8,10 +8,12 @@ import PhoneBoxCore
 final class FakeConnection: PhoneConnection {
     let interfaceName: String?
     let arrivedOnScopedLinkLocal: Bool
-    var lastInboundAt = Date()
+    var lastInboundAt = ContinuousClock.now
     private(set) var sent: [ServerMessage] = []
     private(set) var closeCode: UInt16?
     private(set) var authenticated = false
+    private(set) var pings = 0
+    private(set) var cancelled = false
 
     init(interfaceName: String, scopedLinkLocal: Bool) {
         self.interfaceName = interfaceName
@@ -19,10 +21,10 @@ final class FakeConnection: PhoneConnection {
     }
 
     func send(_ message: ServerMessage) { sent.append(message) }
-    func sendPing() {}
+    func sendPing() { pings += 1 }
     func markAuthenticated() { authenticated = true }
     func close(code: UInt16, reason: String) { closeCode = code }
-    func cancel() {}
+    func cancel() { cancelled = true }
 
     var nonce: String? {
         for case let .hello(nonce, _) in sent { return nonce }
@@ -250,6 +252,20 @@ struct DashboardHubTests {
             #expect(wifi.closeCode == DashboardHub.reconnectCode, "\(mode)")
             #expect(cable.closeCode == nil, "\(mode)")
         }
+    }
+
+    /// Liveness runs on a monotonic clock that counts sleep: setting the Mac's clock neither drops live phones nor keeps
+    /// dead ones.
+    @Test func dropsAPhoneSilentForLongerThanTheLimitAndPingsTheOthers() {
+        let hub = makeHub(mode: .always)
+        let silent = connect(hub, onUSB: false)
+        let live = connect(hub, onUSB: true)
+        let now = ContinuousClock.now
+        silent.lastInboundAt = now - .seconds(DashboardHub.silenceLimit + 1)
+        live.lastInboundAt = now - .seconds(DashboardHub.silenceLimit - 1)
+        hub.checkLiveness(now: now)
+        #expect(silent.cancelled && silent.pings == 0)
+        #expect(!live.cancelled && live.pings == 1)
     }
 
     @Test func aBadSignatureClosesTheConnection() {
