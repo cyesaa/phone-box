@@ -95,15 +95,16 @@ public struct LineAssembler: Sendable {
 }
 
 /// The track to show. Between two tracks the adapter briefly reports nothing playing; keeping the last track for
-/// `grace` seconds stops the phone's card from blinking (NotchBox saw the same gap).
+/// `grace` stops the phone's card from blinking (NotchBox saw the same gap). Times are monotonic instants
+/// (`ContinuousClock.now`): setting the Mac's clock back cannot keep a stopped track on the page.
 public struct NowPlayingState: Sendable {
-    public static let grace: TimeInterval = 1.5
+    public static let grace: Duration = .seconds(1.5)
     private var track: NowPlayingTrack?
-    private var nothingSince: Date?
+    private var nothingSince: ContinuousClock.Instant?
 
     public init() {}
 
-    public mutating func received(_ line: NowPlayingStream.Line, at now: Date) {
+    public mutating func received(_ line: NowPlayingStream.Line, at now: ContinuousClock.Instant) {
         switch line {
         case let .track(track):
             self.track = track
@@ -115,8 +116,8 @@ public struct NowPlayingState: Sendable {
         }
     }
 
-    public func current(at now: Date) -> NowPlayingTrack? {
-        if let nothingSince, now.timeIntervalSince(nothingSince) >= Self.grace { return nil }
+    public func current(at now: ContinuousClock.Instant) -> NowPlayingTrack? {
+        if let nothingSince, now - nothingSince >= Self.grace { return nil }
         return track
     }
 

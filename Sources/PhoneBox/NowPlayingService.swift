@@ -66,7 +66,7 @@ final class NowPlayingService {
 
     /// For the snapshot: nil while nothing is playing, or without the adapter.
     func current() -> MediaSample? {
-        guard let track = state.current(at: Date()) else { return nil }
+        guard let track = state.current(at: .now) else { return nil }
         return MediaSample(title: track.title, artist: track.artist, app: appName(for: track.bundleId), playing: track.playing)
     }
 
@@ -118,7 +118,7 @@ final class NowPlayingService {
     private func received(_ data: Data, from source: Process) {
         guard source === process, !data.isEmpty else { return }
         for line in assembler.append(data) {
-            state.received(NowPlayingStream.parse(line), at: Date())
+            state.received(NowPlayingStream.parse(line), at: .now)
         }
     }
 
