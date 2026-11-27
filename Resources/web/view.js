@@ -58,7 +58,10 @@
       this.poppedAt = {};
       this.clock = new (PB().clock.Clock)($("clock"));
       this.minute = null;
-      this.staleFrameAt = -Infinity;
+      /// Which frames draw everything (`frame`).
+      this.pace = new motion.Pace(1000);
+      /// Each metric's level as last drawn, for the edge light while the rest is not drawn.
+      this.levels = null;
       this.day = "";
     }
 
@@ -98,7 +101,7 @@
     setStale(stale) {
       this.stale = stale;
       // The first frame after a change is drawn at once.
-      this.staleFrameAt = -Infinity;
+      this.pace.soon();
       $("dashboard").classList.toggle("stale", stale);
       if (stale) this.alarm.clear();
       this.renderStatus();
@@ -205,26 +208,32 @@
     }
 
     /// Draws everything that moves. Sizes are read first, before any write, so the page is laid out once a frame.
-    frame(now) {
+    /// `covered`: the Claude page or the Start screen is over the dashboard.
+    frame(now, covered = false) {
+      const still = PB().motion.reduced() || this.stale;
+      // The alarm's beat: once a second; steady with "Reduce Motion".
+      const pulse = still ? 1 : 0.5 + 0.5 * Math.sin((now / 1000) * Math.PI * 2);
       // Stale values (the Mac asleep, the cable out, a state card) do not move: no shine or pulse that would look
-      // live, and once a second is enough for the clock.
-      if (this.stale) {
-        if (now - this.staleFrameAt < 1000) return;
-        this.staleFrameAt = now;
+      // live, and once a second is enough for the clock. A covered dashboard is not seen: it is drawn once a second
+      // too (the Claude page's header shows its clock's time), and in full from the first frame it is back.
+      if (!this.pace.due(now, this.stale || covered)) {
+        // The edge light lies over the Claude page as well: it keeps its beat there.
+        if (covered && !this.stale && this.levels) {
+          this.renderEdge(this.levels, new Set(this.alarm.loud(now)), pulse, now, still);
+        }
+        return;
       }
       const shown = this.glide.at(now) || this.snapshot;
-      const still = PB().motion.reduced() || this.stale;
       const ringSizes = {};
       for (const metric of ["cpu", "ram"]) ringSizes[metric] = this.ringButtons[metric].querySelector("canvas").clientWidth;
       const graph = $("graph");
       const graphSize = [graph.clientWidth, graph.clientHeight];
 
       const levels = this.levelsOf(shown);
+      this.levels = levels;
       const ringing = new Set(this.alarm.active());
       // After 2 minutes an alarm goes quiet: no beat and no edge light; its metric stays red until it recovers.
       const loud = new Set(this.alarm.loud(now));
-      // The alarm's beat: once a second; steady with "Reduce Motion".
-      const pulse = still ? 1 : 0.5 + 0.5 * Math.sin((now / 1000) * Math.PI * 2);
       const glow = (metric) => (loud.has(metric) ? pulse : 0);
       const { cpu, mem } = shown;
       const f = this.format;

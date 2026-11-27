@@ -162,6 +162,24 @@ Bölge → Uygulamalar → PhoneBox).
 - [ ] Koyu ve açık temada metinler okunuyor, kontrol ve gruplar Sistem Ayarları gibi; tema pencere açıkken değişince
   pencere de değişiyor.
 
+## 0.4.1
+Telefonun sayfası:
+- [ ] Dikeyde küçük telefonda (iPhone SE ya da 667 pt), Claude sayfası açıkken: sığan son yere düşen yeni bir oturum
+  (ör. 9 oturum varken onuncusu, sıkışık kartlar en alta yakın) gelirken de sonra da görünüyor; "+N oturum daha" yalnız
+  gerçekten sığmayan kart varken çıkıyor ve doğru sayıyor.
+- [ ] Mac'teki Safari'nin Web Inspector'ı telefonun sayfasında, Timelines kaydı: Claude sayfası açıkken (ve Başlat
+  ekranında) JavaScript işi saniyede bire iniyor, panodayken her karede. Claude sayfasının saati dakikayla dönüyor;
+  parmakla panoya dönünce halkalar, parıltı ve grafik hemen akıyor. Mac'te CPU alarmı çalarken (Plan 4C'deki `yes`
+  komutu) Claude sayfasında kenar ışığı atmaya devam ediyor.
+- [ ] "Başlat" sonrası Ayarlar → Eşleştirme → "Sıfırla…": telefonda "Eşleşmedi"; ekran Otomatik Kilit süresinde
+  kararıyor (video durdu), kilit açılınca Başlat ya da rehber çıkmıyor; "⋯ → Kurulum rehberi"nin düğmesi "Kapat".
+- [ ] İlk açılışta (rehber açıkken) eşleştirmeyi sıfırla: rehber kapanıyor, "Eşleşmedi" kartı görünüyor.
+- [ ] Mac'teki Safari'den Web Inspector ile telefonun sayfasına bağlan, Ağ'da `view.js` için bir engelleme kuralı koy
+  ve sayfayı yenile: "Mac'e ulaşılamıyor" kartı (Başlat ekranı yok), 5 sn sonra sayfa kendini yeniliyor; kural
+  dururken 15 sn, 30 sn, sonra dakikada bir. Kural kalkınca bir sonraki yenilemede normal açılıyor ("Başlat" istiyor).
+- [ ] Aynı denemede kural dururken PhoneBox'tan çık: sayfa yenilenmiyor, kartta kalıyor (tarayıcının hata sayfasına
+  düşmüyor). Kuralı kaldırıp PhoneBox'ı açınca birkaç saniyede kendini yenileyip bağlanıyor.
+
 ## Henüz denenmemiş (spike 8)
 - [ ] Kestirmeler → Otomasyon → Şarj Aleti → "URL'yi Aç" (kişisel bağlantı) → "Hemen Çalıştır": kablo takılınca
   dashboard onaysız açılıyor mu?

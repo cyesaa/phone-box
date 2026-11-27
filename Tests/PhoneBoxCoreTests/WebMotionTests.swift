@@ -153,6 +153,29 @@ struct WebMotionTests {
         #expect(result == "true,9350,9450,10530,12400,97850,2500")
     }
 
+    /// The dashboard draws every frame while it is in view with live values; once a second while they are stale or the
+    /// Claude page or the Start screen covers it; and the first frame after either changes at once.
+    @Test func drawsEveryFrameOnlyWhileInViewAndLive() {
+        let result = string("""
+            (function () {
+              var pace = new M.Pace(1000), out = [];
+              function frames(from, to, slow) {
+                var drawn = [];
+                for (var at = from; at <= to; at += 250) if (pace.due(at, slow)) drawn.push(at);
+                out.push(drawn.join("+"));
+              }
+              frames(0, 750, false);        // in view: every frame
+              frames(1000, 3250, true);     // covered: at once, then once a second
+              frames(3500, 4000, false);    // back: at once, every frame again
+              frames(4250, 5500, true);
+              pace.soon();                  // the values went stale while it was covered: the next frame is drawn
+              frames(5750, 6750, true);
+              return out.join(" | ");
+            })()
+            """)
+        #expect(result == "0+250+500+750 | 1000+2000+3000 | 3500+3750+4000 | 4250+5250 | 5750+6750")
+    }
+
     @Test func roundsTheBatteryTimeWhileItGlides() {
         let detail = string("""
             PhoneBox.metrics.header("battery", M.between({ battery: { percent: 50, charging: false, minutesLeft: 312 } },

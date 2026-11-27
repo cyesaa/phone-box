@@ -371,7 +371,9 @@ yüksekliğidir (`screen.js` → `--screen-height`), tarayıcı sekmesinde CSS'i
   0,5 sn'yi geçince başa sarılır. Oynatmadan önce `navigator.audioSession.type = "ambient"` yapılır; böylece
   telefondaki müzik durmaz ve kilit ekranı kullanıcının şarkısında kalır. Sayfa görünürken 3 saniyede bir "video
   duruyorsa başlat" denetimi yapılır (Chrome'da kilit açılınca video duraklamış kalıyor). `audioSession` yoksa
-  video yine oynatılır ama telefondaki müzik durabilir; rehberde bu not edilir.
+  video yine oynatılır ama telefondaki müzik durabilir; rehberde bu not edilir. "Eşleşmedi"den (4001) sonra sayfa
+  ölüdür: video durdurulur ve bir daha başlatılmaz (ekran uyuyabilir), Başlat ekranı ve rehber kapanır; rehber "⋯"den
+  açılırsa düğmesi "Kapat"tır (0.4.1).
 - **OLED koruması:** 3 dakikada bir bütün içerik ±2 piksel kayar.
 - **Dil ve sayı biçimi:** `navigator.language`'a göre Türkçe/İngilizce; sayılar `Intl.NumberFormat` ile.
 
@@ -398,7 +400,9 @@ Kullanıcının isteği: "akıcı, baktıkça bakası gelen" bir ekran; bileşen
 - **Şimdi çalıyor:** çalarken küçük bir ekolayzer (4 çubuk) oynar, duraklayınca durur.
 - **Tek döngü:** bütün çizimleri tek bir `requestAnimationFrame` döngüsü yapar (ekranın tazelenme hızında, en fazla
   60 kare); sayfa görünmezken döngü durur. Telefondaki işlemci yükü telefon denemesinde ölçülür; ağır gelirse çizim
-  30 kareye indirilir.
+  30 kareye indirilir. Pano görünmezken (Claude sayfası kaymasını bitirip üstüne geldiyse, Başlat ekranı ya da rehber
+  açıksa) saniyede bir çizilir, bayat değerlerdeki gibi (Claude sayfasının başlığı panonun saatini gösterir); kenar
+  ışığı Claude sayfasının da üstünde olduğu için atmaya devam eder. Pano geri gelince ilk karede tam çizilir (0.4.1).
 - **Hareketi Azalt:** telefonda açıksa (`prefers-reduced-motion`) parıltı, nabız, ışığın atması, rakam kayması ve
   satır kayması kapanır; renk değişimi ve sayı geçişleri kalır.
 
@@ -482,6 +486,10 @@ Sade HTML/CSS/JS, derleme adımı ve dış kütüphane yok. Her dosya tek bir i�
 yazar ve sırayla klasik `<script>` etiketleriyle yüklenir (ES modül `import`'u yok); böylece Swift testleri saf
 parçaları JavaScriptCore'da doğrudan çalıştırabilir. İki yön için tek bir HTML vardır, yerleşimi CSS
 (`@media (orientation: …)`) değiştirir. Mac'in sunduğu dosya listesi yeni dosyalara göre güncellenir.
+Bir betik yüklenemezse (Wi-Fi'de kısa kopma, sayfa yüklenirken uyuyan Mac) ya da başlangıç hata verirse `app.js`
+"Mac'e ulaşılamıyor" kartını gösterir ve Mac cevap verince (`/` isteği başarılıysa) sayfayı yeniden yükler: ilk
+seferde 5 sn sonra, sonra 15 sn, 30 sn, sonra dakikada bir (sayaç `sessionStorage`'da; sayfa başlayınca sıfırlanır).
+Mac'e ulaşılamıyorken yüklemek tarayıcının hata sayfasında bırakırdı; o sırada 5 sn'de bir yeniden sorulur (0.4.1).
 
 | Dosya | Görevi | Test |
 |---|---|---|
@@ -491,16 +499,16 @@ parçaları JavaScriptCore'da doğrudan çalıştırabilir. İki yön için tek 
 | `history.js` | metrik başına 60 saniyelik geçmiş | JavaScriptCore |
 | `metrics.js` | her metriğin geçmişe yazılan değerleri, grafik çizgileri ve ölçeği, kutucuk ve başlık metinleri, renkleri ve kızarma değeri | JavaScriptCore |
 | `heat.js` | sınırlar, seviye, OKLCH renk yolu, alarm kuralı (3 sn / 0,9) | JavaScriptCore |
-| `motion.js` | sayı geçişleri (tween), tek `requestAnimationFrame` döngüsü, Hareketi Azalt | geçiş hesabı JavaScriptCore'da |
+| `motion.js` | sayı geçişleri (tween), tek `requestAnimationFrame` döngüsü, kare hızı (bayat ya da örtülü pano saniyede bir), Hareketi Azalt | geçiş hesabı ve kare hızı JavaScriptCore'da |
 | `rings.js` | halkanın `<canvas>` çizimi | gözle |
 | `clock.js` | saat, tarih, rakam kayması | biçim JavaScriptCore'da, kayma gözle |
 | `chart.js` | grafik ölçeği (saf) ve her karede `<canvas>` çizimi (kızarma, sınır çizgisi, nabız) | ölçek JavaScriptCore'da, çizim gözle |
-| `connection.js` | bağlantı, eşleşme, yeniden bağlanma (bugünkü `app.js`'ten) | gözle / telefonda |
+| `connection.js` | bağlantı, eşleşme, yeniden bağlanma (bugünkü `app.js`'ten); bütün süreler `performance.now()` ile (telefonun saati geri alınabilir), yerine yenisi açılmış soketin geç gelen kapanışı hiçbir şeyi değiştirmez | yeniden bağlanma kuralları JavaScriptCore'da, gerisi telefonda |
 | `commands.js` | komut imzası, `seq`, cevap eşleme, 5 sn zaman aşımı, saniyede en çok 9 komut, ses kaydırıcısının hız sınırı | imza (Swift'in `MessageAuth`'u ile), eşleme ve hız sınırları JavaScriptCore'da |
 | `controls.js` | kontrol şeridi, uygulama paneli, "⋯" komutları, onay, bildirim, çift dokunuş kalkanı | hangi kontrolün `access.commands`'a göre gönderip soluk kaldığı JavaScriptCore'da (sahte sayfayla), gerisi gözle |
 | `view.js` | halkalar, kutucuklar, liste (satır kayması), şarkı kartı, saat başlığı, telefonun pili, alarm ve kenar ışığı, durumlar | gözle |
-| `ui.js` | ekranı açık tutma, "⋯" menüsünün açılıp kapanması, rehber, Başlat ekranı, OLED kayması | gözle |
-| `app.js` | parçaları birbirine bağlar | — |
+| `ui.js` | ekranı açık tutma, "⋯" menüsünün açılıp kapanması, rehber, Başlat ekranı, OLED kayması | ekranı açık tutma ve "Eşleşmedi"de durması JavaScriptCore'da, gerisi gözle |
+| `app.js` | parçaları birbirine bağlar; başlayamayan sayfayı yeniden yükler | yeniden yükleme JavaScriptCore'da |
 
 ### Uygulama sırası
 
@@ -736,7 +744,9 @@ Sıralama: bekleyenler (en eski bekleyen önce), sonra çalışanlar, sonra haz�
   ve sayfanın yüksekliğini doldurur (satır = oturum / sütun, yukarı yuvarlanır: 1 oturum solda tek uzun kart, 2 oturum
   iki uzun kart; 2 satırdan fazlasında kartlar sıkışık), dikeyde tek sütun. Dikeyde sıkışık kartlar da sığmazsa (12
   oturum, 667 pt'lik telefon: 10 kart) yalnız tam sığanlar kalır, altlarında "+N oturum daha" yazar; gizlenenler en alt
-  sıradakilerdir (Mac'in sırası korunur), kaydırma yok. Telefon dönünce (ve 350 ms sonra bir daha) yeniden ölçülür.
+  sıradakilerdir (Mac'in sırası korunur), kaydırma yok. Kartlar ekrandaki değil yerleşimdeki yerleriyle ölçülür
+  (gelirken 24 px aşağıdan kayan kart sığıyorsa kalır, 0.4.1). Telefon dönünce (ve 350 ms sonra bir daha) yeniden
+  ölçülür.
   Giden kart solarken yerini korur, ızgara
   kart gidince yeniden yerleşir. Oturum yoksa "Açık Claude oturumu yok". Hareket azaltma açıksa kayma ve kart girişleri
   anlık.

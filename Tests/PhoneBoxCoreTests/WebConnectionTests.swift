@@ -12,7 +12,10 @@ struct WebConnectionTests {
         context.exceptionHandler = { _, exception in Issue.record("JavaScript error: \(exception?.toString() ?? "?")") }
         context.evaluateScript("""
             var now = 1000000, timers = [], intervals = [], sockets = [], states = [], opened = [];
-            Date.now = function () { return now; };
+            // `now` is the page's own clock, which only moves forward; the wall clock is `wall` ms off it and can step.
+            var wall = 0;
+            var performance = { now: function () { return now; } };
+            Date.now = function () { return now + wall; };
             function setTimeout(fn, delay) { timers.push({ at: now + delay, fn: fn }); return timers.length; }
             function setInterval(fn) { intervals.push(fn); return intervals.length; }
             function addEventListener() {}
@@ -162,6 +165,55 @@ struct WebConnectionTests {
             [before, replaced, afterHello, connection.send({ type: "cmd" }), connection.nonce, sockets.length].join(" ")
             """)
         #expect(result == "true false false true m 2")
+    }
+
+    /// The phone's clock set back (by hand, or a large correction) while the page waits to retry: the waits are timed on
+    /// the page's own clock, so it goes on retrying.
+    @Test func keepsRetryingWhenTheWallClockStepsBack() {
+        let result = string("""
+            fail(last());
+            wall = -3600000;
+            advance(1500);
+            var afterOne = sockets.length;
+            fail(last());
+            advance(2500);
+            [afterOne, sockets.length].join(" ")
+            """)
+        #expect(result == "2 3")
+    }
+
+    /// The same step while the socket has silently died: the values still go stale after more than 3 s and the socket
+    /// is replaced after more than 5 s (checked once a second).
+    @Test func findsASilentSocketWhenTheWallClockStepsBack() {
+        let result = string("""
+            handshake(last(), { streaming: true, commands: [], cable: true, reason: "ok" });
+            receive(last(), { v: 1, type: "snapshot", t: 1 });
+            wall = -3600000;
+            advance(4500);
+            var stale = connection.stale, count = sockets.length;
+            advance(1500);
+            [stale, count, sockets.length].join(" ")
+            """)
+        #expect(result == "true 1 2")
+    }
+
+    /// The Mac began closing a socket, and the once-a-second tick opened the next one before the first one's close
+    /// event came. That late event belongs to a socket that is gone: the live one stays as it is.
+    @Test func aLateCloseFromASocketThatWasReplacedChangesNothing() {
+        let result = string("""
+            var streaming = { streaming: true, commands: [], cable: true, reason: "ok" };
+            var first = last();
+            handshake(first, streaming);
+            first.readyState = 2;   // closing: the Mac's close frame came, the close event has not yet
+            advance(1000);
+            var second = last();
+            handshake(second, streaming);
+            receive(second, { v: 1, type: "snapshot", t: 1 });
+            var waits = timers.length;
+            closeWith(first, 1001);
+            [sockets.length, connection.state, connection.stale, connection.retries, timers.length - waits, states.join(",")].join(" ")
+            """)
+        #expect(result == "2 streaming false 0 0 connecting,streaming,streaming")
     }
 
     @Test func reconnectsQuicklyWhenTheMacAsks() {
