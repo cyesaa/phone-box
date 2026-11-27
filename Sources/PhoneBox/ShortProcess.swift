@@ -8,10 +8,19 @@ enum ShortProcess {
     /// SIGTERM's action with one that only stops a run loop: `send` never runs one, and a `stream` stopped before its
     /// run loop starts misses the stop, so both would run on.
     static let killDelay: TimeInterval = 1.5
+    /// How long PhoneBox waits at quit for its processes to end before it kills them: it exits before `killDelay`.
+    static let quitGrace: TimeInterval = 0.5
+
+    /// The processes `run` started and `terminate` stopped, while they may still run.
+    private static var started: [Process] = []
+
+    /// The processes `run` started and `terminate` stopped that still run.
+    static var leftovers: [Process] { started.filter(\.isRunning) }
 
     /// SIGTERM now, and SIGKILL `killDelay` seconds later if the process is still running.
     static func terminate(_ process: Process) {
         guard process.isRunning else { return }
+        track(process)
         process.terminate()
         DispatchQueue.main.asyncAfter(deadline: .now() + killDelay) {
             // Not reaped yet while it runs, so the pid cannot belong to another process.
@@ -40,8 +49,35 @@ enum ShortProcess {
             Log.app.error("Could not run \(executable, privacy: .public): \(error.localizedDescription, privacy: .public)")
             return completion(false)
         }
+        track(process)
         DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
             MainActor.assumeIsolated { terminate(process) }
         }
+    }
+
+    /// At quit (`applicationWillTerminate`), when `terminate`'s SIGKILL would come after PhoneBox has exited: the
+    /// leftovers get up to `quitGrace` seconds to end, then SIGKILL. Returns at once when none is left.
+    static func endAtQuit() {
+        endAtQuit(leftovers, grace: quitGrace)
+    }
+
+    /// `processes` get up to `grace` seconds to end, then SIGKILL to those still running; at once when none runs.
+    static func endAtQuit(_ processes: [Process], grace: TimeInterval) {
+        var running = processes.filter(\.isRunning)
+        let deadline = ProcessInfo.processInfo.systemUptime + grace
+        while !running.isEmpty, ProcessInfo.processInfo.systemUptime < deadline {
+            usleep(10_000)
+            running = running.filter(\.isRunning)
+        }
+        // Not reaped yet while it runs, so the pid cannot belong to another process.
+        for process in running where process.isRunning {
+            Log.app.notice("\(process.executableURL?.lastPathComponent ?? "?", privacy: .public) still ran at quit; killing it")
+            kill(process.processIdentifier, SIGKILL)
+        }
+    }
+
+    private static func track(_ process: Process) {
+        started.removeAll { !$0.isRunning || $0 === process }
+        started.append(process)
     }
 }

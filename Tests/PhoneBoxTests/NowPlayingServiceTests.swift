@@ -9,10 +9,41 @@ import Testing
 struct NowPlayingServiceTests {
     /// The real adapter ignores SIGTERM until its run loop runs: a `stop()` just after a start would leave it running.
     @Test func killsAnAdapterThatIgnoresSIGTERM() async throws {
+        let folder = try temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let (service, pid) = try await startStandIn(in: folder)
+        defer { kill(pid, SIGKILL) }
+
+        service.stop()
+        try await Task.sleep(for: .milliseconds(500))
+        #expect(kill(pid, 0) == 0, "the stand-in should outlive SIGTERM")
+        #expect(try await ends(pid, within: ShortProcess.killDelay + 2))
+    }
+
+    /// PhoneBox quits right after `stop()`, before `killDelay`: the adapter is one of the leftovers it kills at quit.
+    @Test func anAdapterStoppedAtQuitIsKilledBeforePhoneBoxExits() async throws {
+        let folder = try temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let (service, pid) = try await startStandIn(in: folder)
+        defer { kill(pid, SIGKILL) }
+
+        service.stop()
+        let leftovers = ShortProcess.leftovers.filter { $0.processIdentifier == pid }
+        #expect(leftovers.count == 1)
+        ShortProcess.endAtQuit(leftovers, grace: 0.5)
+        // Well before `killDelay` since the stop.
+        #expect(try await ends(pid, within: 0.5))
+    }
+
+    private func temporaryFolder() throws -> URL {
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("PhoneBoxNowPlayingTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: folder) }
+        return folder
+    }
+
+    /// The service running a stand-in in `folder`, and the stand-in's pid once it ignores SIGTERM.
+    private func startStandIn(in folder: URL) async throws -> (NowPlayingService, pid_t) {
         // The service passes the framework's place as the script's first argument: there it writes its pid, once it
         // ignores SIGTERM.
         let script = folder.appendingPathComponent("adapter.pl")
@@ -21,13 +52,7 @@ struct NowPlayingServiceTests {
         let pidFile = folder.appendingPathComponent("pid")
         let service = NowPlayingService(location: AdapterLocation(scriptPath: script.path, frameworkPath: pidFile.path))
         service.start()
-        let pid = try #require(try await readPid(pidFile))
-        defer { kill(pid, SIGKILL) }
-
-        service.stop()
-        try await Task.sleep(for: .milliseconds(500))
-        #expect(kill(pid, 0) == 0, "the stand-in should outlive SIGTERM")
-        #expect(try await ends(pid, within: ShortProcess.killDelay + 2))
+        return (service, try #require(try await readPid(pidFile)))
     }
 
     private func readPid(_ file: URL, within seconds: Double = 5) async throws -> pid_t? {

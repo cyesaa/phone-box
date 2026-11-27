@@ -261,7 +261,9 @@ Okunamayan değer JSON'a hiç yazılmaz (alan yok); dashboard "—" gösterir.
   çalıştı. Medya komutu NotchBox'ta çalışan adaptörle gönderilir.
 - Adaptörün çerçevesi SIGTERM'i yalnız run loop'u durduracak şekilde değiştirir: `send` hiç run loop çalıştırmaz,
   run loop'u başlamadan durdurulan `stream` durdurmayı kaçırır. Bu yüzden SIGTERM'den 1,5 sn sonra hâlâ çalışan
-  adaptör (`stream` ya da `send`, ShortProcess'in 5 sn'lik süresi dolunca) SIGKILL ile durdurulur (0.4.1).
+  adaptör (`stream` ya da `send`, ShortProcess'in 5 sn'lik süresi dolunca) SIGKILL ile durdurulur (0.4.1). PhoneBox
+  kapanırken bu 1,5 sn'yi beklemez: hâlâ çalışan `stream` ya da `send` en çok 0,5 sn sonra SIGKILL alır; kalan yoksa
+  kapanış hiç beklemez.
 
 ## 8. Arayüz
 
