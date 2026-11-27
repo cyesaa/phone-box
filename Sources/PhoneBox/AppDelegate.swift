@@ -34,7 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let powerLimits = PowerLimits.forChip(Settings.chipName(), wholeMac: BatteryCollector.hasInternalBattery())
         let webDirectory = Bundle.main.resourceURL!.appendingPathComponent("web", isDirectory: true)
         hub = DashboardHub(mode: settings.mode, lockAndMusicOverWiFi: settings.lockAndMusicOverWiFi, key: key,
-                           appName: "PhoneBox \(version)", hostName: Settings.computerName(), powerLimits: powerLimits,
+                           appName: "PhoneBox \(version)", hostName: Settings.computerName, powerLimits: powerLimits,
                            build: Self.webBuild(webDirectory), commands: commandRunner)
         server = DashboardServer(webDirectory: webDirectory, hub: hub)
         let claudeFailure = resumeClaudeSessions()

@@ -50,7 +50,7 @@ struct DashboardServerTests {
     let runner = FakeRunner()
 
     func makeServer() -> DashboardServer {
-        let hub = DashboardHub(mode: .cable, key: PairingKey.generate(), appName: "PhoneBox test", hostName: "Test Mac",
+        let hub = DashboardHub(mode: .cable, key: PairingKey.generate(), appName: "PhoneBox test", hostName: { "Test Mac" },
                                commands: runner, usbInterfaces: { [] })
         return DashboardServer(webDirectory: URL(fileURLWithPath: "/nonexistent"), hub: hub)
     }

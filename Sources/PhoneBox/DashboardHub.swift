@@ -64,8 +64,9 @@ final class DashboardHub {
     }
     private var key: PairingKey
     private let appName: String
-    /// The Mac's name, shown at the top of the page's "⋯" menu.
-    private let hostName: String
+    /// The Mac's name, shown at the top of the page's "⋯" menu. Read for each `ready`: the Mac can be renamed while
+    /// PhoneBox runs.
+    private let hostName: @MainActor () -> String
     /// Where the page's power tile turns red, for this Mac's chip.
     private let powerLimits: PowerLimits
     /// The dashboard files' name (`WebBuild`), sent in `ready` and stamped into the index.html that is served.
@@ -85,7 +86,8 @@ final class DashboardHub {
     var onAuthenticated: (() -> Void)?
     var onConnectionClosed: ((any PhoneConnection) -> Void)?
 
-    init(mode: AccessMode, lockAndMusicOverWiFi: Bool = false, key: PairingKey, appName: String, hostName: String,
+    init(mode: AccessMode, lockAndMusicOverWiFi: Bool = false, key: PairingKey, appName: String,
+         hostName: @escaping @MainActor () -> String,
          powerLimits: PowerLimits = .standard, build: String = "", commands: any CommandRunning,
          usbInterfaces: @escaping () -> Set<String> = USBLinks.iPhoneInterfaceNames) {
         self.mode = mode
@@ -161,7 +163,7 @@ final class DashboardHub {
             connection.markAuthenticated()
             client.access = access(onUSB: client.onUSB)
             clients[id] = client
-            connection.send(.ready(mode: mode, host: hostName, powerLimits: powerLimits, access: client.access,
+            connection.send(.ready(mode: mode, host: hostName(), powerLimits: powerLimits, access: client.access,
                                    build: build))
             onAuthenticated?()
             changed(wasStreaming: wasStreaming)

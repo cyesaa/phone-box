@@ -53,7 +53,7 @@ struct DashboardHubTests {
     let limits = PowerLimits(start: 25, full: 60)
 
     func makeHub(mode: AccessMode) -> DashboardHub {
-        DashboardHub(mode: mode, key: key, appName: "PhoneBox test", hostName: "Test Mac", powerLimits: limits,
+        DashboardHub(mode: mode, key: key, appName: "PhoneBox test", hostName: { "Test Mac" }, powerLimits: limits,
                      commands: runner, usbInterfaces: { ["anri1"] })
     }
 
@@ -75,7 +75,7 @@ struct DashboardHubTests {
     }
 
     @Test func readyCarriesTheWebBuild() {
-        let hub = DashboardHub(mode: .always, key: key, appName: "PhoneBox test", hostName: "Test Mac", powerLimits: limits,
+        let hub = DashboardHub(mode: .always, key: key, appName: "PhoneBox test", hostName: { "Test Mac" }, powerLimits: limits,
                                build: "0123456789ab", commands: runner, usbInterfaces: { ["anri1"] })
         let phone = connect(hub, onUSB: true)
         #expect(phone.sent.last == .ready(mode: .always, host: "Test Mac", powerLimits: limits, access: .onCable,
@@ -89,6 +89,18 @@ struct DashboardHubTests {
         #expect(cable.authenticated && wifi.authenticated)
         #expect(cable.sent.last == .ready(mode: .always, host: "Test Mac", powerLimits: limits, access: .onCable))
         #expect(wifi.sent.last == .ready(mode: .always, host: "Test Mac", powerLimits: limits, access: .overWiFi))
+    }
+
+    /// The Mac can be renamed while PhoneBox runs: every `ready` carries the name it has then.
+    @Test func readyCarriesTheMacsNameAsItIsNow() {
+        var name = "Old Name"
+        let hub = DashboardHub(mode: .always, key: key, appName: "PhoneBox test", hostName: { name }, powerLimits: limits,
+                               commands: runner, usbInterfaces: { ["anri1"] })
+        let before = connect(hub, onUSB: true)
+        name = "New Name"
+        let after = connect(hub, onUSB: true)
+        #expect(before.sent.last == .ready(mode: .always, host: "Old Name", powerLimits: limits, access: .onCable))
+        #expect(after.sent.last == .ready(mode: .always, host: "New Name", powerLimits: limits, access: .onCable))
     }
 
     @Test func runsACommandFromTheCableAndAcksIt() {
@@ -209,7 +221,7 @@ struct DashboardHubTests {
     }
 
     @Test func aWiFiPhoneThatConnectsWhileItIsOnGetsLockAndMusic() {
-        let hub = DashboardHub(mode: .always, lockAndMusicOverWiFi: true, key: key, appName: "PhoneBox test", hostName: "Test Mac",
+        let hub = DashboardHub(mode: .always, lockAndMusicOverWiFi: true, key: key, appName: "PhoneBox test", hostName: { "Test Mac" },
                                powerLimits: limits, commands: runner, usbInterfaces: { ["anri1"] })
         let wifi = connect(hub, onUSB: false)
         #expect(wifi.sent.last == .ready(mode: .always, host: "Test Mac", powerLimits: limits, access: .overWiFiWithLockAndMusic))
@@ -218,7 +230,7 @@ struct DashboardHubTests {
     }
 
     @Test func aWiFiPhoneMayLockOnlyOnceEvery30SecondsButTheCableIsNotLimited() {
-        let hub = DashboardHub(mode: .always, lockAndMusicOverWiFi: true, key: key, appName: "PhoneBox test", hostName: "Test Mac",
+        let hub = DashboardHub(mode: .always, lockAndMusicOverWiFi: true, key: key, appName: "PhoneBox test", hostName: { "Test Mac" },
                                powerLimits: limits, commands: runner, usbInterfaces: { ["anri1"] })
         let wifi = connect(hub, onUSB: false)
         hub.received(command(wifi, seq: 1, name: "lock", args: "{}"), from: wifi)
@@ -234,7 +246,7 @@ struct DashboardHubTests {
     }
 
     @Test func aConnectedWiFiPhoneLosesLockAndMusicInCableModeAndGetsThemBack() {
-        let hub = DashboardHub(mode: .always, lockAndMusicOverWiFi: true, key: key, appName: "PhoneBox test", hostName: "Test Mac",
+        let hub = DashboardHub(mode: .always, lockAndMusicOverWiFi: true, key: key, appName: "PhoneBox test", hostName: { "Test Mac" },
                                powerLimits: limits, commands: runner, usbInterfaces: { ["anri1"] })
         let wifi = connect(hub, onUSB: false)
         hub.mode = .cable
