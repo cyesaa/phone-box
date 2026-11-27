@@ -801,14 +801,18 @@ değişince sıfırlanır (aynı turdaki araçlar değiştirmez; bir ajanın ayn
 
 Onaylanan komut (0.4.1): izni hiçbir hook söylemez; onaylanan komut `PostToolUse`'a dek sürer. Bir ajan `Bash` izni
 beklerken PhoneBox oturumun `claude` işleminin çocuklarına bakar (`proc_listchildpids`, `proc_pidinfo` başlama zamanı,
-`proc_pidpath`). Yolu `bash` ya da `zsh` olan, o işlemdeki oturumların son olayından 0,5 sn'den sonra başlamış ve en az
-0,25 sn'dir çalışan bir çocuk onaylanan komuttur: işlemde ilk soran ajanın beklemesi biter, oturum Çalışıyor · Komut
-çalıştırıyor olur, komutun başlama zamanı oturumun son `at`'i sayılır (bildirimin geç gelen hook'u eski kalır).
-2026-11-27'de `ps` ile görüldü (masaüstü uygulaması ve terminal): komut kullanıcının kabuğunda, `claude`'un doğrudan
-çocuğu; `claude` ayrıca her an `git`, `security`, `caffeinate` başlatır, hook'lar olaylarıyla (kendileri ya da `sh`
-olarak) başlar. Sınırlar: onay son olaydan 0,5 sn içinde gelirse ya da aynı işlemde başka ajanlar olay üretmeyi
-sürdürürse görülmez (kart komut bitene dek İzin istiyor kalır); izlenmeyen bir olayın bash/zsh hook'u ya da bash/zsh
-bir durum satırı komutu bekleme sırasında başlarsa onay sanılır. Diğer araçların (Edit, Write, MCP) onayı görülmez.
+`sysctl` `KERN_PROCARGS2` argümanları; argümanlar yalnız bakılır, saklanmaz). Bir argümanında
+`/.claude/shell-snapshots/snapshot-` geçen (Claude Code'un Bash aracının kabuğu), o işlemdeki oturumların son olayından
+0,5 sn'den sonra başlamış ve en az 0,25 sn'dir çalışan bir çocuk onaylanan komuttur: işlemde ilk soran ajanın beklemesi
+biter, oturum Çalışıyor · Komut çalıştırıyor olur, komutun başlama zamanı oturumun son `at`'i sayılır (bildirimin geç
+gelen hook'u eski kalır). 2026-11-27'de görüldü (masaüstü uygulaması 2.1.330 ve terminal): komut kullanıcının
+kabuğunda, `claude`'un doğrudan çocuğu, `/bin/zsh -c source ~/.claude/shell-snapshots/snapshot-zsh-….sh … && …` (bash
+kullanıcısında `snapshot-bash-…`); `claude` ayrıca her an `git`, `security`, `caffeinate` başlatır, hook'lar ve durum
+satırı olaylarıyla kendileri ya da `sh -c` olarak başlar. macOS'ta `/bin/sh` bash çalıştırır: yürütülebilir dosyanın
+yolu bunları komuttan ayıramaz, argüman ayırır. Sınırlar: onay son olaydan 0,5 sn içinde gelirse, aynı işlemde başka
+ajanlar olay üretmeyi sürdürürse ya da Claude Code kabuğun anlık görüntüsünü alamadıysa görülmez (kart komut bitene dek
+İzin istiyor kalır); izin beklemeyen başka bir `Bash` komutu kendi olayından 0,5 sn'den geç başlarsa (ör. kullanıcının
+yavaş bir `PreToolUse` hook'u) onay sanılır. Diğer araçların (Edit, Write, MCP) onayı görülmez.
 
 Sıra: her hook ayrı bir işlem, iki olay birkaç ms arayla ters sırada gelebilir (`PermissionRequest` `PreToolUse`'dan
 önce; `Stop` `SessionEnd`'den sonra). İşlemler Claude Code'un hook'ları çalıştırdığı sırayla başlar, bu yüzden `at`

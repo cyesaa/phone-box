@@ -331,9 +331,14 @@ struct ClaudeMonitorTests {
         #expect(ClaudeHookForwarder.send(lines, to: socketPath))
         #expect(try await eventually { monitor.sessions.first?.reason == .permission })
         #expect(monitor.checksCommands)
-        // Its shell started 2 s after the request, and the user's own hook with the request.
-        children = [ClaudeSessions.ChildProcess(pid: 1, start: at + 100_000, path: "/bin/zsh"),
-                    ClaudeSessions.ChildProcess(pid: 2, start: at + 2_000_000, path: "/bin/zsh")]
+        // Its shell started 2 s after the request; a hook in a shell later still, and another command's shell with
+        // the request.
+        let shell = ["/bin/zsh", "-c", "source /Users/me/.claude/shell-snapshots/snapshot-zsh-1-a.sh && eval 'sleep 30'"]
+        children = [ClaudeSessions.ChildProcess(pid: 1, start: at + 100_000, arguments: shell),
+                    ClaudeSessions.ChildProcess(pid: 3, start: at + 1_500_000, arguments: ["/bin/sh", "-c", "notify.sh"])]
+        try await Task.sleep(for: .milliseconds(1_300))
+        #expect(monitor.sessions.first?.reason == .permission)
+        children.append(ClaudeSessions.ChildProcess(pid: 2, start: at + 2_000_000, arguments: shell))
         #expect(try await eventually { monitor.sessions.first?.state == .working })
         #expect(monitor.sessions.first?.activity == .command)
         #expect(!monitor.checksCommands)
@@ -347,9 +352,27 @@ struct ClaudeMonitorTests {
         try child.run()
         defer { child.terminate() }
         let found = try #require(ClaudeMonitor.children(of: getpid()).first { $0.pid == child.processIdentifier })
-        #expect(found.path == "/bin/sleep")
+        #expect(found.arguments == ["/bin/sleep", "10"])
         #expect(found.start >= before - 1_000_000 && found.start <= ClaudeHookForwarder.now(), "\(found.start) \(before)")
         #expect(ClaudeMonitor.children(of: 99_999_999).isEmpty)
+    }
+
+    /// `KERN_PROCARGS2`: the argument count, the executable's path and the NULs after it, then the arguments and the
+    /// environment.
+    @Test func readsAProcesssArgumentsFromTheKernelsLayout() {
+        func layout(_ count: Int32, _ text: String) -> Data {
+            withUnsafeBytes(of: count) { Data($0) } + Data(text.utf8)
+        }
+        #expect(ClaudeMonitor.arguments(fromProcArgs: layout(4, "/bin/zsh\0\0\0\0zsh\0-c\0a b\0\0PATH=/bin\0"))
+            == ["zsh", "-c", "a b", ""])
+        #expect(ClaudeMonitor.arguments(fromProcArgs: layout(1, "/bin/sleep\0/bin/sleep\0")) == ["/bin/sleep"])
+        #expect(ClaudeMonitor.arguments(fromProcArgs: layout(0, "/bin/sleep\0")) == [])
+        #expect(ClaudeMonitor.arguments(fromProcArgs: layout(3, "/bin/zsh\0zsh\0-c\0")) == nil)
+        #expect(ClaudeMonitor.arguments(fromProcArgs: layout(1, "/bin/zsh")) == nil)
+        #expect(ClaudeMonitor.arguments(fromProcArgs: layout(-1, "/bin/zsh\0")) == nil)
+        #expect(ClaudeMonitor.arguments(fromProcArgs: Data([1, 0])) == nil)
+        #expect(ClaudeMonitor.arguments(of: getpid())?.first == CommandLine.arguments.first)
+        #expect(ClaudeMonitor.arguments(of: 99_999_999) == nil)
     }
 
     @Test func theHelperGivesUpQuietlyWithoutPhoneBox() {

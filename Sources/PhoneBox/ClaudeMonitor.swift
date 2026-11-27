@@ -279,23 +279,57 @@ final class ClaudeMonitor {
         return kill(pid, 0) == 0 || errno == EPERM
     }
 
-    /// The child processes of `pid` with their start times and executables (libproc); none when they cannot be read.
+    /// The child processes of `pid` with their start times (libproc) and arguments; none when they cannot be read.
     nonisolated static func children(of pid: Int32) -> [ClaudeSessions.ChildProcess] {
         var pids = [pid_t](repeating: 0, count: 256)
         let count = pids.withUnsafeMutableBytes { proc_listchildpids(pid, $0.baseAddress, Int32($0.count)) }
         guard count > 0 else { return [] }
-        var path = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
         return pids.prefix(min(Int(count), pids.count)).compactMap { child in
             var info = proc_bsdinfo()
             let size = Int32(MemoryLayout<proc_bsdinfo>.size)
             // The child may have ended since it was listed, and its pid gone to another process.
             guard child > 0, proc_pidinfo(child, PROC_PIDTBSDINFO, 0, &info, size) == size,
-                  info.pbi_ppid == UInt32(bitPattern: pid), proc_pidpath(child, &path, UInt32(path.count)) > 0
+                  info.pbi_ppid == UInt32(bitPattern: pid), let arguments = arguments(of: child)
             else { return nil }
             return ClaudeSessions.ChildProcess(pid: child,
                                                start: Int64(info.pbi_start_tvsec) * 1_000_000 + Int64(info.pbi_start_tvusec),
-                                               path: String(cString: path))
+                                               arguments: arguments)
         }
+    }
+
+    /// The most bytes a process's arguments and environment take (`kern.argmax`).
+    private nonisolated static let argumentsSize: Int = {
+        var name: [Int32] = [CTL_KERN, KERN_ARGMAX]
+        var value: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        return sysctl(&name, u_int(name.count), &value, &size, nil, 0) == 0 && value > 0 ? Int(value) : 1 << 20
+    }()
+
+    /// The arguments `pid` was started with, its executable first (`sysctl` `KERN_PROCARGS2`); nil when they cannot be
+    /// read (the process ended, or is another user's). Looked at, never stored or logged: a shell's arguments hold its
+    /// command.
+    nonisolated static func arguments(of pid: Int32) -> [String]? {
+        var name: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
+        var buffer = [UInt8](repeating: 0, count: argumentsSize)
+        var size = buffer.count
+        guard pid > 0, sysctl(&name, u_int(name.count), &buffer, &size, nil, 0) == 0 else { return nil }
+        return arguments(fromProcArgs: Data(buffer.prefix(min(size, buffer.count))))
+    }
+
+    /// The arguments in `KERN_PROCARGS2`'s layout: their count (a 32-bit integer), the executable's path and the NULs
+    /// after it, then each argument ending in a NUL, then the environment. Nil when it holds fewer.
+    nonisolated static func arguments(fromProcArgs data: Data) -> [String]? {
+        guard data.count >= 4 else { return nil }
+        let count = data.prefix(4).withUnsafeBytes { $0.loadUnaligned(as: Int32.self) }
+        guard count >= 0, var index = data.dropFirst(4).firstIndex(of: 0) else { return nil }
+        while index < data.endIndex, data[index] == 0 { index += 1 }
+        var arguments: [String] = []
+        while arguments.count < Int(count) {
+            guard let end = data[index...].firstIndex(of: 0) else { return nil }
+            arguments.append(String(decoding: data[index..<end], as: UTF8.self))
+            index = end + 1
+        }
+        return arguments
     }
 
     /// The last `tailBytes` of a regular file.

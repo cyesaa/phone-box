@@ -284,8 +284,13 @@ struct ClaudeSessionsTests {
 
     // MARK: An approved command
 
-    static func child(_ pid: Int32 = 900, start: Int64, path: String = "/bin/zsh") -> ClaudeSessions.ChildProcess {
-        ClaudeSessions.ChildProcess(pid: pid, start: start, path: path)
+    /// The shell of a command of Claude Code's Bash tool, as `ps` showed one in the desktop app (2.1.330, 2026-11-27):
+    /// the user's shell, which first reads Claude Code's snapshot of the user's shell settings.
+    static let commandShell = ["/bin/zsh", "-c", "source /Users/me/.claude/shell-snapshots/snapshot-zsh-1795782584892-4n14zc.sh"
+                               + " 2>/dev/null || true && \\builtin eval 'sleep 30' < /dev/null"]
+
+    static func child(_ pid: Int32 = 900, start: Int64, arguments: [String] = commandShell) -> ClaudeSessions.ChildProcess {
+        ClaudeSessions.ChildProcess(pid: pid, start: start, arguments: arguments)
     }
 
     /// `applyApprovals` outside `#expect`, which cannot hold a mutating call.
@@ -294,9 +299,9 @@ struct ClaudeSessionsTests {
     }
 
     /// No hook says that the user approved a command (bughunt #3): its shell starting as a child of the session's
-    /// process does. Hooks start with their event, so only a child that started well after the session's last event
-    /// counts, and only once it has run a moment (an event of its time may still be on its way).
-    @Test func aShellStartedAfterTheLastEventIsTheApprovedCommand() {
+    /// process does. Another agent's command starts with its event, so only a child that started well after the
+    /// session's last event counts, and only once it has run a moment (an event of its time may still be on its way).
+    @Test func aCommandShellStartedAfterTheLastEventIsTheApprovedCommand() {
         let last: Int64 = 10_000_000
         func found(_ children: [ClaudeSessions.ChildProcess], settled: Int64 = 60_000_000) -> Int32? {
             ClaudeSessions.approvedCommand(lastEvent: last, children: children, startedBy: settled)?.pid
@@ -306,18 +311,26 @@ struct ClaudeSessionsTests {
         #expect(found([Self.child(start: last - 5_000_000)]) == nil)
         #expect(found([Self.child(start: last + 600_000)], settled: last + 550_000) == nil)
         #expect(found([Self.child(start: last + 600_000)], settled: last + 600_000) == 900)
-        // The command runs in the user's shell. Claude Code also starts git, security (the keychain) and caffeinate
-        // at any time, and hooks with their events: PhoneBox's helper, a script, or `sh` running a longer command.
-        for path in ["/bin/bash", "/opt/homebrew/bin/bash", "/usr/local/bin/zsh"] {
-            #expect(found([Self.child(start: last + 600_000, path: path)]) == 900, "\(path)")
+        // The command runs in the user's shell, zsh or bash, which reads Claude Code's snapshot first.
+        for arguments in [["/bin/bash", "-c", "source /Users/me/.claude/shell-snapshots/snapshot-bash-1795782584892-ab12cd.sh"
+                           + " 2>/dev/null || true && eval 'make test' < /dev/null"],
+                          ["/opt/homebrew/bin/bash", "-c", "source /Users/me/.claude/shell-snapshots/snapshot-bash-1-x.sh && eval 'ls'"]] {
+            #expect(found([Self.child(start: last + 600_000, arguments: arguments)]) == 900, "\(arguments)")
         }
-        for path in ["/Applications/PhoneBox.app/Contents/MacOS/PhoneBox", "/usr/bin/caffeinate", "/usr/bin/git",
-                     "/usr/bin/security", "/bin/sh", "/usr/local/bin/node", "", "zsh-x"] {
-            #expect(found([Self.child(start: last + 600_000, path: path)]) == nil, "\(path)")
+        // Hooks and the status line run in a shell too (macOS's `sh` is bash: its path cannot tell them apart), or as
+        // themselves; Claude Code also starts git, security (the keychain) and caffeinate at any time. Arguments that
+        // cannot be read are none.
+        for arguments in [["/bin/sh", "-c", "\"/Applications/PhoneBox.app/Contents/MacOS/PhoneBox\" --claude-hook"],
+                          ["/Applications/PhoneBox.app/Contents/MacOS/PhoneBox", "--claude-hook"],
+                          ["/bin/sh", "-c", "afplay /System/Library/Sounds/Glass.aiff"],
+                          ["/bin/zsh", "-c", "~/.claude/statusline.sh"],
+                          ["/usr/bin/caffeinate", "-i", "-t", "300"], ["/usr/bin/git", "status"],
+                          ["/usr/bin/security", "find-generic-password", "-s", "Claude Code"], []] {
+            #expect(found([Self.child(start: last + 600_000, arguments: arguments)]) == nil, "\(arguments)")
         }
         // The first of several.
         #expect(found([Self.child(901, start: last + 900_000), Self.child(902, start: last + 700_000),
-                       Self.child(903, start: last + 650_000, path: "/usr/bin/caffeinate")]) == 902)
+                       Self.child(903, start: last + 650_000, arguments: ["/usr/bin/caffeinate", "-i"])]) == 902)
     }
 
     @Test func anApprovedCommandWorks() {

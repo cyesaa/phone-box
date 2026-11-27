@@ -47,22 +47,27 @@ public struct ClaudeSessions: Sendable {
         public var pid: Int32
         /// When it started, in microseconds since 1970: the clock of an event's `at`.
         public var start: Int64
-        public var path: String
+        /// What it was started with, its executable first; empty when they cannot be read.
+        public var arguments: [String]
 
-        public init(pid: Int32, start: Int64, path: String) {
+        public init(pid: Int32, start: Int64, arguments: [String]) {
             self.pid = pid
             self.start = start
-            self.path = path
+            self.arguments = arguments
         }
     }
 
-    /// A child that starts within this many microseconds of an event may be one of that event's hooks.
-    public static let hookStartMargin: Int64 = 500_000
+    /// A command shell that starts within this many microseconds of an event may be that event's own command (another
+    /// agent's tool).
+    public static let eventStartMargin: Int64 = 500_000
     /// A child counts once it has run this many microseconds: an event of its time may still be on its way.
     public static let childSettling: Int64 = 250_000
-    /// What Claude Code runs a command in: the user's shell, bash or zsh. `claude` also starts `git`, `security` and
-    /// `caffeinate` at any time, and hooks (through `sh`, or as themselves) with their events (seen 2026-11-27).
-    static let shells: Set<String> = ["bash", "zsh"]
+    /// In an argument of every shell Claude Code runs a command of its Bash tool in: the user's shell (zsh or bash)
+    /// first reads Claude Code's snapshot of the user's shell settings (`zsh -c source
+    /// ~/.claude/shell-snapshots/snapshot-zsh-….sh … && …`, seen with 2.1.330 on 2026-11-27). Hooks and the status line
+    /// run in a plain `sh -c` (bash on macOS) or as themselves, and the `git`, `security` and `caffeinate` that `claude`
+    /// starts at any time without it.
+    static let commandShellMark = "/.claude/shell-snapshots/snapshot-"
 
     /// What a session does apart from its agents' waits: ready, working, or waiting for its turn.
     private struct Mode: Codable, Sendable {
@@ -240,15 +245,13 @@ public struct ClaudeSessions: Sendable {
         entries[event.session] = entry
     }
 
-    /// The first shell among `children` that started more than `hookStartMargin` after `lastEvent` and no later than
-    /// `startedBy` (µs): the command the user approved, as no hook of the session's events is one. Nil when there is
-    /// none.
+    /// The first command shell of Claude Code (`commandShellMark`) among `children` that started more than
+    /// `eventStartMargin` after `lastEvent` and no later than `startedBy` (µs): the command the user approved, as the
+    /// command of no event since is one. Nil when there is none.
     public static func approvedCommand(lastEvent: Int64, children: [ChildProcess], startedBy: Int64) -> ChildProcess? {
         children.filter { child in
-            guard child.start > lastEvent + hookStartMargin, child.start <= startedBy,
-                  let name = child.path.split(separator: "/").last
-            else { return false }
-            return shells.contains(String(name))
+            child.start > lastEvent + eventStartMargin && child.start <= startedBy
+                && child.arguments.contains { $0.contains(commandShellMark) }
         }.min { ($0.start, $0.pid) < ($1.start, $1.pid) }
     }
 
