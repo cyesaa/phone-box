@@ -47,8 +47,9 @@ final class DashboardHub {
     /// device without the key can hold only these, never the places of the phones that have it.
     static let maxPendingPerAddress = 2
     static let maxPending = 8
-    /// Close code for a phone that authenticated while `maxClients` others had: the page tries again later.
-    static let busyCode: UInt16 = 1013
+    /// Close code for a phone that authenticated while `maxClients` others had. In the app's own range (4000–4999),
+    /// which every browser accepts; the page treats it like any other close and tries again later.
+    static let busyCode: UInt16 = 4004
     static let authTimeout: TimeInterval = 5
     /// Close code that tells the page to reconnect at once (to come back over the cable).
     static let reconnectCode: UInt16 = 4002
